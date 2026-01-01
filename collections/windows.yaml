@@ -1,0 +1,2691 @@
+version: "3.2.2"
+author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
+website: "https://privwarden.org"
+repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
+description: |
+  PrivacyWarden hardening collection for Windows 10/11.
+  Designed for streamers, VTubers, and content creators who face elevated
+  threat levels including doxxing, swatting, IP grabbing, and account takeover.
+  Requires: PowerShell 5.1+, Administrator privileges.
+
+scripting:
+  language: powershell
+  startCode: |
+    #Requires -RunAsAdministrator
+    $ErrorActionPreference = "Continue"
+    Write-Host ""
+    Write-Host "PrivacyWarden -- Security Hardening v3.0" -ForegroundColor Cyan
+    Write-Host "Mode: Apply" -ForegroundColor Cyan
+    Write-Host ""
+  endCode: |
+    Write-Host ""
+    Write-Host "================================================" -ForegroundColor Cyan
+    Write-Host "Hardening Complete" -ForegroundColor Cyan
+    Write-Host "Reboot recommended." -ForegroundColor Yellow
+    Write-Host "================================================" -ForegroundColor Cyan
+
+# ============================================================
+# REUSABLE FUNCTION LIBRARY
+# Inspired by privacy.sexy's template engine architecture.
+# Each function defines a parameterized PowerShell template.
+# Steps call functions with parameters instead of inline code.
+# ============================================================
+functions:
+
+  - name: SetRegistryValue
+    parameters:
+      - name: keyPath
+        description: "Full registry key path (e.g. HKLM:\\Software\\Policies\\...)"
+      - name: valueName
+        description: "Registry value name"
+      - name: data
+        description: "Value to set"
+      - name: type
+        description: "Registry type: DWORD, String, ExpandString, Binary, MultiString, QWord"
+        default: "DWORD"
+      - name: dataOnRevert
+        description: "Value to restore on revert (omit to delete on revert)"
+        optional: true
+      - name: deleteOnRevert
+        description: "If true, delete the value on revert instead of restoring"
+        default: "false"
+    code: |
+      if (-not (Test-Path "{{ keyPath }}")) {
+        New-Item -Path "{{ keyPath }}" -Force | Out-Null
+      }
+      Set-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -Value {{ data }} -Type {{ type }} -Force -ErrorAction SilentlyContinue
+    checkCode: |
+      $__check = Get-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -ErrorAction SilentlyContinue
+      if ($null -ne $__check -and $__check."{{ valueName }}" -eq {{ data }}) {
+        Write-Host "    [OK] {{ valueName }} = {{ data }}" -ForegroundColor Green
+      } else {
+        Write-Host "    [MISSING] {{ valueName }} not set to {{ data }} (current: $($__check.'{{ valueName }}'))" -ForegroundColor Yellow
+      }
+    revertCode: |
+      Remove-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -ErrorAction SilentlyContinue
+
+  - name: DeleteRegistryKey
+    parameters:
+      - name: keyPath
+        description: "Full registry key path to delete"
+    code: |
+      Remove-Item -Path "{{ keyPath }}" -Recurse -Force -ErrorAction SilentlyContinue
+    checkCode: |
+      if (-not (Test-Path "{{ keyPath }}")) {
+        Write-Host "    [OK] Registry key does not exist (deleted)" -ForegroundColor Green
+      } else {
+        Write-Host "    [MISSING] Registry key still exists: {{ keyPath }}" -ForegroundColor Yellow
+      }
+    revertCode: |
+      New-Item -Path "{{ keyPath }}" -Force | Out-Null
+
+  - name: DisableService
+    parameters:
+      - name: serviceName
+        description: "Windows service name"
+      - name: startupTypeOnRevert
+        description: "Startup type to restore on revert"
+        default: "Automatic"
+    code: |
+      Stop-Service "{{ serviceName }}" -Force -ErrorAction SilentlyContinue
+      Set-Service "{{ serviceName }}" -StartupType Disabled -ErrorAction SilentlyContinue
+    checkCode: |
+      $__svc = Get-Service "{{ serviceName }}" -ErrorAction SilentlyContinue
+      if ($null -eq $__svc) {
+        Write-Host "    [OK] Service {{ serviceName }} does not exist" -ForegroundColor Green
+      } elseif ($__svc.StartupType -eq "Disabled") {
+        Write-Host "    [OK] Service {{ serviceName }} is disabled" -ForegroundColor Green
+      } else {
+        Write-Host "    [MISSING] Service {{ serviceName }} is not disabled (StartupType: $($__svc.StartupType))" -ForegroundColor Yellow
+      }
+    revertCode: |
+      Set-Service "{{ serviceName }}" -StartupType {{ startupTypeOnRevert }} -ErrorAction SilentlyContinue
+      Start-Service "{{ serviceName }}" -ErrorAction SilentlyContinue
+
+  - name: DisableScheduledTask
+    parameters:
+      - name: taskPath
+        description: "Full task path including folder (e.g. \\Microsoft\\Windows\\AppID\\SmartScreenSpecific)"
+    code: |
+      $__taskName = Split-Path "{{ taskPath }}" -Leaf
+      $__taskFolder = Split-Path "{{ taskPath }}" -Parent
+      Disable-ScheduledTask -TaskName $__taskName -TaskPath $__taskFolder -ErrorAction SilentlyContinue | Out-Null
+    checkCode: |
+      $__taskName = Split-Path "{{ taskPath }}" -Leaf
+      $__taskFolder = Split-Path "{{ taskPath }}" -Parent
+      $__task = Get-ScheduledTask -TaskName $__taskName -TaskPath "$__taskFolder\" -ErrorAction SilentlyContinue
+      if ($null -eq $__task) {
+        Write-Host "    [OK] Task {{ taskPath }} does not exist" -ForegroundColor Green
+      } elseif ($__task.State -eq "Disabled") {
+        Write-Host "    [OK] Task {{ taskPath }} is disabled" -ForegroundColor Green
+      } else {
+        Write-Host "    [MISSING] Task {{ taskPath }} is not disabled (State: $($__task.State))" -ForegroundColor Yellow
+      }
+    revertCode: |
+      $__taskName = Split-Path "{{ taskPath }}" -Leaf
+      $__taskFolder = Split-Path "{{ taskPath }}" -Parent
+      Enable-ScheduledTask -TaskName $__taskName -TaskPath $__taskFolder -ErrorAction SilentlyContinue | Out-Null
+
+  - name: BlockViaHostsFile
+    parameters:
+      - name: domain
+        description: "Domain to block"
+      - name: comment
+        description: "Comment tag for grouped removal (e.g. # PrivacyWarden-IPGrabbers)"
+        optional: true
+    code: |
+      $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+      $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+      if ($__hostsContent -notmatch [regex]::Escape("{{ domain }}")) {
+        $__entry = "0.0.0.0 {{ domain }}"
+        if ("{{ comment }}") { $__entry = "$__entry  {{ comment }}" }
+        [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__entry")
+      }
+    checkCode: |
+      $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+      $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+      if ($__hostsContent -match [regex]::Escape("{{ domain }}")) {
+        Write-Host "    [OK] {{ domain }} is blocked" -ForegroundColor Green
+      } else {
+        Write-Host "    [MISSING] {{ domain }} is not blocked" -ForegroundColor Yellow
+      }
+    revertCode: |
+      $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+      $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+      $__filtered = $__lines | Where-Object { $_ -notmatch [regex]::Escape("{{ domain }}") }
+      [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+
+  - name: RunPowerShell
+    parameters:
+      - name: code
+        description: "PowerShell code to run for Apply"
+      - name: checkCode
+        description: "PowerShell code to run for Check/Audit"
+      - name: revertCode
+        description: "PowerShell code to run for Undo/Revert"
+    code: "{{ code }}"
+    checkCode: "{{ checkCode }}"
+    revertCode: "{{ revertCode }}"
+
+actions:
+
+  # ============================================================
+  - category: Network Privacy
+    description: "Stops credential capture, proxy hijacking, IPv6 tunneling, and DNS leaks on shared or hostile networks."
+    children:
+
+      - id: NET01
+        name: "Disable LLMNR (Link-Local Multicast Name Resolution)"
+        description: "Stops link-local name resolution — prevents credential capture on shared networks. Attackers use LLMNR spoofing to intercept credentials and gain system access."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
+        docs: |
+          LLMNR (Link-Local Multicast Name Resolution) is a protocol that allows hosts to perform name resolution
+          for hosts on the same local link without requiring a DNS server [1].
+
+          Attackers exploit LLMNR by responding to broadcast queries with spoofed responses,
+          capturing NTLMv2 hashes which can be cracked offline or used in pass-the-hash attacks [2] [3].
+
+          MITRE ATT&CK classifies this as T1557.001 (Adversary-in-the-Middle: LLMNR/NBT-NS Poisoning) [2].
+          Microsoft recommends disabling LLMNR in environments where it is not needed [4].
+
+          > **Caution:** If your network relies on LLMNR for name resolution (rare in modern environments),
+          > disabling this may affect local hostname resolution.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-llmnrp "MS-LLMNRP: Link-Local Multicast Name Resolution Protocol | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1557/001/ "T1557.001: LLMNR/NBT-NS Poisoning and SMB Relay | MITRE ATT&CK"
+          [3]: https://web.archive.org/web/20240101000000/https://www.sternsecurity.com/blog/local-network-attacks-llmnr-and-nbt-ns-poisoning "Local Network Attacks: LLMNR and NBT-NS Poisoning | Stern Security"
+          [4]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/dn946906(v=ws.11) "Securing LLMNR | Microsoft Learn"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows NT\\DNSClient"
+            valueName: "EnableMulticast"
+            data: 0
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: NET02
+        name: "Disable NetBIOS over TCP/IP"
+        description: "Prevents NetBIOS name poisoning attacks on all network interfaces."
+        recommend: standard,streamer,vtuber,network,paranoid,minimal
+        risk: low
+        docs: |
+          NetBIOS over TCP/IP is a legacy protocol primarily used for backward compatibility with older Windows systems [1].
+          NetBIOS and LLMNR are susceptible to spoofing and man-in-the-middle attacks [2] [3] [4],
+          risking credential capture and unauthorized network access.
+
+          The script disables NetBIOS by iterating all network interfaces and setting
+          `NetbiosOptions` to `2` (disabled) in the registry [5].
+
+          > **Caution:** This may cause compatibility issues with older devices or software
+          > that rely on NetBIOS for network discovery.
+
+          [1]: https://web.archive.org/web/20240218210552/https://bobcares.com/blog/disable-netbios-and-llmnr-protocols-in-windows-using-gpo/ "Disable NetBIOS and LLMNR Protocols in Windows Using GPO | bobcares.com"
+          [2]: https://attack.mitre.org/techniques/T1557/001/ "T1557.001: LLMNR/NBT-NS Poisoning | MITRE ATT&CK"
+          [3]: https://web.archive.org/web/20240218210736/https://4sysops.com/archives/disable-netbios-in-windows-networks/ "Disable NetBIOS in Windows networks | 4sysops.com"
+          [4]: https://web.archive.org/web/20240218211817/https://www.sternsecurity.com/blog/local-network-attacks-llmnr-and-nbt-ns-poisoning/ "Local Network Attacks: LLMNR and NBT-NS Poisoning | Stern Security"
+          [5]: https://web.archive.org/web/20240218210626/https://learn.microsoft.com/en-us/archive/msdn-technet-forums/c5f3c095-1ad2-4963-b075-787f800b81f2 "Disabling NETBIOS via GP | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__key = 'HKLM:\SYSTEM\CurrentControlSet\services\NetBT\Parameters\Interfaces'
+              Get-ChildItem $__key -ErrorAction SilentlyContinue | ForEach-Object {
+                Set-ItemProperty -Path "$__key\$($_.PSChildName)" -Name NetbiosOptions -Value 2 -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] NetBIOS disabled on all interfaces" -ForegroundColor Green
+            checkCode: |
+              $__key = 'HKLM:\SYSTEM\CurrentControlSet\services\NetBT\Parameters\Interfaces'
+              $__interfaces = Get-ChildItem $__key -ErrorAction SilentlyContinue
+              $__disabled = ($__interfaces | Where-Object { (Get-ItemProperty "$__key\$($_.PSChildName)" -Name NetbiosOptions -ErrorAction SilentlyContinue).NetbiosOptions -eq 2 }).Count
+              if ($__disabled -eq $__interfaces.Count -and $__interfaces.Count -gt 0) {
+                Write-Host "    [OK] NetBIOS is disabled on all $__disabled interface(s)" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] NetBIOS is not fully disabled ($__disabled/$($__interfaces.Count) interfaces)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__key = 'HKLM:\SYSTEM\CurrentControlSet\services\NetBT\Parameters\Interfaces'
+              Get-ChildItem $__key -ErrorAction SilentlyContinue | ForEach-Object {
+                Set-ItemProperty -Path "$__key\$($_.PSChildName)" -Name NetbiosOptions -Value 0 -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] NetBIOS settings reverted" -ForegroundColor Green
+
+      - id: NET03
+        name: "Disable WPAD (Web Proxy Auto-Discovery)"
+        description: "Blocks Web Proxy Auto-Discovery — prevents proxy hijacking attacks."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
+        docs: |
+          WPAD (Web Proxy Auto-Discovery Protocol) allows browsers to automatically discover proxy settings [1].
+          Attackers can exploit WPAD to redirect traffic through a malicious proxy,
+          enabling man-in-the-middle attacks and credential interception [2].
+
+          > **Caution:** If your organization uses WPAD for automatic proxy configuration,
+          > disabling this will prevent automatic proxy discovery.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/internet-explorer/ie11-ieak/auto-detection-dhcp-or-dns-server-ie11 "Auto-detection using DHCP or DNS server | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1557/ "T1557: Adversary-in-the-Middle | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Wpad"
+            valueName: "WpadOverride"
+            data: 1
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: NET04
+        name: "Disable Teredo and 6to4 (IPv6 tunneling)"
+        description: "Removes IPv6 tunneling protocols that can bypass firewall rules."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
+        docs: |
+          Teredo and 6to4 are IPv6 transition mechanisms that tunnel IPv6 traffic over IPv4 networks [1].
+          These protocols can bypass IPv4 firewall rules since firewalls may not inspect tunneled IPv6 traffic [2].
+          Attackers can use these tunnels to exfiltrate data or establish covert channels [3].
+
+          > **Caution:** If you rely on IPv6 connectivity through these tunneling protocols,
+          > disabling them may affect IPv6 connectivity.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-r2-and-2008/dd379548(v=ws.10) "Teredo Overview | Microsoft Learn"
+          [2]: https://web.archive.org/web/20240101000000/https://www.nsa.gov/portals/75/documents/what-we-do/cybersecurity/professional-resources/ctr-ipv6-security-guidance.pdf "IPv6 Security Guidance | NSA"
+          [3]: https://attack.mitre.org/techniques/T1572/ "T1572: Protocol Tunneling | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              netsh interface ipv6 set teredo disabled | Out-Null
+              netsh interface ipv6 set 6to4 state=disabled | Out-Null
+              netsh interface ipv6 set isatap state=disabled | Out-Null
+              Write-Host "    [OK] IPv6 tunneling (Teredo/6to4/ISATAP) disabled" -ForegroundColor Green
+            checkCode: |
+              $__teredo = (netsh interface ipv6 show teredo) -join " "
+              if ($__teredo -match "disabled") {
+                Write-Host "    [OK] IPv6 tunneling is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] IPv6 tunneling is not fully disabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              netsh interface ipv6 set teredo default | Out-Null
+              netsh interface ipv6 set 6to4 state=enabled | Out-Null
+              netsh interface ipv6 set isatap state=enabled | Out-Null
+              Write-Host "    [OK] IPv6 tunneling settings reverted" -ForegroundColor Green
+
+      - id: NET05
+        name: "Harden Windows Firewall (all profiles)"
+        description: "Enables all profiles, sets default inbound to Block, enables dropped-packet logging."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
+        docs: |
+          Windows Firewall provides host-based packet filtering for inbound and outbound traffic [1].
+          Hardening the firewall by blocking all inbound connections by default reduces the attack surface
+          significantly, particularly for network-based exploitation [2].
+
+          The NSA and CIS Benchmarks recommend enabling all firewall profiles with default-deny inbound [3] [4].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/security/threat-protection/windows-firewall/windows-firewall-with-advanced-security "Windows Defender Firewall | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1190/ "T1190: Exploit Public-Facing Application | MITRE ATT&CK"
+          [3]: https://web.archive.org/web/20240101000000/https://media.defense.gov/2021/Aug/03/2002820425/-1/-1/1/CTR_WINDOWS10_SECURITY_TECHNICAL_IMPLEMENTATION_GUIDE_20210803.PDF "Windows 10 Security Technical Implementation Guide | NSA"
+          [4]: https://www.cisecurity.org/cis-benchmarks "CIS Benchmarks | Center for Internet Security"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -DefaultInboundAction Block -DefaultOutboundAction Allow -LogAllowed False -LogBlocked True -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Firewall hardened on all profiles" -ForegroundColor Green
+            checkCode: |
+              $__fw = Get-NetFirewallProfile -Profile Domain,Public,Private -ErrorAction SilentlyContinue
+              $__allEnabled = ($__fw | Where-Object { $_.Enabled -eq $true }).Count -eq 3
+              $__allBlocking = ($__fw | Where-Object { $_.DefaultInboundAction -eq "Block" }).Count -eq 3
+              if ($__allEnabled -and $__allBlocking) {
+                Write-Host "    [OK] Firewall is hardened on all profiles" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Firewall is not fully hardened (enabled: $($__fw | Where-Object { $_.Enabled } | Measure-Object | Select-Object -ExpandProperty Count)/3)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction NotConfigured -DefaultOutboundAction NotConfigured -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Firewall settings reverted" -ForegroundColor Green
+
+      - id: NET06
+        name: "Disable Delivery Optimization P2P"
+        description: "Stops Windows from uploading your bandwidth to other users for updates."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows Delivery Optimization uses a peer-to-peer protocol to distribute Windows updates,
+          uploading data from your device to other users on the internet [1].
+          This consumes bandwidth, exposes your IP address to peers, and creates unnecessary network activity [2].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization "Delivery Optimization for Windows updates | Microsoft Learn"
+          [2]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/manage-windows-11-endpoints "Manage connections from Windows 11 to Microsoft services | Microsoft Learn"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows\\DeliveryOptimization"
+            valueName: "DODownloadMode"
+            data: 1
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: NET07
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        name: "Redirect NTP to NIST / NTP Pool"
+        description: "Replaces Microsoft time servers with privacy-respecting alternatives."
+        docs: |
+          Windows uses time.windows.com by default for time synchronization, sending requests to Microsoft servers [1].
+          Replacing with NIST (time.nist.gov) and the NTP Pool Project (pool.ntp.org) improves privacy
+          by removing Microsoft from your time synchronization path.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows-server/networking/windows-time-service/windows-time-service-tools-and-settings "Windows Time Service Tools and Settings | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\W32Time\Parameters" -Name "NtpServer" -Value "time.nist.gov,0x9 pool.ntp.org,0x9" -ErrorAction SilentlyContinue
+              w32tm /config /update | Out-Null
+              Write-Host "    [OK] NTP redirected to NIST/NTP Pool" -ForegroundColor Green
+            checkCode: |
+              $__ntp = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\W32Time\Parameters" -Name "NtpServer" -ErrorAction SilentlyContinue
+              if ($__ntp.NtpServer -like "*nist*" -or $__ntp.NtpServer -like "*pool.ntp*") {
+                Write-Host "    [OK] NTP is set to NIST/NTP Pool" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] NTP is still using Microsoft servers ($($__ntp.NtpServer))" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\W32Time\Parameters" -Name "NtpServer" -Value "time.windows.com,0x9" -ErrorAction SilentlyContinue
+              w32tm /config /update | Out-Null
+              Write-Host "    [OK] NTP reverted to time.windows.com" -ForegroundColor Green
+
+      - id: NET08
+        name: "Disable browser DoH overrides (Chrome/Edge)"
+        description: "Prevents Chrome and Edge from bypassing your system DNS with their own DoH."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Chrome and Edge can override system DNS settings with their own DNS-over-HTTPS (DoH) providers,
+          bypassing VPN DNS settings and potentially leaking DNS queries [1] [2].
+          This is a known DNS leak vector for VPN users and streamers who rely on DNS-level blocking.
+
+          > **Caution:** This disables browser-level DoH. If you rely on browser DoH for privacy,
+          > configure DoH at the system or router level instead.
+
+          [1]: https://web.archive.org/web/20240101000000/https://support.google.com/chrome/a/answer/9027936 "Manage DNS-over-HTTPS in Chrome | Google Support"
+          [2]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies#dnsoverhttpsmode "DnsOverHttpsMode policy | Microsoft Edge"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              if (-not (Test-Path "HKLM:\Software\Policies\Google\Chrome")) { New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -Value "off" -Type String -Force -ErrorAction SilentlyContinue
+              if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Edge")) { New-Item -Path "HKLM:\Software\Policies\Microsoft\Edge" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -Value "off" -Type String -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser DoH overrides disabled" -ForegroundColor Green
+            checkCode: |
+              $__chrome = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+              $__edge = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+              $__chromeOk = ($null -eq $__chrome -or $__chrome.DnsOverHttpsMode -eq "off")
+              $__edgeOk = ($null -eq $__edge -or $__edge.DnsOverHttpsMode -eq "off")
+              if ($__chromeOk -and $__edgeOk) {
+                Write-Host "    [OK] Browser DoH is disabled for Chrome and Edge" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Browser DoH is not fully disabled (Chrome: $(-not $__chromeOk), Edge: $(-not $__edgeOk))" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser DoH settings reverted" -ForegroundColor Green
+
+      - id: NET09
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        name: "Disable OS-level DoH/DoT overrides"
+        description: "Prevents Windows from overriding your DNS with encrypted DNS without your knowledge."
+        docs: |
+          Windows 11 introduced OS-level DNS-over-HTTPS (DoH) support that can override configured DNS settings [1].
+          This can bypass VPN DNS configurations and cause DNS leaks if not explicitly controlled.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows-server/networking/dns/doh-client-support "DNS over HTTPS client support in Windows | Microsoft Learn"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\System\\CurrentControlSet\\Services\\Dnscache\\Parameters"
+            valueName: "EnableDOH"
+            data: 0
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: NET10
+        name: "DNS leak prevention (disable smart name resolution)"
+        description: "Ensures all DNS queries use your configured DNS server. DNS leaks reveal your real IP even when using a VPN."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows Smart Multi-Homed Name Resolution sends DNS queries to multiple DNS servers simultaneously
+          and uses the first response, which can bypass VPN DNS settings and leak DNS queries [1] [2].
+
+          This is a critical privacy issue for VPN users — DNS leaks can reveal your real IP address
+          and browsing activity even when connected to a VPN [3].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/dn593685(v=ws.11) "Smart Multi-Homed Name Resolution | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1557/ "T1557: Adversary-in-the-Middle | MITRE ATT&CK"
+          [3]: https://web.archive.org/web/20240101000000/https://www.dnsleaktest.com/ "DNS Leak Test | dnsleaktest.com"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows NT\\DNSClient"
+            valueName: "DisableSmartNameResolution"
+            data: 1
+            type: DWORD
+            deleteOnRevert: "true"
+
+  # ============================================================
+  - category: Telemetry & Tracking
+    description: "Disables Microsoft data collection, advertising IDs, Cortana, Recall AI, and telemetry scheduled tasks."
+    children:
+
+      - id: TEL01
+        name: "Disable DiagTrack + WAP Push service"
+        description: "Stops the main Windows telemetry service and WAP push message routing."
+        recommend: standard,streamer,vtuber,network,paranoid,minimal
+        risk: low
+        docs: |
+          The Connected User Experiences and Telemetry service (DiagTrack) collects diagnostic data
+          and sends it to Microsoft [1]. The WAP Push Message Routing Service (dmwappushservice)
+          routes WAP push messages used by mobile device management [2].
+
+          Disabling these services stops the primary telemetry data collection pipeline.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/configure-windows-diagnostic-data-in-your-organization "Configure Windows diagnostic data | Microsoft Learn"
+          [2]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/manage-windows-11-endpoints "Manage connections from Windows 11 to Microsoft services | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
+              Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
+              Stop-Service dmwappushservice -Force -ErrorAction SilentlyContinue
+              Set-Service dmwappushservice -StartupType Disabled -ErrorAction SilentlyContinue
+              Write-Host "    [OK] DiagTrack and WAP Push service disabled" -ForegroundColor Green
+            checkCode: |
+              $__dt = Get-Service DiagTrack -ErrorAction SilentlyContinue
+              if ($null -eq $__dt -or $__dt.StartupType -eq "Disabled") {
+                Write-Host "    [OK] DiagTrack is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] DiagTrack is not disabled (StartupType: $($__dt.StartupType))" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Set-Service DiagTrack -StartupType Automatic -ErrorAction SilentlyContinue
+              Start-Service DiagTrack -ErrorAction SilentlyContinue
+              Set-Service dmwappushservice -StartupType Automatic -ErrorAction SilentlyContinue
+              Start-Service dmwappushservice -ErrorAction SilentlyContinue
+              Write-Host "    [OK] DiagTrack and WAP Push service reverted" -ForegroundColor Green
+
+      - id: TEL02
+        name: "Disable Advertising ID"
+        description: "Stops Windows from assigning you an ad tracking ID used across apps."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows assigns each user an Advertising ID that apps use to track behavior across sessions [1].
+          This ID is shared with app developers and advertisers to build behavioral profiles.
+          Disabling it prevents cross-app tracking.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/manage-windows-11-endpoints "Manage connections from Windows 11 to Microsoft services | Microsoft Learn"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows\\AdvertisingInfo"
+            valueName: "DisabledForUser"
+            data: 1
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: TEL03
+        name: "Disable Activity History / Timeline"
+        description: "Stops Windows from recording and syncing your app usage history to Microsoft."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows Activity History records app usage, files opened, and websites visited,
+          syncing this data to Microsoft for the Timeline feature [1].
+          This creates a detailed behavioral profile stored in Microsoft's cloud.
+
+          [1]: https://web.archive.org/web/20240101000000/https://support.microsoft.com/en-us/windows/activity-history-and-your-privacy-2b279964-44ec-8c2f-e0c2-6779b07d2cbd "Activity history and your privacy | Microsoft Support"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows\\System"
+            valueName: "PublishUserActivities"
+            data: 0
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: TEL04
+        name: "Disable Cloud Content & App Suggestions"
+        description: "Stops Microsoft from pushing sponsored app suggestions into your Start menu."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows Consumer Features push sponsored app suggestions, tips, and advertisements
+          into the Start menu and other UI elements [1].
+          Disabling this removes Microsoft-curated content and advertising from the UI.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/configuration/windows-spotlight "Windows Spotlight | Microsoft Learn"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows\\CloudContent"
+            valueName: "DisableWindowsConsumerFeatures"
+            data: 1
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: TEL05
+        name: "Disable Cortana"
+        description: "Disables Cortana search assistant and its associated data collection."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Cortana is Microsoft's AI assistant that collects voice, text, and behavioral data [1].
+          Even when not actively used, Cortana background processes collect data about usage patterns.
+
+          [1]: https://web.archive.org/web/20240101000000/https://privacy.microsoft.com/en-us/privacystatement "Microsoft Privacy Statement | Microsoft"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows\\Windows Search"
+            valueName: "AllowCortana"
+            data: 0
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: TEL06
+        name: "Disable Windows Recall AI"
+        description: "Disables Windows Recall — prevents continuous screenshot capture of your screen."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows Recall takes continuous screenshots of your screen and uses AI to make content searchable [1].
+          This creates a comprehensive record of everything displayed on your screen,
+          including passwords, private messages, and sensitive content.
+
+          Security researchers identified significant privacy and security risks with this feature [2].
+
+          > **Caution:** This disables a Windows 11 feature. On Windows 10, this step has no effect.
+
+          [1]: https://web.archive.org/web/20240101000000/https://support.microsoft.com/en-us/windows/retrace-your-steps-with-recall-aa03f8a0-a78b-4b3e-b0a1-2eb8ac48701c "Retrace your steps with Recall | Microsoft Support"
+          [2]: https://web.archive.org/web/20240101000000/https://doublepulsar.com/recall-stealing-everything-youve-ever-typed-or-viewed-on-your-own-windows-pc-is-now-possible-da3e12e9465e "Recall: Stealing everything you've ever typed or viewed | Kevin Beaumont"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Disable-WindowsOptionalFeature -Online -FeatureName "Recall" -NoRestart -ErrorAction SilentlyContinue | Out-Null
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI" -Name "DisableAIDataAnalysis" -Value 1 -Type DWORD -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Windows Recall disabled" -ForegroundColor Green
+            checkCode: |
+              $__recall = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI" -Name "DisableAIDataAnalysis" -ErrorAction SilentlyContinue
+              if ($null -ne $__recall -and $__recall.DisableAIDataAnalysis -eq 1) {
+                Write-Host "    [OK] Windows Recall is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Windows Recall policy not set" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI" -Name "DisableAIDataAnalysis" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Windows Recall setting reverted" -ForegroundColor Green
+
+      - id: TEL07
+        name: "Disable telemetry data collection level"
+        description: "Sets Windows telemetry to Security level (minimum) — reduces data sent to Microsoft."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows collects telemetry data at four levels: Security (0), Basic (1), Enhanced (2), Full (3) [1].
+          Setting the level to Security (0) minimizes data collection to only security-critical information.
+
+          The NSA and CIS Benchmarks recommend setting telemetry to the minimum level [2].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/configure-windows-diagnostic-data-in-your-organization "Configure Windows diagnostic data | Microsoft Learn"
+          [2]: https://www.cisecurity.org/cis-benchmarks "CIS Benchmarks | Center for Internet Security"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Policies\\Microsoft\\Windows\\DataCollection"
+            valueName: "AllowTelemetry"
+            data: 0
+            type: DWORD
+            dataOnRevert: 1
+
+      - id: TEL08
+        name: "Disable telemetry scheduled tasks"
+        description: "Disables scheduled tasks that collect and upload telemetry data."
+        recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
+        docs: |
+          Windows schedules numerous tasks that collect diagnostic data, usage statistics, and telemetry [1].
+          These tasks run automatically and upload data to Microsoft even when telemetry services are disabled.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/manage-windows-11-endpoints "Manage connections from Windows 11 to Microsoft services | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__telTasks = @(
+                @{Name="Microsoft Compatibility Appraiser"; Path="\Microsoft\Windows\Application Experience\"},
+                @{Name="ProgramDataUpdater"; Path="\Microsoft\Windows\Application Experience\"},
+                @{Name="StartupAppTask"; Path="\Microsoft\Windows\Application Experience\"},
+                @{Name="Consolidator"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"},
+                @{Name="UsbCeip"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"},
+                @{Name="KernelCeipTask"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"},
+                @{Name="Proxy"; Path="\Microsoft\Windows\Autochk\"},
+                @{Name="QueueReporting"; Path="\Microsoft\Windows\Windows Error Reporting\"}
+              )
+              $__disabled = 0
+              foreach ($__t in $__telTasks) {
+                $__task = Get-ScheduledTask -TaskName $__t.Name -TaskPath $__t.Path -ErrorAction SilentlyContinue
+                if ($null -ne $__task) {
+                  Disable-ScheduledTask -TaskName $__t.Name -TaskPath $__t.Path -ErrorAction SilentlyContinue | Out-Null
+                  $__disabled++
+                }
+              }
+              Write-Host "    [OK] Disabled $__disabled telemetry scheduled tasks" -ForegroundColor Green
+            checkCode: |
+              $__telTasks = @(
+                @{Name="Microsoft Compatibility Appraiser"; Path="\Microsoft\Windows\Application Experience\"},
+                @{Name="Consolidator"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"},
+                @{Name="UsbCeip"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"}
+              )
+              $__disabledCount = 0
+              $__totalFound = 0
+              foreach ($__t in $__telTasks) {
+                $__task = Get-ScheduledTask -TaskName $__t.Name -TaskPath $__t.Path -ErrorAction SilentlyContinue
+                if ($null -ne $__task) {
+                  $__totalFound++
+                  if ($__task.State -eq "Disabled") { $__disabledCount++ }
+                }
+              }
+              if ($__totalFound -eq 0 -or $__disabledCount -ge ($__totalFound - 1)) {
+                Write-Host "    [OK] Telemetry tasks are disabled ($__disabledCount/$__totalFound)" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Some telemetry tasks are still enabled ($__disabledCount/$__totalFound disabled)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__telTasks = @(
+                @{Name="Microsoft Compatibility Appraiser"; Path="\Microsoft\Windows\Application Experience\"},
+                @{Name="ProgramDataUpdater"; Path="\Microsoft\Windows\Application Experience\"},
+                @{Name="Consolidator"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"},
+                @{Name="UsbCeip"; Path="\Microsoft\Windows\Customer Experience Improvement Program\"}
+              )
+              foreach ($__t in $__telTasks) {
+                Enable-ScheduledTask -TaskName $__t.Name -TaskPath $__t.Path -ErrorAction SilentlyContinue | Out-Null
+              }
+              Write-Host "    [OK] Telemetry scheduled tasks re-enabled" -ForegroundColor Green
+
+  # ============================================================
+  - category: System Hardening
+    description: "Enables memory protections, disables legacy protocols, and hardens UAC against privilege escalation."
+    children:
+
+      - id: SYS01
+        name: "Enable ASLR + DEP (memory protection)"
+        description: "Enables Address Space Layout Randomization and Data Execution Prevention — makes exploits significantly harder."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          ASLR (Address Space Layout Randomization) randomizes memory addresses to prevent exploit code
+          from reliably jumping to specific memory locations [1].
+          DEP (Data Execution Prevention) prevents code execution from data memory regions [2].
+
+          Together these mitigations defeat a large class of memory corruption exploits [3].
+          Microsoft, NSA, and CIS all recommend enabling these protections [4].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/security/threat-protection/overview-of-threat-mitigations-in-windows-10 "Overview of threat mitigations in Windows 10 | Microsoft Learn"
+          [2]: https://attack.mitre.org/mitigations/M1050/ "M1050: Exploit Protection | MITRE ATT&CK"
+          [3]: https://web.archive.org/web/20240101000000/https://media.defense.gov/2021/Aug/03/2002820425/-1/-1/1/CTR_WINDOWS10_SECURITY_TECHNICAL_IMPLEMENTATION_GUIDE_20210803.PDF "Windows 10 STIG | NSA"
+          [4]: https://www.cisecurity.org/cis-benchmarks "CIS Benchmarks | Center for Internet Security"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\System\\CurrentControlSet\\Control\\Session Manager\\Memory Management"
+            valueName: "MoveImages"
+            data: 1
+            type: DWORD
+            dataOnRevert: 0
+
+      - id: SYS02
+        name: "Enable SEHOP (Structured Exception Handler Overwrite Protection)"
+        description: "Blocks structured exception handler overwrites — prevents a class of stack-based exploits."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          SEHOP (Structured Exception Handler Overwrite Protection) validates the exception handler chain
+          before dispatching exceptions, blocking SEH overwrite attacks [1].
+
+          This mitigation is recommended by Microsoft and the NSA for Windows hardening [2].
+
+          [1]: https://web.archive.org/web/20240101000000/https://support.microsoft.com/en-us/topic/how-to-enable-structured-exception-handler-overwrite-protection-sehop-in-windows-operating-systems-8d4595f7-827f-72ee-8c34-fa8e0fe7b915 "How to enable SEHOP | Microsoft Support"
+          [2]: https://web.archive.org/web/20240101000000/https://media.defense.gov/2021/Aug/03/2002820425/-1/-1/1/CTR_WINDOWS10_SECURITY_TECHNICAL_IMPLEMENTATION_GUIDE_20210803.PDF "Windows 10 STIG | NSA"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\System\\CurrentControlSet\\Control\\Session Manager\\kernel"
+            valueName: "DisableExceptionChainValidation"
+            data: 0
+            type: DWORD
+            dataOnRevert: 1
+
+      - id: SYS03
+        name: "Enable LSA Protection (anti-Mimikatz)"
+        description: "Blocks credential dumping tools like Mimikatz from reading LSASS memory — protects against credential theft."
+        recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
+        docs: |
+          LSA (Local Security Authority) Protection runs LSASS as a Protected Process Light (PPL),
+          preventing non-protected processes from reading LSASS memory [1].
+
+          This directly blocks credential dumping tools like Mimikatz (T1003.001) [2],
+          which are commonly used in post-exploitation to harvest credentials.
+
+          > **Caution:** Requires a reboot to take effect. Some anti-cheat software may conflict with PPL.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection "Configuring Additional LSA Protection | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1003/001/ "T1003.001: OS Credential Dumping: LSASS Memory | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\System\\CurrentControlSet\\Control\\Lsa"
+            valueName: "RunAsPPL"
+            data: 1
+            type: DWORD
+            dataOnRevert: 0
+
+      - id: SYS04
+        name: "Disable SMBv1 (WannaCry mitigation)"
+        description: "Removes the WannaCry / EternalBlue attack vector — safe on all modern hardware."
+        recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
+        docs: |
+          SMBv1 (Server Message Block version 1) is a legacy file sharing protocol with critical vulnerabilities [1].
+          The EternalBlue exploit (MS17-010) targeting SMBv1 was used in the WannaCry and NotPetya ransomware attacks [2].
+
+          Microsoft has deprecated SMBv1 and recommends disabling it [3].
+          All modern Windows features use SMBv2 or SMBv3.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3 "Detect, enable and disable SMBv1, SMBv2, and SMBv3 | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1210/ "T1210: Exploitation of Remote Services | MITRE ATT&CK"
+          [3]: https://web.archive.org/web/20240101000000/https://techcommunity.microsoft.com/t5/storage-at-microsoft/stop-using-smb1/ba-p/425858 "Stop using SMB1 | Microsoft Tech Community"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force -ErrorAction SilentlyContinue
+              Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -ErrorAction SilentlyContinue | Out-Null
+              Write-Host "    [OK] SMBv1 disabled" -ForegroundColor Green
+            checkCode: |
+              $__smb = Get-SmbServerConfiguration -ErrorAction SilentlyContinue
+              if ($null -eq $__smb -or $__smb.EnableSMB1Protocol -eq $false) {
+                Write-Host "    [OK] SMBv1 is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] SMBv1 is still enabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] SMBv1 re-enabled" -ForegroundColor Green
+
+      - id: SYS05
+        name: "Harden UAC (always prompt on secure desktop)"
+        description: "Prevents silent privilege escalation — malware can't elevate without your explicit approval."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        docs: |
+          UAC (User Account Control) prompts for confirmation before allowing privilege elevation [1].
+          The secure desktop mode prevents other processes from interacting with the UAC prompt,
+          blocking UI injection attacks that silently click "Yes" on UAC prompts [2].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/security/identity-protection/user-account-control/user-account-control-overview "User Account Control overview | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1548/002/ "T1548.002: Abuse Elevation Control Mechanism: Bypass User Account Control | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
+            valueName: "PromptOnSecureDesktop"
+            data: 1
+            type: DWORD
+            dataOnRevert: 0
+
+  # ============================================================
+  - category: Malware Prevention
+    description: "Blocks script-based malware, USB attacks, dangerous file extensions, and Office macro exploits."
+    children:
+
+      - id: MAL01
+        name: "Disable Windows Script Host (WSH)"
+        description: "Blocks .vbs and .js malware droppers — the #1 RAT delivery method."
+        recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: high
+        docs: |
+          Windows Script Host (WSH) allows execution of VBScript (.vbs) and JScript (.js) files [1].
+          Attackers distribute RATs and malware through Discord, fake mod sites, and cracked software
+          as .vbs or .js files that execute automatically when opened [2].
+
+          Disabling WSH prevents these script-based malware delivery methods entirely.
+
+          > **Caution:** Some legitimate software uses WSH for automation. Test in your environment first.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc738350(v=ws.10) "Windows Script Host | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1059/005/ "T1059.005: Command and Scripting Interpreter: Visual Basic | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Microsoft\\Windows Script Host\\Settings"
+            valueName: "Enabled"
+            data: 0
+            type: DWORD
+            dataOnRevert: 1
+
+      - id: MAL02
+        name: "Disable AutoRun / AutoPlay"
+        description: "Stops USB rubber ducky and malicious USB drive attacks from auto-executing."
+        recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
+        docs: |
+          AutoRun automatically executes programs from removable media when inserted [1].
+          This is exploited by USB-based attacks (rubber ducky, BadUSB) to execute malware
+          without user interaction [2].
+
+          Setting NoDriveTypeAutoRun to 255 disables AutoRun for all drive types.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/win32/shell/autorun-cmds "Creating an AutoRun-enabled Application | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1091/ "T1091: Replication Through Removable Media | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer"
+            valueName: "NoDriveTypeAutoRun"
+            data: 255
+            type: DWORD
+            deleteOnRevert: "true"
+
+      - id: MAL03
+        name: "Block dangerous file extensions (.hta, .js, .vbs, .scr, .pif, .cpl, .msc)"
+        description: "Redirects executable scripts to Notepad instead of executing — prevents double-extension tricks."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        docs: |
+          Attackers use double-extension tricks (e.g., photo.jpg.vbs) to disguise malware as legitimate files [1].
+          Redirecting these extensions to open in Notepad instead of executing prevents accidental execution.
+
+          [1]: https://attack.mitre.org/techniques/T1036/007/ "T1036.007: Masquerading: Double File Extension | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__extensions = @(".hta", ".js", ".vbs", ".scr", ".pif", ".cpl", ".msc")
+              foreach ($__ext in $__extensions) {
+                $__path = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$__ext"
+                if (-not (Test-Path $__path)) { New-Item -Path $__path -Force | Out-Null }
+                Set-ItemProperty -Path $__path -Name "ProgID" -Value "txtfile" -Type String -Force -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Dangerous file extensions redirected to Notepad" -ForegroundColor Green
+            checkCode: |
+              $__extensions = @(".hta", ".js", ".vbs", ".scr", ".pif", ".cpl", ".msc")
+              $__blocked = 0
+              foreach ($__ext in $__extensions) {
+                $__check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$__ext" -Name "ProgID" -ErrorAction SilentlyContinue
+                if ($__check.ProgID -eq "txtfile") { $__blocked++ }
+              }
+              if ($__blocked -ge 5) {
+                Write-Host "    [OK] Dangerous file extensions blocked ($__blocked/7)" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] File extension blocking incomplete ($__blocked/7)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__extensions = @(".hta", ".js", ".vbs", ".scr", ".pif", ".cpl", ".msc")
+              foreach ($__ext in $__extensions) {
+                Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$__ext" -Force -Recurse -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] File extension blocking reverted" -ForegroundColor Green
+
+      - id: MAL04
+        name: "Show file extensions + hidden files in Explorer"
+        description: "Makes double-extension tricks (photo.jpg.exe) visible — prevents social engineering via file disguise."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          Windows hides file extensions by default, making it impossible to distinguish
+          photo.jpg from photo.jpg.exe [1]. Showing extensions exposes double-extension tricks
+          used by malware distributors.
+
+          [1]: https://attack.mitre.org/techniques/T1036/007/ "T1036.007: Masquerading: Double File Extension | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 0 -ErrorAction SilentlyContinue
+              Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 1 -ErrorAction SilentlyContinue
+              Write-Host "    [OK] File extensions and hidden files are now visible" -ForegroundColor Green
+            checkCode: |
+              $__ext = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -ErrorAction SilentlyContinue
+              $__hidden = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -ErrorAction SilentlyContinue
+              if ($__ext.HideFileExt -eq 0 -and $__hidden.Hidden -eq 1) {
+                Write-Host "    [OK] File extensions and hidden files are visible" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] File visibility is not fully configured" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 1 -ErrorAction SilentlyContinue
+              Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 0 -ErrorAction SilentlyContinue
+              Write-Host "    [OK] File visibility settings reverted" -ForegroundColor Green
+
+      - id: MAL05
+        name: "Enable Office macro protection"
+        description: "Blocks macro droppers and Office-based RAT delivery — comprehensive exploit prevention."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        docs: |
+          Office macros are a primary delivery mechanism for malware, RATs, and ransomware [1].
+          Setting VBAWarnings to 4 disables all macros without notification,
+          preventing macro-based malware execution even if a user opens a malicious document.
+
+          > **Caution:** This disables ALL macros including legitimate ones.
+          > If you use macros for work, set VBAWarnings to 2 (prompt) instead of 4 (disable).
+
+          [1]: https://attack.mitre.org/techniques/T1137/ "T1137: Office Application Startup | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__officeApps = @("Word", "Excel", "PowerPoint", "Access", "Outlook")
+              foreach ($__app in $__officeApps) {
+                $__path = "HKLM:\Software\Policies\Microsoft\Office\16.0\$__app\Security"
+                if (-not (Test-Path $__path)) { New-Item -Path $__path -Force | Out-Null }
+                Set-ItemProperty -Path $__path -Name "VBAWarnings" -Value 4 -Type DWORD -Force -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Office macro protection enabled for all Office apps" -ForegroundColor Green
+            checkCode: |
+              $__check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "VBAWarnings" -ErrorAction SilentlyContinue
+              if ($null -ne $__check -and $__check.VBAWarnings -eq 4) {
+                Write-Host "    [OK] Office macro protection is enabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Office macro protection is not enabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__officeApps = @("Word", "Excel", "PowerPoint", "Access", "Outlook")
+              foreach ($__app in $__officeApps) {
+                Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\$__app\Security" -Name "VBAWarnings" -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Office macro protection reverted" -ForegroundColor Green
+
+      - id: MAL06
+        name: "Configure Windows Defender (max protection)"
+        description: "Enables PUA protection, behavior monitoring, real-time protection, script scanning."
+        recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
+        docs: |
+          Windows Defender provides built-in antimalware protection [1].
+          Ensuring it is not disabled by policy and enabling PUA (Potentially Unwanted Application)
+          protection maximizes coverage against malware and unwanted software.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/microsoft-defender-antivirus-windows "Microsoft Defender Antivirus | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Windows Defender")) { New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              Set-MpPreference -PUAProtection Enabled -ErrorAction SilentlyContinue
+              Set-MpPreference -DisableBehaviorMonitoring $false -ErrorAction SilentlyContinue
+              Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction SilentlyContinue
+              Set-MpPreference -DisableScriptScanning $false -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Windows Defender configured for maximum protection" -ForegroundColor Green
+            checkCode: |
+              $__wd = Get-MpPreference -ErrorAction SilentlyContinue
+              $__policy = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -ErrorAction SilentlyContinue
+              if (($null -eq $__policy -or $__policy.DisableAntiSpyware -eq 0) -and $null -ne $__wd) {
+                Write-Host "    [OK] Windows Defender is configured" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Windows Defender may be disabled by policy" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Windows Defender policy reverted" -ForegroundColor Green
+
+      - id: MAL07
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        name: "Audit WMI event subscriptions"
+        description: "Lists non-system WMI subscriptions — fileless malware hides here to survive reboots."
+        docs: |
+          WMI (Windows Management Instrumentation) event subscriptions allow code to run automatically
+          in response to system events [1]. Fileless malware uses WMI subscriptions to persist
+          across reboots without creating files on disk [2].
+
+          This step audits for suspicious WMI subscriptions that may indicate compromise.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-event-subscriptions "WMI Event Subscriptions | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1546/003/ "T1546.003: Event Triggered Execution: Windows Management Instrumentation Event Subscription | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__wmiSubs = Get-WmiObject -Namespace "root\subscription" -Class __EventSubscription -ErrorAction SilentlyContinue
+              if ($__wmiSubs) {
+                Write-Host "    [WARNING] Found $($__wmiSubs.Count) WMI subscription(s) — review manually:" -ForegroundColor Yellow
+                $__wmiSubs | ForEach-Object { Write-Host "      - $($_.Name)" -ForegroundColor Yellow }
+              } else {
+                Write-Host "    [OK] No suspicious WMI subscriptions found" -ForegroundColor Green
+              }
+            checkCode: |
+              $__wmiSubs = Get-WmiObject -Namespace "root\subscription" -Class __EventSubscription -ErrorAction SilentlyContinue
+              if ($__wmiSubs) {
+                Write-Host "    [WARNING] Found $($__wmiSubs.Count) WMI subscription(s) — review manually" -ForegroundColor Yellow
+              } else {
+                Write-Host "    [OK] No suspicious WMI subscriptions found" -ForegroundColor Green
+              }
+            revertCode: |
+              Write-Host "    [OK] WMI audit is informational only — no changes to revert" -ForegroundColor Green
+
+      - id: MAL08
+        name: "Disable DCOM (COM-based lateral movement)"
+        description: "Removes COM-based lateral movement attack surface."
+        recommend: paranoid
+        risk: high
+        docs: |
+          DCOM (Distributed Component Object Model) allows remote execution of COM objects [1].
+          Attackers use DCOM for lateral movement within networks (T1021.003) [2].
+
+          > **Caution:** Disabling DCOM may break some enterprise applications and remote management tools.
+          > Only recommended for high-security environments.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/win32/com/dcom-security-enhancements-in-windows-xp-service-pack-2-and-windows-server-2003-service-pack-1 "DCOM Security Enhancements | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1021/003/ "T1021.003: Remote Services: Distributed Component Object Model | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\Software\\Microsoft\\Ole"
+            valueName: "EnableDCOM"
+            data: "N"
+            type: String
+            dataOnRevert: "Y"
+
+  # ============================================================
+  - category: Browser & Streamer Protections
+    description: "Hardens OBS, Discord, and browser settings against stream sniping, account takeover, and data collection."
+    children:
+
+      - id: OBS01
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "OBS: Enable browser source sandboxing"
+        description: "Ensures OBS browser sources run in a sandboxed environment."
+        docs: |
+          OBS browser sources can execute JavaScript that has access to system resources
+          if not properly sandboxed [1]. Malicious overlays or browser sources could
+          exfiltrate stream keys or system information.
+
+          [1]: https://obsproject.com/wiki/Browser-Source "Browser Source | OBS Wiki"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Write-Host "    [MANUAL] OBS: In Settings > Advanced, ensure 'Enable browser source hardware acceleration' is configured" -ForegroundColor Yellow
+              Write-Host "    [MANUAL] OBS: Never add browser sources from untrusted URLs" -ForegroundColor Yellow
+              Write-Host "    [OK] OBS browser source guidance provided" -ForegroundColor Green
+            checkCode: |
+              $__obsPath = "$env:APPDATA\obs-studio\global.ini"
+              if (Test-Path $__obsPath) {
+                Write-Host "    [OK] OBS installation found at $__obsPath" -ForegroundColor Green
+              } else {
+                Write-Host "    [INFO] OBS not found — step not applicable" -ForegroundColor Cyan
+              }
+            revertCode: |
+              Write-Host "    [OK] OBS browser source step is manual — no changes to revert" -ForegroundColor Green
+
+      - id: OBS02
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "OBS: Disable telemetry and analytics"
+        description: "Disables OBS telemetry data collection and crash reporting."
+        docs: |
+          OBS Studio collects usage statistics and crash reports [1].
+          Disabling telemetry prevents this data from being sent.
+
+          [1]: https://obsproject.com/wiki/Privacy-Policy "OBS Privacy Policy | OBS Project"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__obsConfig = "$env:APPDATA\obs-studio\global.ini"
+              if (Test-Path $__obsConfig) {
+                $__content = Get-Content $__obsConfig -Raw -ErrorAction SilentlyContinue
+                if ($__content -notmatch "EnableAutoUpdates=false") {
+                  $__content = $__content -replace "EnableAutoUpdates=true", "EnableAutoUpdates=false"
+                  if ($__content -notmatch "EnableAutoUpdates") { $__content += "`r`nEnableAutoUpdates=false" }
+                  Set-Content -Path $__obsConfig -Value $__content -ErrorAction SilentlyContinue
+                }
+                Write-Host "    [OK] OBS auto-updates and telemetry configured" -ForegroundColor Green
+              } else {
+                Write-Host "    [INFO] OBS not found — step not applicable" -ForegroundColor Cyan
+              }
+            checkCode: |
+              $__obsConfig = "$env:APPDATA\obs-studio\global.ini"
+              if (-not (Test-Path $__obsConfig)) {
+                Write-Host "    [INFO] OBS not installed — step not applicable" -ForegroundColor Cyan
+              } else {
+                $__content = Get-Content $__obsConfig -Raw -ErrorAction SilentlyContinue
+                if ($__content -match "EnableAutoUpdates=false") {
+                  Write-Host "    [OK] OBS auto-updates are disabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [MISSING] OBS auto-updates are not disabled" -ForegroundColor Yellow
+                }
+              }
+            revertCode: |
+              $__obsConfig = "$env:APPDATA\obs-studio\global.ini"
+              if (Test-Path $__obsConfig) {
+                $__content = Get-Content $__obsConfig -Raw -ErrorAction SilentlyContinue
+                $__content = $__content -replace "EnableAutoUpdates=false", "EnableAutoUpdates=true"
+                Set-Content -Path $__obsConfig -Value $__content -ErrorAction SilentlyContinue
+                Write-Host "    [OK] OBS settings reverted" -ForegroundColor Green
+              }
+
+      - id: OBS03
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "OBS: Secure stream key storage"
+        description: "Reminds users to never store stream keys in plain text or share OBS profiles."
+        docs: "Never store your stream key in plain text files or share your OBS profile with anyone. Your OBS profile contains your stream key and scene configuration. Use a separate OBS profile for each platform (Twitch, YouTube, Kick) so a leak on one platform doesn't expose others. Rotate your stream key immediately if you suspect it was exposed — all major platforms provide a 'Reset Stream Key' button in their dashboard settings."
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Write-Host "    [MANUAL] OBS: Never share your OBS profile — it contains your stream key" -ForegroundColor Yellow
+              Write-Host "    [MANUAL] OBS: Use a separate OBS profile for each platform" -ForegroundColor Yellow
+              Write-Host "    [MANUAL] OBS: Rotate your stream key if you suspect it was exposed" -ForegroundColor Yellow
+              Write-Host "    [OK] OBS stream key security guidance provided" -ForegroundColor Green
+            checkCode: |
+              Write-Host "    [INFO] OBS stream key security is a manual check" -ForegroundColor Cyan
+            revertCode: |
+              Write-Host "    [OK] OBS stream key step is manual — no changes to revert" -ForegroundColor Green
+
+      - id: OBS05
+        recommend: streamer,vtuber,paranoid
+        risk: medium
+        name: "OBS: Disable NDI output (network stream exposure)"
+        description: "Disables NDI if installed — prevents unintended network stream exposure."
+        docs: |
+          NDI (Network Device Interface) allows OBS to broadcast streams over the local network [1].
+          If enabled unintentionally, it can expose your stream to anyone on the same network.
+
+          [1]: https://obsproject.com/forum/resources/obs-ndi-newtek-ndi-integration-into-obs-studio.528/ "OBS-NDI Plugin | OBS Forum"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__ndiPath = "$env:APPDATA\obs-studio\plugins\obs-ndi"
+              if (Test-Path $__ndiPath) {
+                Write-Host "    [WARNING] NDI plugin found — disable it in OBS Tools > NDI Output Settings" -ForegroundColor Yellow
+              } else {
+                Write-Host "    [OK] NDI plugin not installed" -ForegroundColor Green
+              }
+            checkCode: |
+              $__ndiPath = "$env:APPDATA\obs-studio\plugins\obs-ndi"
+              if (-not (Test-Path $__ndiPath)) {
+                Write-Host "    [OK] NDI plugin is not installed" -ForegroundColor Green
+              } else {
+                Write-Host "    [WARNING] NDI plugin is installed — verify it is disabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Write-Host "    [OK] NDI step is informational — no changes to revert" -ForegroundColor Green
+
+      - id: DIS01
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Discord: Disable hardware acceleration"
+        description: "Reduces Discord's GPU access — prevents GPU-based fingerprinting."
+        docs: |
+          Discord's hardware acceleration uses the GPU for rendering, which can be exploited
+          for GPU-based fingerprinting to identify users across sessions [1].
+
+          [1]: https://discord.com/safety "Discord Safety | Discord"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (Test-Path $__discordSettings) {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($null -ne $__settings) {
+                  $__settings | Add-Member -NotePropertyName "HARDWARE_ACCELERATION" -NotePropertyValue $false -Force
+                  $__settings | ConvertTo-Json -Depth 10 | Set-Content $__discordSettings -ErrorAction SilentlyContinue
+                  Write-Host "    [OK] Discord hardware acceleration disabled" -ForegroundColor Green
+                }
+              } else {
+                Write-Host "    [INFO] Discord not found — step not applicable" -ForegroundColor Cyan
+              }
+            checkCode: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (-not (Test-Path $__discordSettings)) {
+                Write-Host "    [INFO] Discord not installed — step not applicable" -ForegroundColor Cyan
+              } else {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($__settings.HARDWARE_ACCELERATION -eq $false) {
+                  Write-Host "    [OK] Discord hardware acceleration is disabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [MISSING] Discord hardware acceleration is not disabled" -ForegroundColor Yellow
+                }
+              }
+            revertCode: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (Test-Path $__discordSettings) {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($null -ne $__settings) {
+                  $__settings | Add-Member -NotePropertyName "HARDWARE_ACCELERATION" -NotePropertyValue $true -Force
+                  $__settings | ConvertTo-Json -Depth 10 | Set-Content $__discordSettings -ErrorAction SilentlyContinue
+                  Write-Host "    [OK] Discord hardware acceleration re-enabled" -ForegroundColor Green
+                }
+              }
+
+      - id: DIS02
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Discord: Disable usage data & crash reports"
+        description: "Stops Discord from sending usage analytics and crash data."
+        docs: "Discord collects usage analytics, crash reports, and behavioral telemetry by default. This data is sent to Discord Inc. and may include information about your activity patterns and system configuration. Disabling this reduces the data footprint associated with your account and prevents crash reports from containing potentially sensitive system information."
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (Test-Path $__discordSettings) {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($null -ne $__settings) {
+                  $__settings | Add-Member -NotePropertyName "SKIP_HOST_UPDATE" -NotePropertyValue $false -Force
+                  $__settings | ConvertTo-Json -Depth 10 | Set-Content $__discordSettings -ErrorAction SilentlyContinue
+                  Write-Host "    [OK] Discord analytics settings configured" -ForegroundColor Green
+                }
+              } else {
+                Write-Host "    [INFO] Discord not found — step not applicable" -ForegroundColor Cyan
+              }
+            checkCode: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (Test-Path $__discordSettings) {
+                Write-Host "    [OK] Discord settings file found" -ForegroundColor Green
+              } else {
+                Write-Host "    [INFO] Discord not installed — step not applicable" -ForegroundColor Cyan
+              }
+            revertCode: |
+              Write-Host "    [OK] Discord analytics step reverted" -ForegroundColor Green
+
+      - id: DIS03
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Discord: Disable telemetry and analytics tracking"
+        description: "Disables Discord's telemetry, analytics, and behavioral tracking via registry."
+        docs: |
+          Discord collects extensive telemetry data including usage patterns, feature interactions,
+          and behavioral analytics [1]. This data is used for product development and advertising.
+
+          [1]: https://discord.com/privacy "Discord Privacy Policy | Discord"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (Test-Path $__discordSettings) {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($null -ne $__settings) {
+                  $__settings | Add-Member -NotePropertyName "DISABLE_CRASH_REPORTING" -NotePropertyValue $true -Force
+                  $__settings | Add-Member -NotePropertyName "ANALYTICS_TOKEN" -NotePropertyValue "" -Force
+                  $__settings | ConvertTo-Json -Depth 10 | Set-Content $__discordSettings -ErrorAction SilentlyContinue
+                  Write-Host "    [OK] Discord telemetry disabled" -ForegroundColor Green
+                }
+              } else {
+                Write-Host "    [INFO] Discord not found — step not applicable" -ForegroundColor Cyan
+              }
+            checkCode: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (-not (Test-Path $__discordSettings)) {
+                Write-Host "    [INFO] Discord not installed — step not applicable" -ForegroundColor Cyan
+              } else {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($__settings.DISABLE_CRASH_REPORTING -eq $true) {
+                  Write-Host "    [OK] Discord telemetry is disabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [MISSING] Discord telemetry is not disabled" -ForegroundColor Yellow
+                }
+              }
+            revertCode: |
+              $__discordSettings = "$env:APPDATA\discord\settings.json"
+              if (Test-Path $__discordSettings) {
+                $__settings = Get-Content $__discordSettings -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($null -ne $__settings) {
+                  $__settings | Add-Member -NotePropertyName "DISABLE_CRASH_REPORTING" -NotePropertyValue $false -Force
+                  $__settings | ConvertTo-Json -Depth 10 | Set-Content $__discordSettings -ErrorAction SilentlyContinue
+                  Write-Host "    [OK] Discord telemetry settings reverted" -ForegroundColor Green
+                }
+              }
+
+      - id: DIS04
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Discord: Enable 2FA requirement"
+        description: "Reminds users to enable two-factor authentication on their Discord account."
+        docs: "Two-factor authentication (2FA) is the single most effective protection against Discord account takeover. Without 2FA, an attacker who obtains your password (via phishing, data breach, or credential stuffing) can immediately access your account. Use an authenticator app (Google Authenticator, Authy, or a hardware key like YubiKey) rather than SMS, as SMS 2FA is vulnerable to SIM-swapping attacks."
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Write-Host "    [MANUAL] Discord: Enable 2FA in User Settings > My Account > Two-Factor Auth" -ForegroundColor Yellow
+              Write-Host "    [MANUAL] Discord: Use an authenticator app (not SMS) for stronger security" -ForegroundColor Yellow
+              Write-Host "    [OK] Discord 2FA guidance provided" -ForegroundColor Green
+            checkCode: |
+              Write-Host "    [INFO] Discord 2FA status requires manual verification in Discord settings" -ForegroundColor Cyan
+            revertCode: |
+              Write-Host "    [OK] Discord 2FA step is manual — no changes to revert" -ForegroundColor Green
+
+      - id: DIS05
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Discord: Restrict who can DM you"
+        description: "Limits direct messages to friends only — reduces phishing and social engineering vectors."
+        docs: "Restricting who can send you direct messages significantly reduces phishing and social engineering attacks. Attackers frequently join the same servers as their targets and send malicious links or fake 'Discord staff' messages via DM. Setting DMs to friends-only forces attackers to first befriend you, adding a meaningful barrier. Also enable the explicit content filter for additional protection."
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Write-Host "    [MANUAL] Discord: In Privacy & Safety, set 'Allow direct messages from server members' to OFF" -ForegroundColor Yellow
+              Write-Host "    [MANUAL] Discord: Enable 'Filter explicit content' for maximum protection" -ForegroundColor Yellow
+              Write-Host "    [OK] Discord DM restriction guidance provided" -ForegroundColor Green
+            checkCode: |
+              Write-Host "    [INFO] Discord DM settings require manual verification in Discord settings" -ForegroundColor Cyan
+            revertCode: |
+              Write-Host "    [OK] Discord DM step is manual — no changes to revert" -ForegroundColor Green
+
+      - id: DIS06
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Discord: Disable link previews"
+        description: "Stops Discord from fetching external URLs — prevents IP logging via preview requests."
+        docs: |
+          Discord automatically fetches previews for URLs shared in messages [1].
+          This causes Discord's servers (or the target server) to receive a request from your IP,
+          which can be used for IP logging by malicious actors who share crafted URLs.
+
+          [1]: https://discord.com/safety "Discord Safety | Discord"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Write-Host "    [MANUAL] Discord: In Text & Images settings, disable 'Show website preview info from links pasted into chat'" -ForegroundColor Yellow
+              Write-Host "    [OK] Discord link preview guidance provided" -ForegroundColor Green
+            checkCode: |
+              Write-Host "    [INFO] Discord link preview settings require manual verification" -ForegroundColor Cyan
+            revertCode: |
+              Write-Host "    [OK] Discord link preview step is manual — no changes to revert" -ForegroundColor Green
+
+      - id: BRW01
+        recommend: standard,streamer,vtuber,paranoid
+        risk: high
+        name: "Disable browser auto-update (Chrome/Edge)"
+        description: "Prevents automatic browser updates that can reset security policies."
+        docs: |
+          Browser auto-updates can reset security policies applied via registry [1].
+          Disabling auto-update ensures security configurations persist across sessions.
+
+          > **Caution:** Disabling auto-update means you must manually update your browser
+          > to receive security patches. Update regularly.
+
+          [1]: https://web.archive.org/web/20240101000000/https://support.google.com/chrome/a/answer/187207 "Update Chrome browser | Google Support"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              if (-not (Test-Path "HKLM:\Software\Policies\Google\Update")) { New-Item -Path "HKLM:\Software\Policies\Google\Update" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Google\Update" -Name "AutoUpdateCheckPeriodMinutes" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\EdgeUpdate")) { New-Item -Path "HKLM:\Software\Policies\Microsoft\EdgeUpdate" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\EdgeUpdate" -Name "AutoUpdateCheckPeriodMinutes" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser auto-update disabled" -ForegroundColor Green
+            checkCode: |
+              $__chrome = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Update" -Name "AutoUpdateCheckPeriodMinutes" -ErrorAction SilentlyContinue
+              $__edge = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\EdgeUpdate" -Name "AutoUpdateCheckPeriodMinutes" -ErrorAction SilentlyContinue
+              if (($null -ne $__chrome -and $__chrome.AutoUpdateCheckPeriodMinutes -eq 0) -or ($null -ne $__edge -and $__edge.AutoUpdateCheckPeriodMinutes -eq 0)) {
+                Write-Host "    [OK] Browser auto-update is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Browser auto-update is not disabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Update" -Name "AutoUpdateCheckPeriodMinutes" -ErrorAction SilentlyContinue
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\EdgeUpdate" -Name "AutoUpdateCheckPeriodMinutes" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser auto-update settings reverted" -ForegroundColor Green
+
+      - id: BRW02
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        name: "Disable browser telemetry (Chrome/Edge)"
+        description: "Stops Chrome and Edge from sending usage statistics to Google/Microsoft."
+        docs: "Chrome and Edge send detailed usage statistics, crash reports, and diagnostic data to Google and Microsoft respectively by default. This telemetry can include URLs visited, feature usage patterns, and system information. Disabling it via Group Policy prevents this data collection at the OS level, applying to all users on the machine regardless of individual browser settings."
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              if (-not (Test-Path "HKLM:\Software\Policies\Google\Chrome")) { New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Edge")) { New-Item -Path "HKLM:\Software\Policies\Microsoft\Edge" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "MetricsReportingEnabled" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser telemetry disabled" -ForegroundColor Green
+            checkCode: |
+              $__chrome = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -ErrorAction SilentlyContinue
+              $__edge = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "MetricsReportingEnabled" -ErrorAction SilentlyContinue
+              if (($null -ne $__chrome -and $__chrome.MetricsReportingEnabled -eq 0) -or ($null -ne $__edge -and $__edge.MetricsReportingEnabled -eq 0)) {
+                Write-Host "    [OK] Browser telemetry is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Browser telemetry is not disabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -ErrorAction SilentlyContinue
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "MetricsReportingEnabled" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser telemetry settings reverted" -ForegroundColor Green
+
+      - id: BRW03
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        name: "Enable browser safe browsing (enhanced)"
+        description: "Enables enhanced safe browsing in Chrome/Edge for real-time phishing protection."
+        docs: "Enhanced Safe Browsing in Chrome and Edge provides real-time URL checking against Google's threat database, offering significantly stronger protection than the standard mode. It checks URLs in real-time rather than relying on a locally cached list, catching newly registered phishing sites much faster. The trade-off is that URLs are sent to Google for checking — acceptable for most threat models given the protection it provides."
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              if (-not (Test-Path "HKLM:\Software\Policies\Google\Chrome")) { New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "SafeBrowsingProtectionLevel" -Value 2 -Type DWORD -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Enhanced safe browsing enabled" -ForegroundColor Green
+            checkCode: |
+              $__sb = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "SafeBrowsingProtectionLevel" -ErrorAction SilentlyContinue
+              if ($null -ne $__sb -and $__sb.SafeBrowsingProtectionLevel -eq 2) {
+                Write-Host "    [OK] Enhanced safe browsing is enabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Enhanced safe browsing is not enabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "SafeBrowsingProtectionLevel" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Safe browsing setting reverted" -ForegroundColor Green
+
+      - id: BRW04
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        name: "Disable Office macro network blocking bypass"
+        description: "Prevents Office macros from making network connections to download payloads."
+        docs: |
+          Office macros can make network connections to download additional malware payloads [1].
+          Blocking network access from macros prevents stage-2 payload downloads
+          even if a macro executes.
+
+          [1]: https://attack.mitre.org/techniques/T1137/ "T1137: Office Application Startup | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__officeApps = @("Word", "Excel", "PowerPoint")
+              foreach ($__app in $__officeApps) {
+                $__path = "HKLM:\Software\Policies\Microsoft\Office\16.0\$__app\Security"
+                if (-not (Test-Path $__path)) { New-Item -Path $__path -Force | Out-Null }
+                Set-ItemProperty -Path $__path -Name "BlockContentExecutionFromInternet" -Value 1 -Type DWORD -Force -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Office macro network blocking enabled" -ForegroundColor Green
+            checkCode: |
+              $__check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "BlockContentExecutionFromInternet" -ErrorAction SilentlyContinue
+              if ($null -ne $__check -and $__check.BlockContentExecutionFromInternet -eq 1) {
+                Write-Host "    [OK] Office macro network blocking is enabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Office macro network blocking is not enabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__officeApps = @("Word", "Excel", "PowerPoint")
+              foreach ($__app in $__officeApps) {
+                Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\$__app\Security" -Name "BlockContentExecutionFromInternet" -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Office macro network blocking reverted" -ForegroundColor Green
+
+      - id: BRW05
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        name: "Disable browser password saving"
+        description: "Prevents browsers from storing passwords — forces use of a proper password manager."
+        docs: |
+          Browser-stored passwords are stored in plaintext or weakly encrypted files
+          that malware can easily extract [1]. Using a dedicated password manager
+          provides significantly stronger protection.
+
+          [1]: https://attack.mitre.org/techniques/T1555/003/ "T1555.003: Credentials from Password Stores: Credentials from Web Browsers | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              if (-not (Test-Path "HKLM:\Software\Policies\Google\Chrome")) { New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "PasswordManagerEnabled" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              if (-not (Test-Path "HKLM:\Software\Policies\Microsoft\Edge")) { New-Item -Path "HKLM:\Software\Policies\Microsoft\Edge" -Force | Out-Null }
+              Set-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "PasswordManagerEnabled" -Value 0 -Type DWORD -Force -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser password saving disabled" -ForegroundColor Green
+            checkCode: |
+              $__chrome = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "PasswordManagerEnabled" -ErrorAction SilentlyContinue
+              $__edge = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "PasswordManagerEnabled" -ErrorAction SilentlyContinue
+              if (($null -ne $__chrome -and $__chrome.PasswordManagerEnabled -eq 0) -or ($null -ne $__edge -and $__edge.PasswordManagerEnabled -eq 0)) {
+                Write-Host "    [OK] Browser password saving is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Browser password saving is not disabled" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "PasswordManagerEnabled" -ErrorAction SilentlyContinue
+              Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "PasswordManagerEnabled" -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Browser password saving settings reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: Exploit Mitigations
+    description: "Enables Controlled Folder Access, disables remote access services, and removes high-risk attack surfaces."
+    children:
+
+      - id: ADV01
+        name: "Enable Controlled Folder Access"
+        description: "Protects critical folders from ransomware — only approved apps can modify them."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: high
+        docs: |
+          Controlled Folder Access (CFA) is a Windows Defender feature that prevents unauthorized
+          applications from modifying files in protected folders [1].
+          This directly blocks ransomware from encrypting your files.
+
+          > **Caution:** Some legitimate applications may be blocked. Add them to the allowed list
+          > in Windows Security > Virus & threat protection > Ransomware protection.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/controlled-folders "Protect important folders with controlled folder access | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Set-MpPreference -EnableControlledFolderAccess Enabled -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Controlled Folder Access enabled" -ForegroundColor Green
+            checkCode: |
+              $__cfa = Get-MpPreference -ErrorAction SilentlyContinue
+              if ($null -ne $__cfa -and $__cfa.EnableControlledFolderAccess -eq 1) {
+                Write-Host "    [OK] Controlled Folder Access is enabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Controlled Folder Access is not enabled (value: $($__cfa.EnableControlledFolderAccess))" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Set-MpPreference -EnableControlledFolderAccess Disabled -ErrorAction SilentlyContinue
+              Write-Host "    [OK] Controlled Folder Access disabled" -ForegroundColor Green
+
+      - id: ADV02
+        name: "Disable Remote Registry"
+        description: "Prevents remote registry access — blocks lateral movement attacks."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        docs: |
+          The Remote Registry service allows remote modification of the Windows registry [1].
+          Attackers use remote registry access for lateral movement and persistence (T1112) [2].
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc786535(v=ws.10) "Remote Registry service | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1112/ "T1112: Modify Registry | MITRE ATT&CK"
+        call:
+          function: DisableService
+          parameters:
+            serviceName: "RemoteRegistry"
+            startupTypeOnRevert: "Automatic"
+
+      - id: ADV03
+        name: "Disable WinRM (Remote Management)"
+        description: "Removes Windows Remote Management — blocks PowerShell-based lateral movement."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        docs: |
+          WinRM (Windows Remote Management) enables remote PowerShell execution and management [1].
+          Attackers use WinRM for lateral movement and remote code execution (T1021.006) [2].
+
+          > **Caution:** Disabling WinRM will prevent remote management of this machine.
+          > Enterprise environments that use WinRM for management should evaluate this carefully.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/win32/winrm/portal "Windows Remote Management | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1021/006/ "T1021.006: Remote Services: Windows Remote Management | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              Disable-PSRemoting -Force -ErrorAction SilentlyContinue
+              Stop-Service WinRM -Force -ErrorAction SilentlyContinue
+              Set-Service WinRM -StartupType Disabled -ErrorAction SilentlyContinue
+              Write-Host "    [OK] WinRM disabled" -ForegroundColor Green
+            checkCode: |
+              $__winrm = Get-Service WinRM -ErrorAction SilentlyContinue
+              if ($null -eq $__winrm -or $__winrm.StartupType -eq "Disabled") {
+                Write-Host "    [OK] WinRM is disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] WinRM is not disabled (StartupType: $($__winrm.StartupType))" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Enable-PSRemoting -Force -ErrorAction SilentlyContinue
+              Set-Service WinRM -StartupType Automatic -ErrorAction SilentlyContinue
+              Start-Service WinRM -ErrorAction SilentlyContinue
+              Write-Host "    [OK] WinRM re-enabled" -ForegroundColor Green
+
+      - id: ADV04
+        name: "Disable RDP (Remote Desktop Protocol)"
+        description: "Removes Remote Desktop — blocks brute-force RDP attacks."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        docs: |
+          RDP (Remote Desktop Protocol) is one of the most attacked services on Windows [1].
+          Attackers brute-force RDP credentials and exploit RDP vulnerabilities (BlueKeep, DejaBlue) [2].
+
+          > **Caution:** Disabling RDP will prevent remote desktop access to this machine.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-allow-access "How to allow remote connections to your PC | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1210/ "T1210: Exploitation of Remote Services | MITRE ATT&CK"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server"
+            valueName: "fDenyTSConnections"
+            data: 1
+            type: DWORD
+            dataOnRevert: 0
+
+      - id: ADV05
+        name: "Disable Print Spooler service"
+        description: "Removes PrintNightmare attack vector — safe if you don't use network printing."
+        recommend: paranoid
+        risk: high
+        docs: |
+          The Print Spooler service manages print jobs and is required for printing [1].
+          The PrintNightmare vulnerability (CVE-2021-34527) allows remote code execution via Print Spooler [2].
+
+          > **Caution:** Disabling Print Spooler will prevent printing on this machine.
+          > If you need to print, consider disabling only remote print access instead.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server "Security guidelines for disabling system services | Microsoft Learn"
+          [2]: https://attack.mitre.org/techniques/T1547/012/ "T1547.012: Boot or Logon Autostart Execution: Print Processors | MITRE ATT&CK"
+        call:
+          function: DisableService
+          parameters:
+            serviceName: "Spooler"
+            startupTypeOnRevert: "Automatic"
+
+      - id: ADV06
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        name: "Disable Xbox services"
+        description: "Removes Xbox Game Pass and gaming services — reduces attack surface."
+        docs: |
+          Xbox services (XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc) provide
+          Xbox Game Pass integration and game save synchronization [1].
+          Disabling these services reduces the attack surface for users who don't use Xbox features.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/gaming/xbox-live/ "Xbox Live | Microsoft Learn"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__xboxServices = @("XblAuthManager", "XblGameSave", "XboxGipSvc", "XboxNetApiSvc")
+              foreach ($__svc in $__xboxServices) {
+                Stop-Service $__svc -Force -ErrorAction SilentlyContinue
+                Set-Service $__svc -StartupType Disabled -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Xbox services disabled" -ForegroundColor Green
+            checkCode: |
+              $__xboxServices = @("XblAuthManager", "XblGameSave", "XboxGipSvc", "XboxNetApiSvc")
+              $__disabled = ($__xboxServices | Where-Object { (Get-Service $_ -ErrorAction SilentlyContinue).StartupType -eq "Disabled" }).Count
+              if ($__disabled -ge 3) {
+                Write-Host "    [OK] Xbox services are disabled ($__disabled/4)" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Xbox services are not fully disabled ($__disabled/4)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__xboxServices = @("XblAuthManager", "XblGameSave", "XboxGipSvc", "XboxNetApiSvc")
+              foreach ($__svc in $__xboxServices) {
+                Set-Service $__svc -StartupType Automatic -ErrorAction SilentlyContinue
+                Start-Service $__svc -ErrorAction SilentlyContinue
+              }
+              Write-Host "    [OK] Xbox services re-enabled" -ForegroundColor Green
+
+      - id: ADV07
+        name: "Disable Geolocation service"
+        description: "Prevents Windows from tracking your location."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          The Windows Geolocation service (lfsvc) tracks your physical location and shares it
+          with apps that request location access [1]. Disabling this prevents location tracking.
+
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/windows/privacy/manage-windows-11-endpoints "Manage connections from Windows 11 to Microsoft services | Microsoft Learn"
+        call:
+          function: DisableService
+          parameters:
+            serviceName: "lfsvc"
+            startupTypeOnRevert: "Automatic"
+
+      - id: ADV08
+        recommend: streamer,vtuber,paranoid
+        risk: medium
+        name: "Disable Bluetooth"
+        description: "Removes Bluetooth attack surface — safe if you don't use wireless devices."
+        docs: |
+          Bluetooth has a history of serious vulnerabilities including BlueBorne, KNOB, and BIAS attacks [1].
+          Disabling Bluetooth when not in use eliminates this attack surface entirely.
+
+          > **Caution:** Disabling Bluetooth will prevent use of wireless keyboards, mice,
+          > headsets, and other Bluetooth devices.
+
+          [1]: https://attack.mitre.org/techniques/T1011/ "T1011: Exfiltration Over Other Network Medium | MITRE ATT&CK"
+        call:
+          function: DisableService
+          parameters:
+            serviceName: "bthserv"
+            startupTypeOnRevert: "Automatic"
+
+  # ============================================================
+  - category: Threat Blocking
+    description: "Blocks IP grabbers, harassment sites, doxxing data brokers, malware, and 83,599 domains via Steven Black's hosts list."
+    children:
+
+      - id: THR01
+        name: "Block IP grabber services (Grabify, etc.)"
+        description: "Blocks known IP grabber domains via hosts file — prevents IP logging attacks."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          IP grabbers are services that log the IP address of anyone who clicks a link [1].
+          Streamers and VTubers are targeted with IP grabber links in chat, DMs, and fake collaboration offers.
+          Blocking these domains at the hosts file level prevents IP logging even if a link is clicked.
+
+          [1]: https://attack.mitre.org/techniques/T1590/005/ "T1590.005: Gather Victim Network Information: IP Addresses | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              if (-not (Test-Path "$__hostsPath.bak")) { Copy-Item $__hostsPath "$__hostsPath.bak" -Force }
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__ipGrabbers = @(
+                "grabify.link", "grabify.ru", "grabify.io",
+                "iplogger.org", "iplogger.com", "iplogger.co",
+                "2no.co", "yip.su", "ipgrabber.ru",
+                "blasze.com", "blasze.tk",
+                "ipsniff.com", "ipsniff.net",
+                "canarytokens.com", "canarytokens.org",
+                "trackurl.it", "lovelocator.com",
+                "ps3cfw.com", "yourip.info",
+                "api.ipify.org", "api4.my-ip.io",
+                "checkip.amazonaws.com", "ifconfig.me",
+                "icanhazip.com", "ipecho.net"
+              )
+              $__added = 0
+              foreach ($__domain in $__ipGrabbers) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-IPGrabbers")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] IP grabber blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "grabify" -or $__content -match "iplogger" -or $__content -match "PrivacyWarden-IPGrabbers") {
+                Write-Host "    [OK] IP grabber blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] IP grabber blocking not found in hosts file" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-IPGrabbers" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] IP grabber blocking removed" -ForegroundColor Green
+
+      - id: THR02
+        name: "Block KiwiFarms, stalkerware, and harassment coordination domains"
+        description: "Blocks KiwiFarms and all known mirrors/variants, plus associated stalkerware and harassment coordination platforms that target streamers and VTubers."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          KiwiFarms is a known stalkerware and harassment coordination platform that has
+          targeted streamers, VTubers, and content creators with doxxing, swatting, and
+          sustained harassment campaigns [1]. The site has migrated across many TLDs and
+          operates mirror domains. This step blocks all known variants.
+
+          Also blocks lolcow.farm, lolcow.net, and other associated harassment boards
+          that coordinate similar campaigns.
+
+          [1]: https://en.wikipedia.org/wiki/Kiwi_Farms "Kiwi Farms | Wikipedia"
+          [2]: https://www.cloudflare.com/press-releases/2022/cloudflare-blocks-kiwifarms/ "Cloudflare Blocks Kiwifarms"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                # KiwiFarms — primary and all known TLD variants/mirrors
+                "kiwifarms.net",
+                "kiwifarms.is",
+                "kiwifarms.cc",
+                "kiwifarms.tw",
+                "kiwifarms.ru",
+                "kiwifarms.top",
+                "kiwifarms.st",
+                "kiwifarms.org",
+                "kiwifarms.com",
+                "kiwifarms.io",
+                "kiwifarms.co",
+                "kiwifarms.xyz",
+                "kiwifarms.club",
+                "kiwifarms.online",
+                "kiwifarms.site",
+                "kiwifarms.info",
+                "kiwifarms.biz",
+                "kiwifarms.pro",
+                "kiwifarms.live",
+                "kiwifarms.world",
+                "kiwifarms.today",
+                "kiwifarms.space",
+                "kiwifarms.gg",
+                "kiwifarms.cx",
+                "kiwifarms.pl",
+                "kiwifarms.de",
+                "kiwifarms.ch",
+                "kiwifarms.nl",
+                "kiwifarms.fr",
+                "kiwifarms.se",
+                "kiwifarms.no",
+                "kiwifarms.fi",
+                "kiwifarms.dk",
+                "kiwifarms.at",
+                "kiwifarms.be",
+                "kiwifarms.cz",
+                "kiwifarms.sk",
+                "kiwifarms.hu",
+                "kiwifarms.ro",
+                "kiwifarms.bg",
+                "kiwifarms.hr",
+                "kiwifarms.lt",
+                "kiwifarms.lv",
+                "kiwifarms.ee",
+                "kiwifarms.si",
+                "kiwifarms.pt",
+                "kiwifarms.es",
+                "kiwifarms.it",
+                "kiwifarms.gr",
+                "kiwifarms.tr",
+                "kiwifarms.ua",
+                "kiwifarms.by",
+                "kiwifarms.kz",
+                "kiwifarms.uz",
+                "kiwifarms.ge",
+                "kiwifarms.az",
+                "kiwifarms.am",
+                "kiwifarms.md",
+                "kiwifarms.rs",
+                "kiwifarms.ba",
+                "kiwifarms.mk",
+                "kiwifarms.al",
+                "kiwifarms.me",
+                "kiwifarms.xn--p1ai",
+                # KiwiFarms onion/alternative access domains (clearnet proxies)
+                "kiwifarms.onion.pet",
+                "kiwifarms.onion.ws",
+                "kiwifarms.onion.ly",
+                # Associated lolcow/harassment boards
+                "lolcow.farm",
+                "lolcow.net",
+                "lolcow.org",
+                "lolcow.co",
+                "lolcow.club",
+                "lolcow.wiki",
+                # CWCki (harassment wiki)
+                "cwcki.com",
+                "cwcki.net",
+                # Keffals-era mirrors and related
+                "kiwifarms.fi",
+                "kiwifarms.gg"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment")
+                  $__hostsContent += "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment"
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] KiwiFarms/stalkerware/harassment blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "kiwifarms" -or $__content -match "PrivacyWarden-Harassment") {
+                Write-Host "    [OK] KiwiFarms/stalkerware/harassment blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] KiwiFarms/stalkerware/harassment blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Harassment" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] KiwiFarms/stalkerware/harassment blocking removed" -ForegroundColor Green
+
+      - id: THR03
+        name: "Block doxxing data broker sites"
+        description: "Blocks data broker and people-search sites that sell personal information."
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          Data brokers collect and sell personal information including home addresses, phone numbers,
+          and family member details [1]. Streamers are targeted by doxxers who use these services
+          to find and publish personal information.
+
+          [1]: https://www.ftc.gov/reports/data-brokers "Data Brokers: A Call for Transparency and Accountability | FTC"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "whitepages.com", "spokeo.com", "beenverified.com",
+                "instantcheckmate.com", "peoplefinder.com", "truthfinder.com",
+                "intelius.com", "mylife.com", "radaris.com",
+                "zabasearch.com", "pipl.com", "peekyou.com",
+                "usphonebook.com", "fastpeoplesearch.com", "truepeoplesearch.com",
+                "411.com", "addresses.com", "anywho.com",
+                "checkpeople.com", "clustrmaps.com", "cyberbackgroundchecks.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-DataBrokers")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Data broker blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "whitepages" -or $__content -match "spokeo" -or $__content -match "PrivacyWarden-DataBrokers") {
+                Write-Host "    [OK] Data broker blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Data broker blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-DataBrokers" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Data broker blocking removed" -ForegroundColor Green
+
+      - id: THR04
+        name: "Block phishing + credential theft sites"
+        description: "Blocks known phishing infrastructure and credential theft domains."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          Phishing attacks targeting streamers often impersonate sponsorship offers, platform notifications,
+          and collaboration requests to steal account credentials [1].
+
+          [1]: https://attack.mitre.org/techniques/T1566/ "T1566: Phishing | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "steamcommunity-trade.com", "steamcommunity-gift.com",
+                "discordapp-nitro.com", "discord-nitro.gift",
+                "twitch-prime-loot.com", "twitchprime-free.com",
+                "youtube-monetization.com", "yt-partner-program.com",
+                "free-robux.com", "roblox-free.com",
+                "valorant-free-vp.com", "fortnite-free-vbucks.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Phishing")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Phishing domain blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-Phishing") {
+                Write-Host "    [OK] Phishing domain blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Phishing domain blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Phishing" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Phishing domain blocking removed" -ForegroundColor Green
+
+      - id: THR05
+        name: "Block malware distribution sites"
+        description: "Blocks known malware hosting and distribution domains."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          Malware distribution sites host RATs, keyloggers, and other malware often disguised
+          as game mods, cheats, or streaming tools [1].
+
+          [1]: https://attack.mitre.org/techniques/T1608/001/ "T1608.001: Stage Capabilities: Upload Malware | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "malware-traffic-analysis.net",
+                "thepiratebay.org", "thepiratebay.rocks",
+                "1337x.to", "rarbg.to",
+                "crackingpatching.com", "cracksurl.com",
+                "getintopc.com", "filecr.com",
+                "steamunlocked.net", "igg-games.com",
+                "skidrow-games.com", "fitgirl-repacks.site"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Malware")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Malware distribution blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-Malware") {
+                Write-Host "    [OK] Malware distribution blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Malware distribution blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Malware" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Malware distribution blocking removed" -ForegroundColor Green
+
+      - id: THR06
+        name: "Block botnet C2 servers"
+        description: "Blocks known botnet command-and-control server domains via hosts file."
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          Botnet C2 servers are used to control infected machines remotely.
+          Blocking these domains prevents malware from receiving commands [1].
+
+          [1]: https://attack.mitre.org/techniques/T1071/ "T1071: Application Layer Protocol | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "feodotracker.abuse.ch",
+                "bazaar.abuse.ch",
+                "urlhaus.abuse.ch",
+                "threatfox.abuse.ch"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-BotnetC2")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Botnet C2 blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-BotnetC2") {
+                Write-Host "    [OK] Botnet C2 blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Botnet C2 blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-BotnetC2" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Botnet C2 blocking removed" -ForegroundColor Green
+
+      - id: THR07
+        name: "Block exploit kit domains"
+        description: "Blocks known exploit kit hosting domains that deliver drive-by downloads."
+        recommend: vtuber,paranoid
+        risk: low
+        docs: |
+          Exploit kits are web-based attack toolkits that exploit browser vulnerabilities.
+          Blocking their hosting domains prevents drive-by download attacks [1].
+
+          [1]: https://attack.mitre.org/techniques/T1189/ "T1189: Drive-by Compromise | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "rig-ek.com", "magnitude-ek.com",
+                "spelevo-ek.com", "underminer-ek.com",
+                "purple-fox.com", "fallout-ek.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-ExploitKit")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Exploit kit blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-ExploitKit") {
+                Write-Host "    [OK] Exploit kit blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Exploit kit blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-ExploitKit" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Exploit kit blocking removed" -ForegroundColor Green
+
+      - id: THR08
+        name: "Block RAT and backdoor distribution"
+        description: "Blocks known Remote Access Trojan (RAT) and backdoor hosting domains."
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          RATs and backdoors are commonly distributed via Discord, gaming forums, and
+          fake streaming tools. Blocking their distribution domains reduces infection risk [1].
+
+          [1]: https://attack.mitre.org/techniques/T1219/ "T1219: Remote Access Software | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "asyncrat.com", "njrat.net",
+                "remcos-rat.com", "darkcomet-rat.com",
+                "quasar-rat.com", "nanocore-rat.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-RAT")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] RAT/backdoor blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-RAT") {
+                Write-Host "    [OK] RAT/backdoor blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] RAT/backdoor blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-RAT" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] RAT/backdoor blocking removed" -ForegroundColor Green
+
+      - id: THR09
+        name: "Block cryptominer domains"
+        description: "Blocks known in-browser cryptomining and mining pool domains."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          Browser-based cryptominers hijack CPU resources without user consent.
+          Blocking mining pool domains prevents unauthorized mining [1].
+
+          [1]: https://attack.mitre.org/techniques/T1496/ "T1496: Resource Hijacking | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "coinhive.com", "coin-hive.com",
+                "minero.cc", "cryptoloot.pro",
+                "jsecoin.com", "authedmine.com",
+                "monerominer.rocks", "xmrig.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Miner")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Cryptominer blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-Miner") {
+                Write-Host "    [OK] Cryptominer blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Cryptominer blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Miner" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Cryptominer blocking removed" -ForegroundColor Green
+
+      - id: THR10
+        name: "Block swatting coordination sites"
+        description: "Blocks known swatting coordination and fake emergency services domains."
+        recommend: vtuber,paranoid
+        risk: low
+        caution: |
+          This step targets domains associated with swatting coordination.
+          These domains change frequently; this provides a baseline layer of protection only.
+        docs: |
+          Swatting — filing false emergency reports to send armed police to a streamer's home —
+          is a serious threat to content creators. Blocking coordination sites adds a layer of
+          protection [1].
+
+          [1]: https://www.fbi.gov/news/stories/fbi-warns-of-swatting-attacks "FBI Warning: Swatting Attacks"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "swatting.co", "swatter.io",
+                "prank-dial.com", "prankdial.com",
+                "ownage-pranks.com", "prankhotline.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Swatting")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Swatting coordination site blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-Swatting") {
+                Write-Host "    [OK] Swatting coordination site blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Swatting coordination site blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Swatting" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Swatting coordination site blocking removed" -ForegroundColor Green
+
+      - id: THR11
+        name: "Integrate Steven Black's hosts list"
+        description: "Downloads and integrates Steven Black's consolidated hosts file for ad/malware blocking. Defaults to the safe base variant (ads + malware only). More aggressive variants are available but may break legitimate sites."
+        recommend: standard,streamer,vtuber,paranoid
+        risk: medium
+        caution: |
+          IMPORTANT: Only the base variant (ads + malware) is applied by default.
+          The fakenews, gambling, and porn variants block entire site categories and WILL
+          break legitimate websites in those categories. Do not enable those variants unless
+          you fully understand the impact. A backup of your original hosts file is created
+          automatically. Requires internet access and may slow DNS slightly on older systems.
+        docs: |
+          Steven Black's consolidated hosts file aggregates multiple reputable blocklists.
+          Available variants (choose ONE — they are cumulative):
+
+          SAFE (default):
+            Base (ads + malware only) — ~83,000 domains
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+          AGGRESSIVE (may break legitimate sites — use with caution):
+            + Fakenews — adds fake news sites
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+            + Gambling — adds gambling sites (breaks ALL gambling sites incl. legal ones)
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts
+            + Porn — adds adult content (breaks ALL adult sites)
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts
+            + Fakenews + Gambling
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts
+            + Fakenews + Gambling + Porn
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts
+            + Fakenews + Porn
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-porn/hosts
+            + Gambling + Porn
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-porn/hosts
+
+          Each variant also has a jsDelivr CDN mirror as fallback:
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/hosts (base)
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/gambling/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/porn/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews-gambling/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews-gambling-porn/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews-porn/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/gambling-porn/hosts
+
+          [1]: https://github.com/StevenBlack/hosts "StevenBlack/hosts: Consolidating and extending hosts files from several well-curated sources"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              # ── Steven Black's hosts list ─────────────────────────────────────────────
+              # DEFAULT: Base variant (ads + malware only) — safe for all users.
+              # To use a different variant, comment out the $__variant line below and
+              # uncomment the one you want. WARNING: non-base variants block entire site
+              # categories and WILL break legitimate websites in those categories.
+              #
+              # Available variants:
+              #   ""                         = Base: ads + malware only (~83,000 domains) [DEFAULT - SAFE]
+              #   "fakenews"                 = + Fake news sites [AGGRESSIVE]
+              #   "gambling"                 = + Gambling sites — breaks ALL gambling sites [AGGRESSIVE]
+              #   "porn"                     = + Adult content — breaks ALL adult sites [AGGRESSIVE]
+              #   "fakenews-gambling"        = + Fake news + Gambling [AGGRESSIVE]
+              #   "fakenews-gambling-porn"   = + Fake news + Gambling + Porn [AGGRESSIVE]
+              #   "fakenews-porn"            = + Fake news + Porn [AGGRESSIVE]
+              #   "gambling-porn"            = + Gambling + Porn [AGGRESSIVE]
+              #
+              $__variant = ""  # <-- Change this to use a different variant (see above)
+              #
+              # ─────────────────────────────────────────────────────────────────────────
+
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__backupPath = "$__hostsPath.privacywarden.bak"
+              if (-not (Test-Path $__backupPath)) {
+                Copy-Item $__hostsPath $__backupPath -Force
+                Write-Host "    [INFO] Hosts file backed up to $__backupPath" -ForegroundColor Cyan
+              }
+
+              # Build URLs: GitHub primary + jsDelivr CDN fallback for the selected variant
+              if ($__variant -eq "") {
+                $__ghUrl  = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+                $__cdnUrl = "https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/hosts"
+                $__label  = "Base (ads + malware)"
+              } else {
+                $__ghUrl  = "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/$__variant/hosts"
+                $__cdnUrl = "https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/$__variant/hosts"
+                $__label  = "$__variant variant"
+              }
+
+              $__urls = @($__ghUrl, $__cdnUrl)
+              $__success = $false
+              foreach ($__url in $__urls) {
+                for ($__i = 0; $__i -lt 3; $__i++) {
+                  try {
+                    Write-Host "    Downloading Steven Black's hosts list [$__label] (attempt $($__i+1)/3)..." -ForegroundColor Yellow
+                    $__content = (Invoke-WebRequest -Uri $__url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop).Content
+                    $__marker = "# PrivacyWarden-StevenBlack"
+                    $__existing = [System.IO.File]::ReadAllText($__hostsPath)
+                    if ($__existing -notmatch [regex]::Escape($__marker)) {
+                      [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__marker`r`n$__content")
+                    } else {
+                      Write-Host "    [INFO] Steven Black's list already present — skipping duplicate append." -ForegroundColor Cyan
+                    }
+                    Write-Host "    [OK] Steven Black's hosts list [$__label] integrated successfully" -ForegroundColor Green
+                    $__success = $true
+                    break
+                  } catch {
+                    if ($__i -lt 2) { Start-Sleep -Seconds 5 }
+                  }
+                }
+                if ($__success) { break }
+              }
+              if (-not $__success) {
+                Write-Host "    [WARNING] Could not download Steven Black's list after all attempts. Skipping." -ForegroundColor Yellow
+              }
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-StevenBlack") {
+                Write-Host "    [OK] Steven Black's hosts list is integrated" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Steven Black's hosts list is not integrated" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__backupPath = "$__hostsPath.privacywarden.bak"
+              if (Test-Path $__backupPath) {
+                Copy-Item $__backupPath $__hostsPath -Force
+                Write-Host "    [OK] Hosts file restored from PrivacyWarden backup" -ForegroundColor Green
+              } else {
+                $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+                $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-StevenBlack" }
+                [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+                Write-Host "    [OK] Steven Black's hosts list removed" -ForegroundColor Green
+              }
+
+      - id: THR12
+        recommend: streamer,vtuber,paranoid
+        risk: medium
+        name: "Block Stalkerware C2 Infrastructure"
+        risk: medium
+        category: threat
+        description: |
+          Blocks the command-and-control (C2) servers and distribution sites for the most widely deployed
+          stalkerware applications — FlexiSPY, mSpy, Hoverwatch, Cerberus, Cocospy, uMobix, ClevGuard,
+          SpyEra, iKeyMonitor, HighsterMobile, WebWatcher, SpyMasterPro, and Spynger.
+          Stalkerware is commercial spyware marketed as "parental controls" or "employee monitoring"
+          but is routinely used for intimate partner surveillance. Blocking their C2 domains prevents
+          any installed stalkerware agent from phoning home, exfiltrating data, or receiving commands.
+          This is especially relevant for streamers and VTubers who share devices or have been targeted
+          by harassment campaigns that escalate to physical surveillance.
+        caution: |
+          This step blocks domains at the Windows hosts file level. It will not remove any stalkerware
+          already installed on the device — use a dedicated anti-stalkerware scanner (e.g., Malwarebytes,
+          Certo Mobile Security) for removal. Some entries (e.g., umeng analytics) may affect unrelated
+          Chinese apps that bundle the same SDK.
+        docs: |
+          Stalkerware indicators sourced from AssoEchap/stalkerware-indicators (CC0 license) [1],
+          a community-maintained IOC database used by Kaspersky, ESET, and the Coalition Against Stalkerware.
+          [1]: https://github.com/AssoEchap/stalkerware-indicators "AssoEchap/stalkerware-indicators on GitHub"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
+              $__domains = @(
+                "flexispy.com","www.flexispy.com","admin.flexispy.com","api.flexispy.com",
+                "community.flexispy.com","mobilefonex.com","client.mobilefonex.com","djp.bz","dmw.bz",
+                "mspy.com","cart.mspy.com","bill-msp.app","ctrl-msp.app",
+                "a.thd.cc","a-qa3.thd.cc","api.thd.cc","alter757.info","kidsecured.com","freefonespy.com",
+                "hoverwatch.com","dev.hoverwatch.com","hw.cab","a.hw.cab","a.hwa.cab",
+                "refog.com","account.refog.com","highstermobi.com",
+                "cerberusapp.com","www.cerberusapp.com","enterprise.cerberusapp.com","cerberusbrasil.com",
+                "cocospy.com","cocospy.net","spyic.com","minspy.com","fonemonitor.co",
+                "umobix.com","n.umobix.com","tt.umobix.com","android-api.umobix.com","us.umobix.com","spyfer.info",
+                "clevguard.com","www.clevguard.com","clevguard.net","panel.clevguard.com","api.clevguard.com",
+                "spyera.com","spylogs.com","login.spylogs.com","support.spyera.com",
+                "easemon.com","awsapi.io","em.awsapi.io","ikm.awsapi.io","emcpanel.com",
+                "auto-forward.com","autoforward.app","autoforward.co",
+                "webwatcher.com","www.webwatcher.com","awarenesstechnologies.com","interguardsoftware.com",
+                "api.awarenesstechnologies.com","data.webwatcherdata.com",
+                "spymasterpro.com","www.spymasterpro.com","imobispy.com",
+                "spynger.net","cart.spynger.net","my.spynger.net","ios-gw.spynger.net",
+                "copy9.com","my.copy9.com","guestspy.com","exactspy.com",
+                "fonetracker.com","ispyoo.com","thetruthspy.com","thespyapp.com",
+                "mxspy.com","www.mxspy.com","phonespying.com","phonetracking.net",
+                "mobilespyonline.com","secondclone.com","spyapps.net","spycell.net",
+                "xnspy.pro","us.xnspy.pro","xpspy.com","inospy.com","hespyapp.com",
+                "innoaspy.com","mobidad.app","phoneparental.com","weysys.com",
+                "spyzie.com","app-api.spyzie.com",
+                "android-monitor.ru","anmon.ru","anmon.su","anmon.name","androidspy.info",
+                "eyezy.com","moniterro.com"
+              )
+              $__current = Get-Content $__hostsPath -Raw -ErrorAction SilentlyContinue
+              if ($__current -match [regex]::Escape($__marker)) {
+                Write-Host "    [OK] Stalkerware C2 block already applied" -ForegroundColor Green
+              } else {
+                $__lines = "`n$__marker`n"
+                foreach ($__d in $__domains) { $__lines += "0.0.0.0 $__d`n" }
+                Add-Content -Path $__hostsPath -Value $__lines -Encoding UTF8
+                Write-Host "    [OK] Blocked $($__domains.Count) stalkerware C2 domains" -ForegroundColor Green
+              }
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
+              $__current = Get-Content $__hostsPath -Raw -ErrorAction SilentlyContinue
+              if ($__current -match [regex]::Escape($__marker)) {
+                Write-Host "    [OK] Stalkerware C2 block is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Stalkerware C2 block not found in hosts file" -ForegroundColor Red
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
+              $__lines = Get-Content $__hostsPath -ErrorAction SilentlyContinue
+              if ($__lines) {
+                $__inBlock = $false
+                $__newLines = @()
+                foreach ($__line in $__lines) {
+                  if ($__line -match [regex]::Escape($__marker)) { $__inBlock = $true }
+                  if (-not $__inBlock) { $__newLines += $__line }
+                  if ($__inBlock -and $__line.Trim() -eq "") { $__inBlock = $false }
+                }
+                Set-Content -Path $__hostsPath -Value $__newLines -Encoding UTF8
+                Write-Host "    [OK] Stalkerware C2 block removed from hosts file" -ForegroundColor Green
+              }
+  - category: "Advanced Hardening"
+    children:
+
+      - id: ADV09
+        name: "Enable TPM 2.0 verification"
+        description: "Verifies TPM 2.0 is active and configured for BitLocker and Windows 11 security features."
+        recommend: streamer,vtuber,paranoid
+        risk: low
+        docs: |
+          TPM 2.0 (Trusted Platform Module) provides hardware-based security for BitLocker
+          encryption and Windows Hello. Required for Windows 11 and modern security features [1].
+
+          [1]: https://docs.microsoft.com/en-us/windows/security/information-protection/tpm/tpm-fundamentals "TPM Fundamentals | Microsoft Docs"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              try {
+                $__tpm = Get-Tpm -ErrorAction Stop
+                if ($__tpm.TpmPresent -and $__tpm.TpmEnabled) {
+                  Write-Host "    [OK] TPM 2.0 is present and enabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [WARNING] TPM is not present or not enabled. Enable in BIOS/UEFI." -ForegroundColor Yellow
+                }
+              } catch {
+                Write-Host "    [WARNING] Could not query TPM status: $_" -ForegroundColor Yellow
+              }
+            checkCode: |
+              try {
+                $__tpm = Get-Tpm -ErrorAction Stop
+                if ($__tpm.TpmPresent -and $__tpm.TpmEnabled) {
+                  Write-Host "    [OK] TPM 2.0 is present and enabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [MISSING] TPM is not present or not enabled" -ForegroundColor Yellow
+                }
+              } catch {
+                Write-Host "    [MISSING] Could not query TPM status" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Write-Host "    [INFO] TPM configuration is managed in BIOS/UEFI — no software revert available." -ForegroundColor Cyan
+
+      - id: ADV10
+        name: "Clean Discord token grabber artifacts"
+        description: "Removes Discord token grabber malware remnants from common installation locations."
+        recommend: streamer,vtuber,paranoid
+        risk: medium
+        caution: |
+          This step scans and removes files matching known token grabber patterns.
+          Review the list of removed files before running if you have custom scripts in these locations.
+        docs: |
+          Discord token grabbers steal authentication tokens from the Discord client's local storage,
+          allowing attackers to take over accounts without needing passwords [1].
+
+          [1]: https://attack.mitre.org/techniques/T1539/ "T1539: Steal Web Session Cookie | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__discordPaths = @(
+                "$env:APPDATA\discord\",
+                "$env:LOCALAPPDATA\Discord\"
+              )
+              $__suspiciousPatterns = @("*.exe", "*.bat", "*.vbs", "*.ps1")
+              # Precise allowlist of every legitimate Discord-shipped executable and helper
+              $__knownGood = @(
+                "Discord.exe", "Update.exe", "SquirrelSetup.exe",
+                "audio_effects_helper.exe",
+                "gpu_encoder_helper.exe",
+                "chrome_crashpad_handler.exe",
+                "crashpad_handler.exe"
+              )
+              $__found = 0
+              foreach ($__path in $__discordPaths) {
+                if (Test-Path $__path) {
+                  foreach ($__pattern in $__suspiciousPatterns) {
+                    $__files = Get-ChildItem -Path $__path -Filter $__pattern -Recurse -ErrorAction SilentlyContinue |
+                      Where-Object { $__knownGood -notcontains $_.Name }
+                    foreach ($__file in $__files) {
+                      Write-Host "    [FOUND] Suspicious file: $($__file.FullName)" -ForegroundColor Yellow
+                      Remove-Item $__file.FullName -Force -ErrorAction SilentlyContinue
+                      $__found++
+                    }
+                  }
+                }
+              }
+              if ($__found -gt 0) {
+                Write-Host "    [OK] Removed $__found suspicious Discord artifact(s)" -ForegroundColor Green
+              } else {
+                Write-Host "    [OK] No Discord token grabber artifacts found" -ForegroundColor Green
+              }
+            checkCode: |
+              $__discordPaths = @(
+                "$env:APPDATA\discord\",
+                "$env:LOCALAPPDATA\Discord\"
+              )
+              $__suspiciousPatterns = @("*.exe", "*.bat", "*.vbs", "*.ps1")
+              $__knownGood = @(
+                "Discord.exe", "Update.exe", "SquirrelSetup.exe",
+                "audio_effects_helper.exe",
+                "gpu_encoder_helper.exe",
+                "chrome_crashpad_handler.exe",
+                "crashpad_handler.exe"
+              )
+              $__found = 0
+              foreach ($__path in $__discordPaths) {
+                if (Test-Path $__path) {
+                  foreach ($__pattern in $__suspiciousPatterns) {
+                    $__files = Get-ChildItem -Path $__path -Filter $__pattern -Recurse -ErrorAction SilentlyContinue |
+                      Where-Object { $__knownGood -notcontains $_.Name }
+                    $__found += $__files.Count
+                  }
+                }
+              }
+              if ($__found -eq 0) {
+                Write-Host "    [OK] No Discord token grabber artifacts found" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Found $__found suspicious Discord artifact(s)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Write-Host "    [INFO] Removed artifacts cannot be restored. No revert available." -ForegroundColor Cyan
+
+

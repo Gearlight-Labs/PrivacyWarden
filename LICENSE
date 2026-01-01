@@ -1,8 +1,8 @@
 GEARLIGHT LABS SOURCE LICENSE
-Copyright (c) 2026 Aya Yoki (AyaYokiVT) — Gearlight Labs
+Copyright (c) 2026 Aya Yoki (AyaYokiVT) -- Gearlight Labs
 All rights reserved.
 
-Hey! I'm Aya Yoki. I built StreamGuard because I got tired of choosing between privacy and streaming quality, and I wanted to share it with other VTubers and streamers who have the same problem.
+Hey! I'm Aya Yoki. I built PrivacyWarden because I got tired of choosing between privacy and streaming quality, and I wanted to share it with other VTubers and streamers who have the same problem.
 
 This isn't a standard open-source license (like MIT or GPL) because I want to make sure credit stays where it belongs. But I also want you to be able to use it freely.
 
@@ -16,20 +16,20 @@ If you share this software, fork it, host it somewhere else, or distribute modif
 The credit must include:
 - My name: Aya Yoki (AyaYokiVT)
 - My studio: Gearlight Labs
-- A link to the original repository: https://github.com/Gearlight-Labs/StreamGuard
+- A link to the original repository: https://github.com/Gearlight-Labs/PrivacyWarden
 
 You cannot strip my name off this project and claim you made it.
 
 3. NO COMMERCIAL USE WITHOUT PERMISSION
-You cannot sell this software, package it into a paid product, or use it as part of a commercial service without my explicit written permission. (Using it while you stream on Twitch/YouTube and make money from your stream is perfectly fine — that counts as personal use of the tool).
+You cannot sell this software, package it into a paid product, or use it as part of a commercial service without my explicit written permission. (Using it while you stream on Twitch/YouTube and make money from your stream is perfectly fine -- that counts as personal use of the tool).
 
 4. NO WARRANTY
 This software is provided "as is", without any warranty of any kind. I am not responsible if it breaks your computer, leaks your IP because you configured it wrong, or causes any other issues. Use it at your own risk.
 
 5. SECURITY AND PRIVACY
-This tool is designed to protect your privacy. It contains zero telemetry and does not phone home. If you modify the code to add telemetry, spyware, or malware, you are strictly prohibited from distributing it under the StreamGuard name.
+This tool is designed to protect your privacy. It contains zero telemetry and does not phone home. If you modify the code to add telemetry, spyware, or malware, you are strictly prohibited from distributing it under the PrivacyWarden name.
 
-Stay safe out there. 🔒
+Stay safe out there. [lock]
 
-— Aya Yoki (AyaYokiVT)
+-- Aya Yoki (AyaYokiVT)
 gearlightlabs@gmail.com
