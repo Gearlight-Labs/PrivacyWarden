@@ -10,9 +10,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// ThreatMonitorService — personal black box for the user.
@@ -48,6 +48,15 @@ namespace StreamGuard.Services
 
         // Baseline: known files in temp/appdata at startup
         private HashSet<string> _knownTempFiles = new();
+
+        // False-positive dedup: suspicious process names already alerted this session
+        // Prevents the same process being logged every 30 seconds while it stays running
+        private readonly HashSet<string> _alreadyAlertedProcesses = new(StringComparer.OrdinalIgnoreCase);
+
+        // False-positive dedup: browser files alerted recently (key = path, value = last alert time)
+        // Suppresses re-alerts for the same file within a 5-minute cooldown window
+        private readonly Dictionary<string, DateTime> _recentlyAlertedBrowserFiles = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan BrowserAlertCooldown = TimeSpan.FromMinutes(5);
 
         // Integrity baselines
         private string? _configHash;
@@ -127,13 +136,18 @@ namespace StreamGuard.Services
             _logger.LogInformation("ThreatMonitorService starting.");
 
             // Write threat log header
-            _audit.Threat("streamguard.threat", AuditLogger.Level.INFO,
+            _audit.Threat("privacywarden.threat", AuditLogger.Level.INFO,
                 "Threat monitoring started — all events below are recorded for your protection");
 
             // Establish baselines
             EstablishBaselines();
 
-            while (!stoppingToken.IsCancellationRequested)
+            // PeriodicTimer: unlike Task.Delay it coalesces missed ticks and allocates no
+            // new timer object per iteration. WaitForNextTickAsync also guarantees the next
+            // tick cannot fire until the current iteration has fully awaited it, so there
+            // is no re-entrancy risk even if RunChecksAsync takes longer than CheckInterval.
+            using var timer = new System.Threading.PeriodicTimer(CheckInterval);
+            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
                 try
                 {
@@ -143,7 +157,6 @@ namespace StreamGuard.Services
                 {
                     _logger.LogDebug(ex, "ThreatMonitorService check error (non-fatal)");
                 }
-                await Task.Delay(CheckInterval, stoppingToken);
             }
         }
 
@@ -193,7 +206,7 @@ namespace StreamGuard.Services
                 if (Directory.Exists(_config.LogDirectory))
                     _logFileCount = Directory.GetFiles(_config.LogDirectory, "*.log").Length;
 
-                _audit.Service("streamguard.service", AuditLogger.Level.INFO,
+                _audit.Service("privacywarden.service", AuditLogger.Level.INFO,
                     "Security baselines recorded — config, service, Mullvad all verified");
             }
             catch (Exception ex)
@@ -229,16 +242,27 @@ namespace StreamGuard.Services
                             if (_knownTempFiles.Contains(key)) continue;
                             _knownTempFiles.Add(key);
 
+                            // False-positive bypass: skip files in user-suppressed paths
+                            if (_config.SuppressedTempPaths.Any(p =>
+                                key.StartsWith(p.ToLowerInvariant(), StringComparison.Ordinal)))
+                                continue;
+
+                            // False-positive bypass: skip files matching user-suppressed name patterns
+                            var fileName = Path.GetFileName(key);
+                            if (_config.SuppressedTempFilePatterns.Any(pattern =>
+                                MatchesSimplePattern(fileName, pattern)))
+                                continue;
+
                             string? hash = null;
                             try { hash = ComputeFileSha256(file)[..16] + "..."; } catch { }
 
-                            _audit.Threat("streamguard.threat.file", AuditLogger.Level.HIGH,
+                            _audit.Threat("privacywarden.threat.file", AuditLogger.Level.HIGH,
                                 "Executable dropped in staging folder — possible malware payload",
                                 new Dictionary<string, string>
                                 {
                                     ["File"]    = file,
                                     ["Hash"]    = hash ?? "unknown",
-                                    ["Note"]    = "Malware commonly drops payloads to temp folders. If you did not download or run anything, investigate this file."
+                                    ["Note"]    = "Malware commonly drops payloads to temp folders. If you did not download or run anything, investigate this file. To suppress, add the path to suppressedTempPaths or a name pattern to suppressedTempFilePatterns in config.json."
                                 });
                         }
                     }
@@ -273,7 +297,14 @@ namespace StreamGuard.Services
                             var browserRunning = IsBrowserRunning();
                             if (!browserRunning)
                             {
-                                _audit.Threat("streamguard.threat.browser", AuditLogger.Level.HIGH,
+                                // Cooldown dedup: suppress re-alerts for the same file within 5 minutes
+                                // Prevents flooding the log when the same file stays recently-modified
+                                if (_recentlyAlertedBrowserFiles.TryGetValue(fullPath, out var lastAlert)
+                                    && DateTime.Now - lastAlert < BrowserAlertCooldown)
+                                    continue;
+
+                                _recentlyAlertedBrowserFiles[fullPath] = DateTime.Now;
+                                _audit.Threat("privacywarden.threat.browser", AuditLogger.Level.HIGH,
                                     "Browser credential file modified while browser is not running — possible credential theft",
                                     new Dictionary<string, string>
                                     {
@@ -302,16 +333,23 @@ namespace StreamGuard.Services
 
                 foreach (var suspicious in SuspiciousProcessNames)
                 {
-                    if (running.Contains(suspicious))
-                    {
-                        _audit.Threat("streamguard.threat.process", AuditLogger.Level.WARN,
-                            $"Network analysis tool running: {suspicious}",
-                            new Dictionary<string, string>
-                            {
-                                ["Process"] = suspicious,
-                                ["Note"]    = "This tool can capture or inspect network traffic. If you did not start it, investigate."
-                            });
-                    }
+                    if (!running.Contains(suspicious)) continue;
+
+                    // Skip if user has suppressed this process name in config
+                    if (_config.SuppressedProcessAlerts.Contains(suspicious)) continue;
+
+                    // Skip if already alerted this session — prevents a new log entry every 30 s
+                    // while the tool stays running (one alert per session is enough)
+                    if (_alreadyAlertedProcesses.Contains(suspicious)) continue;
+
+                    _alreadyAlertedProcesses.Add(suspicious);
+                    _audit.Threat("privacywarden.threat.process", AuditLogger.Level.WARN,
+                        $"Network analysis tool running: {suspicious}",
+                        new Dictionary<string, string>
+                        {
+                            ["Process"] = suspicious,
+                            ["Note"]    = "This tool can capture or inspect network traffic. If you did not start it, investigate. To suppress this alert, add the process name to suppressedProcessAlerts in config.json."
+                        });
                 }
             }
             catch { }
@@ -329,8 +367,8 @@ namespace StreamGuard.Services
                     var current = ComputeFileSha256(configPath);
                     if (current != _configHash)
                     {
-                        _audit.Threat("streamguard.threat.integrity", AuditLogger.Level.HIGH,
-                            "StreamGuard config file was modified while the service is running",
+                        _audit.Threat("privacywarden.threat.integrity", AuditLogger.Level.HIGH,
+                            "PrivacyWarden config file was modified while the service is running",
                             new Dictionary<string, string>
                             {
                                 ["File"]     = configPath,
@@ -352,7 +390,7 @@ namespace StreamGuard.Services
                     var current = ComputeFileSha256(_config.MullvadCliPath);
                     if (current != _mullvadHash)
                     {
-                        _audit.Threat("streamguard.threat.integrity", AuditLogger.Level.CRIT,
+                        _audit.Threat("privacywarden.threat.integrity", AuditLogger.Level.CRIT,
                             "Mullvad binary changed — possible binary replacement attack",
                             new Dictionary<string, string>
                             {
@@ -376,14 +414,14 @@ namespace StreamGuard.Services
                     var current = ComputeFileSha256(exePath);
                     if (current != _serviceExeHash)
                     {
-                        _audit.Threat("streamguard.threat.integrity", AuditLogger.Level.CRIT,
-                            "StreamGuard executable changed while service is running — possible binary replacement",
+                        _audit.Threat("privacywarden.threat.integrity", AuditLogger.Level.CRIT,
+                            "PrivacyWarden executable changed while service is running — possible binary replacement",
                             new Dictionary<string, string>
                             {
                                 ["File"]     = exePath,
                                 ["Expected"] = _serviceExeHash[..16] + "...",
                                 ["Current"]  = current[..16] + "...",
-                                ["Note"]     = "The StreamGuard executable was replaced while running. This is a critical security event."
+                                ["Note"]     = "The PrivacyWarden executable was replaced while running. This is a critical security event."
                             });
                         _serviceExeHash = current;
                     }
@@ -397,7 +435,7 @@ namespace StreamGuard.Services
         {
             if (!Directory.Exists(_config.LogDirectory))
             {
-                _audit.Threat("streamguard.threat.integrity", AuditLogger.Level.CRIT,
+                _audit.Threat("privacywarden.threat.integrity", AuditLogger.Level.CRIT,
                     "Log directory was deleted — audit trail may be compromised",
                     new Dictionary<string, string>
                     {
@@ -412,7 +450,7 @@ namespace StreamGuard.Services
                 var count = Directory.GetFiles(_config.LogDirectory, "*.log").Length;
                 if (count < _logFileCount)
                 {
-                    _audit.Threat("streamguard.threat.integrity", AuditLogger.Level.CRIT,
+                    _audit.Threat("privacywarden.threat.integrity", AuditLogger.Level.CRIT,
                         $"Log files were deleted — expected {_logFileCount}, found {count}",
                         new Dictionary<string, string>
                         {
@@ -447,6 +485,29 @@ namespace StreamGuard.Services
             using var sha256 = SHA256.Create();
             using var stream = File.OpenRead(path);
             return Convert.ToHexString(sha256.ComputeHash(stream));
+        }
+
+        /// <summary>
+        /// Matches a filename against a simple glob pattern that supports a single '*' wildcard.
+        /// Example: "*setup*" matches "vcredist_setup.exe", "*install*" matches "install.bat".
+        /// Case-insensitive.
+        /// </summary>
+        private static bool MatchesSimplePattern(string fileName, string pattern)
+        {
+            if (string.IsNullOrEmpty(pattern)) return false;
+            var p = pattern.ToLowerInvariant();
+            var f = fileName.ToLowerInvariant();
+
+            var star = p.IndexOf('*');
+            if (star < 0) return f == p; // exact match
+            if (star == 0 && p.Length == 1) return true; // "*" matches everything
+
+            var prefix = p[..star];
+            var suffix = p[(star + 1)..];
+
+            if (prefix.Length > 0 && !f.StartsWith(prefix, StringComparison.Ordinal)) return false;
+            if (suffix.Length > 0 && !f.EndsWith(suffix, StringComparison.Ordinal)) return false;
+            return true;
         }
     }
 }

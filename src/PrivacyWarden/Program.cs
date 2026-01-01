@@ -2,46 +2,140 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using PrivacyWarden.Models;
+using PrivacyWarden.Services;
 
 [assembly: SupportedOSPlatform("windows")]
 
-namespace StreamGuardTray
+namespace PrivacyWarden
 {
-    // ─────────────────────────────────────────────────────────────────────────
-    // Status model — mirrors what the service writes to status.json
-    // ─────────────────────────────────────────────────────────────────────────
-    internal class ServiceStatus
+    internal static partial class Program
     {
-        public string Mode      { get; set; } = "Unknown";
-        public bool   VpnActive { get; set; } = false;
-        public bool   DnsLocked { get; set; } = false;
-        public string DnsIp     { get; set; } = "";
-        public string LastEvent { get; set; } = "";
-        public string UpdatedAt { get; set; } = "";
-    }
+        [LibraryImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static partial bool FreeConsole();
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Entry point — tray-centric, no window on startup
-    // ─────────────────────────────────────────────────────────────────────────
-    internal static class Program
-    {
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
-            // Single instance guard
-            using var mutex = new Mutex(true, "StreamGuardTray_SingleInstance", out bool isNew);
+            // If started with --tray, run ONLY the tray app
+            if (args.Contains("--tray"))
+            {
+                RunTrayApp();
+                return;
+            }
+
+            // Otherwise, run the service host
+            RunServiceHost(args);
+        }
+
+        private static void RunServiceHost(string[] args)
+        {
+            // Single-instance guard for the service
+            using var instanceMutex = new Mutex(true, @"Global\PrivacyWarden_ServiceInstance", out bool isFirstInstance);
+            if (!isFirstInstance)
+            {
+                Environment.Exit(0);
+            }
+
+            // Hide console if run interactively
+            if (Environment.UserInteractive)
+            {
+                FreeConsole();
+            }
+
+            var config = VTuberConfig.Load();
+            var builder = Host.CreateApplicationBuilder(args);
+
+            builder.Services.AddWindowsService(options =>
+            {
+                options.ServiceName = "PrivacyWarden";
+            });
+
+            builder.Services.AddSingleton(config);
+            builder.Services.AddSingleton<AuditLogger>();
+            builder.Services.AddSingleton<SessionLogger>();
+            builder.Services.AddSingleton<DnsMonitoringService>();
+            builder.Services.AddSingleton<VpnControlService>();
+            builder.Services.AddSingleton<ErrorRecoveryService>();
+            builder.Services.AddHostedService<Worker>();
+            builder.Services.AddHostedService<ThreatMonitorService>();
+
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+            if (!Environment.UserInteractive)
+            {
+                builder.Logging.AddEventLog(settings =>
+                {
+                    settings.SourceName = "PrivacyWarden";
+                });
+            }
+
+            var host = builder.Build();
+            host.Run();
+        }
+
+        private static void RunTrayApp()
+        {
+            // Single-instance guard for the tray
+            using var mutex = new Mutex(true, "PrivacyWardenTray_SingleInstance", out bool isNew);
             if (!isNew) return;
 
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Run purely as an ApplicationContext — no Form, no window
             Application.Run(new TrayApp());
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // ExtractAndRunHardeningScript — extracts the embedded PS1 to a temp
+        // file and launches it elevated via PowerShell.
+        // ─────────────────────────────────────────────────────────────────────
+        internal static void ExtractAndRunHardeningScript()
+        {
+            const string resourceName = "PrivacyWarden.Scripts.Setup-PrivacyWarden-Hardening.ps1";
+
+            try
+            {
+                var asm = Assembly.GetExecutingAssembly();
+                using var stream = asm.GetManifestResourceStream(resourceName)
+                    ?? throw new InvalidOperationException("Hardening script resource not found.");
+
+                // Write to a temp file so PowerShell can execute it
+                var tempPath = Path.Combine(Path.GetTempPath(), "PrivacyWarden_Hardening.ps1");
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+                    stream.CopyTo(fs);
+
+                // Launch elevated PowerShell to run the script
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{tempPath}\"",
+                    Verb = "runas",          // Request UAC elevation
+                    UseShellExecute = true,  // Required for runas
+                };
+
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Could not launch the hardening script:\n\n{ex.Message}\n\nMake sure you allow the UAC prompt.",
+                    "PrivacyWarden — Hardening",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
     }
 
@@ -54,40 +148,37 @@ namespace StreamGuardTray
         private static readonly string StatusFile =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "status.json");
+                "PrivacyWarden", "status.json");
 
         private static readonly string LogDir =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "Logs");
+                "PrivacyWarden", "Logs");
 
-        // Status menu items we update on every tick
         private readonly ToolStripMenuItem _itemMode;
         private readonly ToolStripMenuItem _itemVpn;
         private readonly ToolStripMenuItem _itemDns;
-
         private readonly NotifyIcon _trayIcon;
         private readonly System.Windows.Forms.Timer _timer;
 
         public TrayApp()
         {
-            // ── Build context menu ────────────────────────────────────────────
-
-            // App name header — non-clickable label
-            var itemHeader = new ToolStripMenuItem("StreamGuard")
+            var itemHeader = new ToolStripMenuItem("PrivacyWarden")
             {
                 Enabled = false,
-                Font    = new Font("Segoe UI", 9f, FontStyle.Bold)
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold)
             };
 
             var sep1 = new ToolStripSeparator();
 
-            // Status rows — non-clickable, updated every 3 s
             _itemMode = new ToolStripMenuItem("Mode: —") { Enabled = false };
             _itemVpn  = new ToolStripMenuItem("VPN: —")  { Enabled = false };
             _itemDns  = new ToolStripMenuItem("DNS: —")  { Enabled = false };
 
             var sep2 = new ToolStripSeparator();
+
+            var itemHarden = new ToolStripMenuItem("Run System Hardening...");
+            itemHarden.Click += (_, _) => OnRunHardening();
 
             var itemLogs = new ToolStripMenuItem("Open Log Folder");
             itemLogs.Click += (_, _) => OpenLogFolder();
@@ -106,33 +197,43 @@ namespace StreamGuardTray
                 _itemVpn,
                 _itemDns,
                 sep2,
+                itemHarden,
                 itemLogs,
                 sep3,
                 itemExit
             });
 
-            // ── NotifyIcon ────────────────────────────────────────────────────
             _trayIcon = new NotifyIcon
             {
-                Text              = "StreamGuard",
-                Visible           = true,
-                Icon              = LoadIcon(),
-                ContextMenuStrip  = menu
+                Text = "PrivacyWarden",
+                Visible = true,
+                Icon = LoadIcon(),
+                ContextMenuStrip = menu
             };
 
-            // Double-click just refreshes — no window
             _trayIcon.DoubleClick += (_, _) => RefreshStatus();
 
-            // ── Refresh timer ─────────────────────────────────────────────────
             _timer = new System.Windows.Forms.Timer { Interval = 3000 };
             _timer.Tick += (_, _) => RefreshStatus();
             _timer.Start();
 
-            // Initial status read
             RefreshStatus();
         }
 
-        // ── Status refresh ────────────────────────────────────────────────────
+        private static void OnRunHardening()
+        {
+            var result = MessageBox.Show(
+                "This will apply system hardening to protect your device.\n\n" +
+                "It requires Administrator privileges and will take a few minutes.\n\n" +
+                "A UAC prompt will appear — click Yes to continue.\n\n" +
+                "Do you want to run it now?",
+                "PrivacyWarden — System Hardening",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+                Program.ExtractAndRunHardeningScript();
+        }
 
         private void RefreshStatus()
         {
@@ -160,7 +261,6 @@ namespace StreamGuardTray
                     : $"DNS: Locked — {s.DnsIp}")
                 : "DNS: Not locked";
 
-            // Must update UI on the UI thread
             if (_trayIcon.ContextMenuStrip?.InvokeRequired == true)
             {
                 _trayIcon.ContextMenuStrip.Invoke(() => ApplyMenuText(modeName, vpnText, dnsText, s.Mode));
@@ -173,39 +273,33 @@ namespace StreamGuardTray
 
         private void ApplyMenuText(string modeName, string vpnText, string dnsText, string mode)
         {
-            _itemMode.Text      = modeName;
-            _itemVpn.Text       = vpnText;
-            _itemDns.Text       = dnsText;
+            _itemMode.Text = modeName;
+            _itemVpn.Text  = vpnText;
+            _itemDns.Text  = dnsText;
 
-            // Colour the mode bullet via ForeColor on the item's owner draw
-            // ToolStripMenuItem doesn't support ForeColor well on all themes,
-            // so we encode state in the tooltip text instead
             _trayIcon.Text = mode switch
             {
-                "PRIVACY_MODE"   => "StreamGuard — Privacy Mode",
-                "STREAMING_MODE" => "StreamGuard — Streaming Mode",
-                "STARTING"       => "StreamGuard — Starting...",
-                "STOPPED"        => "StreamGuard — Service Stopped",
-                _                => "StreamGuard — Service Stopped"
+                "PRIVACY_MODE"   => "PrivacyWarden — Privacy Mode",
+                "STREAMING_MODE" => "PrivacyWarden — Streaming Mode",
+                "STARTING"       => "PrivacyWarden — Starting...",
+                "STOPPED"        => "PrivacyWarden — Service Stopped",
+                _                => "PrivacyWarden — Service Stopped"
             };
         }
 
         private void UpdateTrayTooltip(ServiceStatus s)
         {
-            // Tooltip is limited to 63 chars by Windows
             string tip = s.Mode switch
             {
-                "PRIVACY_MODE"   => "StreamGuard — Privacy Mode",
-                "STREAMING_MODE" => "StreamGuard — Streaming Mode",
-                "STARTING"       => "StreamGuard — Starting...",
-                "STOPPED"        => "StreamGuard — Service Stopped",
-                _                => "StreamGuard — Service Stopped"
+                "PRIVACY_MODE"   => "PrivacyWarden — Privacy Mode",
+                "STREAMING_MODE" => "PrivacyWarden — Streaming Mode",
+                "STARTING"       => "PrivacyWarden — Starting...",
+                "STOPPED"        => "PrivacyWarden — Service Stopped",
+                _                => "PrivacyWarden — Service Stopped"
             };
             if (tip.Length > 63) tip = tip[..63];
             _trayIcon.Text = tip;
         }
-
-        // ── Helpers ───────────────────────────────────────────────────────────
 
         private static ServiceStatus ReadStatus()
         {
@@ -215,10 +309,6 @@ namespace StreamGuardTray
                     return new ServiceStatus { Mode = "STOPPED" };
 
                 var json = File.ReadAllText(StatusFile);
-
-                // SECURITY: verify HMAC signature before trusting the status file.
-                // If the sig file is missing (first run, or old version) we allow it through
-                // but log a warning. If the sig exists and doesn't match, we reject the file.
                 var sigFile = StatusFile + ".sig";
                 if (File.Exists(sigFile))
                 {
@@ -226,7 +316,6 @@ namespace StreamGuardTray
                     var expectedSig = ComputeStatusHmac(json);
                     if (!string.Equals(storedSig, expectedSig, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Signature mismatch — possible tampering, refuse to use the file
                         return new ServiceStatus { Mode = "STOPPED", LastEvent = "Status file signature mismatch — possible tampering" };
                     }
                 }
@@ -241,28 +330,22 @@ namespace StreamGuardTray
             }
         }
 
-        /// <summary>
-        /// Compute HMAC-SHA256 over status JSON using the DPAPI-protected seed.
-        /// Mirrors AuditLogger.ComputeStatusHmac — the tray cannot reference the service
-        /// assembly directly, so we replicate the logic here using the same seed file.
-        /// </summary>
         private static string ComputeStatusHmac(string json)
         {
             try
             {
                 var seedPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                    "StreamGuard", "hmac_seed.bin");
+                    "PrivacyWarden", "hmac_seed.bin");
 
                 if (!File.Exists(seedPath))
-                    return string.Empty; // seed not yet written — first run
+                    return string.Empty;
 
                 var raw = File.ReadAllBytes(seedPath);
                 byte[] key;
 
                 if (raw.Length == 32)
                 {
-                    // Old unprotected key (migration path) — use as-is
                     key = raw;
                 }
                 else
@@ -277,7 +360,7 @@ namespace StreamGuardTray
             }
             catch
             {
-                return string.Empty; // if we can't verify, allow through (fail-open for tray display)
+                return string.Empty;
             }
         }
 
@@ -285,7 +368,6 @@ namespace StreamGuardTray
         {
             if (Directory.Exists(LogDir))
             {
-                // SECURITY: use absolute path to prevent PATH hijacking
                 var explorerPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                     "explorer.exe");
@@ -297,7 +379,7 @@ namespace StreamGuardTray
             else
                 MessageBox.Show(
                     "No logs found yet.\n\nLogs appear here once the service has run at least once.",
-                    "StreamGuard",
+                    "PrivacyWarden",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
         }
@@ -305,6 +387,7 @@ namespace StreamGuardTray
         private void ExitApp()
         {
             _timer.Stop();
+            _timer.Dispose();
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
             Application.Exit();
@@ -319,12 +402,31 @@ namespace StreamGuardTray
             }
             catch { }
 
-            // Fallback — plain red dot
+            // Fallback: generate a red circle icon.
+            // Icon.FromHandle transfers ownership of the HICON to the Icon object,
+            // but the Bitmap's HICON is a separate GDI handle that must be freed
+            // explicitly to avoid a GDI handle leak on every startup without an .ico file.
             using var bmp = new Bitmap(32, 32);
-            using var g   = Graphics.FromImage(bmp);
+            using var g = Graphics.FromImage(bmp);
             g.Clear(Color.Transparent);
             g.FillEllipse(Brushes.Red, 2, 2, 28, 28);
-            return Icon.FromHandle(bmp.GetHicon());
+            var hIcon = bmp.GetHicon();
+            var icon = (Icon)Icon.FromHandle(hIcon).Clone(); // Clone so we own the Icon
+            DestroyIcon(hIcon);                               // Free the original GDI handle
+            return icon;
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+    }
+
+    internal class ServiceStatus
+    {
+        public string Mode      { get; set; } = "Unknown";
+        public bool   VpnActive { get; set; } = false;
+        public bool   DnsLocked { get; set; } = false;
+        public string DnsIp     { get; set; } = "";
+        public string LastEvent { get; set; } = "";
+        public string UpdatedAt { get; set; } = "";
     }
 }

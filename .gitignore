@@ -1,24 +1,19 @@
-# Build output
-src/StreamGuard/bin/
-src/StreamGuard/obj/
-src/StreamGuardTray/bin/
-src/StreamGuardTray/obj/
-*.user
-*.suo
-.vs/
-
-# Published output
-publish/
-
-# Release binaries — distributed via GitHub Releases, not committed to git
-release/*.exe
-release/*.zip
+# Build artifacts
+src/*/bin/
+src/*/obj/
+*.exe
+*.dll
+*.pdb
+*.nupkg
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs (keep structure, not content)
+# Editor
+.vscode/
+.idea/
+*.user
+
+# Logs
 *.log
-*.sealed.log
-*.hmac

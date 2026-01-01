@@ -1,101 +1,117 @@
-# StreamGuard — Security
+# Security Policy
 
-## What This Tool Protects Against
+## Reporting a Vulnerability
 
-StreamGuard is built for VTubers and streamers who need real privacy protection. The threat model is:
+**Do not open a public GitHub issue for security vulnerabilities.**
 
-- ISP traffic analysis and DNS snooping
-- Social engineering attacks (fake brand deals, malicious files)
-- Doxxing attempts via IP exposure
-- Malware that tries to steal browser credentials or phone home
+Email **gearlightlabs@gmail.com** with:
+- A description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Your GitHub username (optional, for credit)
 
----
-
-## How It Works
-
-### VPN and DNS
-
-The service enforces two modes:
-
-**Privacy Mode** — Mullvad VPN on, DNS locked to Mullvad's servers, DAITA and Quantum resistance active. Your ISP sees encrypted traffic going to Mullvad. Nothing else.
-
-**Streaming Mode** — VPN off (for latency), DNS still locked. Your ISP can't see what domains you're resolving even without the VPN.
-
-DNS is enforced by setting the network adapter's DNS servers directly via `netsh`. If something tries to change them, the service resets them on the next monitoring tick.
-
-### Threat Monitor
-
-`ThreatMonitorService` runs continuously and watches for attack patterns seen in real VTuber compromise cases:
-
-- **Temp folder executables** — malware from fake brand deal ZIPs typically drops into `%TEMP%` before executing
-- **Browser credential access** — Lumma Stealer and similar infostealers target `Chrome\User Data\Default\Login Data`
-- **Unknown outbound connections** — C2 communication from RATs and stealers
-- **Config tampering** — detects if `config.json` is modified while the service is running
-- **Rogue network adapters** — detects injection of new VPN or proxy adapters
-- **Packet capture tools** — detects Wireshark, npcap, and similar tools starting
-
-All detections are written to `2026-05-31_threat.log` in plain English with process name, PID, file path, remote IP, and a hash of any suspicious file.
-
-### Log Integrity
-
-Logs use a cryptographic HMAC chain. Each entry's hash depends on the previous entry's hash. The HMAC key is derived from a machine-specific seed stored in `C:\ProgramData\StreamGuard\hmac_seed.bin` — this file is created on first run and persists across reinstalls.
-
-The chain is stored in a separate `.hmac` sidecar file so the readable log stays clean.
-
-If the chain breaks (tampered log, corrupted file, or seed mismatch), the service logs `LOG_INTEGRITY_FAILED` on next startup.
-
-To verify manually:
-```powershell
-.\Verify-SecurityAudit.ps1
-```
+You will receive a response within 48 hours. Critical vulnerabilities will be patched and released within 7 days.
 
 ---
 
-## Log File Locations
+## Supported Versions
 
-| File | Location |
+| Version | Supported |
 |---|---|
-| Service log | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD_service.log` |
-| Session log | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD_session.log` |
-| Threat log | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD_threat.log` |
-| HMAC chain | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD.hmac` |
-| Config | `C:\ProgramData\StreamGuard\config.json` |
-| HMAC seed | `C:\ProgramData\StreamGuard\hmac_seed.bin` |
-
-The `C:\ProgramData\StreamGuard\` directory has ACL hardening: SYSTEM and Administrators have full control, standard users have read-only access. This prevents non-admin processes from tampering with the config or seed file.
+| 2.x (YAML collection + web interface) | ✅ Active |
+| 1.x (legacy .exe service) | ❌ No longer maintained |
 
 ---
 
-## What the Logs Do NOT Collect
+## Threat Model
 
-- Your internet traffic or browsing history
-- Chat messages or viewer data
-- Anything from other people's devices
-- Screenshots or screen recordings
+PrivacyWarden is built for the real threat model of streamers and VTubers:
 
-The logs only record events on your own machine about your own system's behavior.
-
----
-
-## Using Logs as Evidence
-
-Logs are admissible as evidence under Federal Rule of Evidence 803(6) (Business Records Exception) if:
-1. Logging was running before the incident — the service runs continuously, so this is always true
-2. The log is unaltered — the HMAC chain proves this
-
-If you need to use logs as evidence:
-- Do not edit or delete any log files
-- Run `Verify-SecurityAudit.ps1` and save the output
-- Keep the `.hmac` sidecar files alongside the logs
-- Contact gearlightlabs@gmail.com with subject `[LEGAL] StreamGuard Log Verification`
+- **IP exposure** — doxxing via IP grabbers in chat links, Discord embeds, or fake brand deal files
+- **Credential theft** — infostealers (Lumma, RedLine) targeting browser saved passwords and session cookies
+- **RAT distribution** — malware delivered through fake brand deals, Discord DMs, or malicious OBS plugins
+- **Swatting** — location exposure through social engineering or leaked personal information
+- **Account takeover** — session hijacking after credential theft
+- **ISP surveillance** — DNS snooping and traffic analysis
 
 ---
 
-## Reporting Security Issues
+## Security Design
 
-If you find a security vulnerability in StreamGuard, contact gearlightlabs@gmail.com privately. Do not post it publicly.
+### Script Generation
 
-Include:
-- What you found
-- How to reproduce it
-- What impact it could have
+The website at [privwarden.org](https://privwarden.org) generates PowerShell scripts **entirely in the browser**. No script code is sent to any server. The site fetches the YAML collection from GitHub and assembles the script client-side.
+
+### YAML Collection
+
+All 64 hardening steps are defined in [`collections/windows.yaml`](../collections/windows.yaml). This is the single source of truth for all script code. Anyone can audit it before running any generated script.
+
+### No Telemetry
+
+Neither the website nor the generated scripts collect any data. No analytics, no crash reporting, no usage tracking.
+
+### Script Integrity
+
+Generated scripts are assembled from the YAML collection at the time of generation. To verify a script matches the collection:
+
+1. Clone the repository
+2. Compare the script code against `collections/windows.yaml`
+3. All step IDs in the script header correspond to entries in the YAML file
+
+---
+
+## What the Hardening Scripts Do
+
+The generated scripts apply Windows security hardening in these categories:
+
+**Network Privacy**
+- Disables LLMNR and NetBIOS (credential capture vectors on shared networks)
+- Disables WPAD (proxy auto-discovery used in MITM attacks)
+- Hardens Windows Firewall (blocks unnecessary inbound/outbound connections)
+- Disables IPv6 tunneling protocols (Teredo, 6to4, ISATAP)
+
+**Telemetry & Tracking**
+- Disables DiagTrack (Connected User Experiences and Telemetry service)
+- Disables Advertising ID
+- Disables Cortana data collection
+- Disables Windows Recall AI (screenshot surveillance feature)
+- Disables telemetry scheduled tasks
+
+**System Hardening**
+- Enables ASLR and DEP (memory protection)
+- Enables SEHOP (structured exception handler overwrite protection)
+- Enables LSA protection (prevents credential dumping)
+- Disables SMBv1 (legacy protocol with known critical vulnerabilities)
+- Hardens UAC settings
+
+**Malware Prevention**
+- Disables Windows Script Host (blocks .vbs/.js malware)
+- Disables AutoRun/AutoPlay (blocks USB malware)
+- Blocks dangerous file extensions in email attachments
+- Disables Office macros (primary RAT delivery vector)
+- Configures Windows Defender attack surface reduction rules
+
+**Threat Blocking**
+- Blocks known IP grabber services at the hosts file level
+- Blocks known doxxing and harassment coordination sites
+- Blocks 83,599 malicious domains via Steven Black's consolidated hosts list
+
+---
+
+## Known Limitations
+
+- Generated scripts require Administrator privileges. Always review the code before running.
+- THR11 downloads content from an external URL (Steven Black's hosts file). The URL is hardcoded in the YAML and can be audited.
+- Undo Mode restores Windows defaults but cannot guarantee a perfect rollback if the system state was modified by other tools between Apply and Undo.
+- Some steps require a reboot to take full effect.
+- Manual steps (Discord, OBS, browser settings) cannot be automated and require user action.
+
+---
+
+## Responsible Disclosure
+
+If you find a vulnerability in a hardening step (e.g., a step that introduces a security regression rather than improving security), please report it via email before opening a public issue. This gives time to fix the issue before it is publicly known.
+
+---
+
+**Contact:** gearlightlabs@gmail.com

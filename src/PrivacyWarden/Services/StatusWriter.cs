@@ -3,14 +3,14 @@ using System.IO;
 using System.Runtime.Versioning;
 using System.Text.Json;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// Writes a small status.json to ProgramData so the tray app (running in the user session)
     /// can read the current mode, VPN state, and DNS state without needing a named pipe.
     ///
-    /// File: C:\ProgramData\StreamGuard\status.json
-    /// Signature: C:\ProgramData\StreamGuard\status.json.sig  (HMAC-SHA256 hex, keyed with the DPAPI-protected seed)
+    /// File: C:\ProgramData\PrivacyWarden\status.json
+    /// Signature: C:\ProgramData\PrivacyWarden\status.json.sig  (HMAC-SHA256 hex, keyed with the DPAPI-protected seed)
     ///
     /// SECURITY: The tray verifies the HMAC before trusting the status file.
     /// A low-privileged attacker who writes a fake status.json cannot produce a valid signature
@@ -23,7 +23,7 @@ namespace StreamGuard.Services
     {
         private static readonly string StatusPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "StreamGuard", "status.json");
+            "PrivacyWarden", "status.json");
 
         private static readonly string SigPath = StatusPath + ".sig";
 
