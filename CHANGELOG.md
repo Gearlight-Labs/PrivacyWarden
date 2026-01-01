@@ -1,55 +1,104 @@
 # Changelog
 
-## [1.1.1] — 2026-05-31 — Security Patch
+## [Collection v3.2.1 / Script v0.12.0] — 2026-06-05
+
+### Fixed
+- **Undo mode coverage: 28% → 100%** (`Setup-PrivacyWarden-Hardening.ps1`): The `-Undo` flag previously only reversed 9 of 83 system changes across 7 of 25 hardening categories. All 25 categories now have full revert coverage — 50 individual undo steps total. Every registry key, service state, and policy change applied by the script can now be safely reversed back to the exact Windows default value. Default values were cross-referenced against [privacy.sexy](https://privacy.sexy) source YAML and Microsoft documentation to ensure correctness.
+  - **Newly covered:** Telemetry/DiagTrack, Activity Feed/Timeline, Cortana, Consumer Features, Cross-device Clipboard, Recall AI, Scheduled Telemetry Tasks, Error Reporting (WER), Insider/Flighting (wisvc), LSA Protection (RunAsPPL), Remote Registry, WinRM, DCOM, Firefox policies, Chrome/Brave policies, Office macro hardening, file extension visibility
+  - **Already covered (unchanged):** WSH, AutoRun, SMBv1, PowerShell Execution Policy, RDP, Print Spooler, UAC, hosts file
+
+---
+
+## [1.2.0] -- 2026-06-02 -- Maximum Privacy Edition
+
+### Added
+- **Maximum Privacy Edition (v6.0 Network Script)**: Added 10 new exhaustively researched and verified safe privacy hardening steps to `Setup-MullvadNetwork.ps1`.
+  - Disabled OS Telemetry (Data Collection) and DiagTrack service.
+  - Disabled Advertising ID to stop cross-app behavioral profiling.
+  - Disabled Activity History and Timeline to stop local and cloud activity logging.
+  - Disabled Cloud Content and App Suggestions to stop sponsored app installs.
+  - Disabled Cortana and Bing Web Search in the Start menu.
+  - Disabled Cloud Clipboard Sync to prevent copied text/passwords from leaking to the cloud.
+  - Disabled Recall AI (Windows 11 24H2+) to stop AI-indexed screenshot surveillance.
+  - Disabled Location Tracking to stop physical location profiling.
+  - Disabled Wi-Fi Sense to stop credential exposure.
+  - Disabled 8 Telemetry Scheduled Tasks that collect and upload diagnostics.
+- **Interactive Uninstaller**: `Remove-PrivacyWarden.ps1` now prompts you before reverting privacy settings. You can choose to uninstall the app while keeping all Windows privacy hardening intact.
+
+### Changed
+- **Safe DNS Handling**: Removed the static DNS assignment from the hardening script. Mullvad's public DNS IPs only accept encrypted DoH/DoT, causing plain UDP/53 queries to fail when the VPN is disconnected. The script now safely relies on the Mullvad app's internal tunnel DNS, ensuring your internet connectivity never breaks when the VPN is off.
+- Updated all version references across the repository to `1.2.0`.
+
+---
+
+## [1.1.1] -- 2026-05-31 -- Security Patch
 
 ### Security fixes
-- **CRITICAL** — Unquoted service binary path in NSIS installer. If installed to a path with spaces (e.g. `C:\Program Files\StreamGuard`), Windows would search for `C:\Program.exe` before the real binary. An attacker with write access to `C:\` could drop a malicious `Program.exe` and achieve SYSTEM execution. Fixed by quoting the `binPath=` value in `sc create`.
-- **HIGH** — `status.json` IPC was unauthenticated. A low-privileged attacker who could write to `C:\ProgramData` could inject a fake status file to hide a privacy breach from the tray. Fixed by signing `status.json` with HMAC-SHA256 (same DPAPI-protected key as the audit log chain) and verifying the signature in the tray before trusting the file.
-- **HIGH** — `netsh` command injection via adapter name. Adapter names were passed unsanitized into a subprocess call running as SYSTEM. Fixed by using the absolute path `%SystemRoot%\System32\netsh.exe` and stripping all characters outside `[A-Za-z0-9 _\-]` from adapter names before use.
-- **MEDIUM** — HMAC key was derived from `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`, which any standard user can read from the registry. A local attacker could derive the key and forge log entries. Fixed by generating a cryptographically random 32-byte key on first run and protecting it with DPAPI (`LocalMachine` scope) so only SYSTEM and Administrators can decrypt it.
-- **MEDIUM** — `explorer.exe` was launched without an absolute path in the tray app. If the system PATH was poisoned, a malicious `explorer.exe` in a writable directory could execute in the user session. Fixed by using `%SystemRoot%\explorer.exe`.
-- **LOW** — Uninstaller failed to remove `C:\ProgramData\StreamGuard` because the service applies deny ACEs to protect the data directory. The uninstaller now strips those deny ACEs before attempting deletion, so it cleans up correctly every time.
+- **CRITICAL** -- Unquoted service binary path in NSIS installer. If installed to a path with spaces (e.g. `C:\Program Files\PrivacyWarden`), Windows would search for `C:\Program.exe` before the real binary. An attacker with write access to `C:\` could drop a malicious `Program.exe` and achieve SYSTEM execution. I fixed this by quoting the `binPath=` value in `sc create`.
+- **HIGH** -- `status.json` IPC was unauthenticated. A low-privileged attacker who could write to `C:\ProgramData` could inject a fake status file to hide a privacy breach from the tray. I fixed this by signing `status.json` with HMAC-SHA256 (same DPAPI-protected key as the audit log chain) and verifying the signature in the tray before trusting the file.
+- **HIGH** -- `netsh` command injection via adapter name. Adapter names were passed unsanitized into a subprocess call running as SYSTEM. I fixed this by using the absolute path `%SystemRoot%\System32\netsh.exe` and stripping all characters outside `[A-Za-z0-9 _\-]` from adapter names before use.
+- **MEDIUM** -- HMAC key was derived from `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`, which any standard user can read from the registry. A local attacker could derive the key and forge log entries. I fixed this by generating a cryptographically random 32-byte key on first run and protecting it with DPAPI (`LocalMachine` scope) so only SYSTEM and Administrators can decrypt it.
+- **MEDIUM** -- `explorer.exe` was launched without an absolute path in the tray app. If the system PATH was poisoned, a malicious `explorer.exe` in a writable directory could execute in the user session. I fixed this by using `%SystemRoot%\explorer.exe`.
+- **LOW** -- Uninstaller failed to remove `C:\ProgramData\PrivacyWarden` because the service applies deny ACEs to protect the data directory. The uninstaller now strips those deny ACEs before attempting deletion, so it cleans up correctly every time.
 
 ---
 
-## [1.1.0] — 2026-05-31
+## [1.1.1-patch1] -- 2026-05-31 -- Post-Release Concurrency & Quality Audit
 
 ### Fixed
-- **Tray sync bug** — tray always showed "Service Stopped" because the service was writing `"Privacy Mode"` but the tray was looking for `"PRIVACY_MODE"`. All mode strings are now consistent uppercase tokens (`PRIVACY_MODE`, `STREAMING_MODE`, `STARTING`, `STOPPED`).
-- **Black console window** — double-clicking `StreamGuard.exe` no longer opens a black CMD window. `FreeConsole()` is called at startup when running interactively.
+- **Race condition -- network change detection** (`VpnControlService`): `volatile bool` flag replaced with `int` + `Interlocked.Exchange`. Eliminates a race window where a rapid VPN disconnect could be silently swallowed, leaving the user unprotected for up to one monitoring interval.
+- **Concurrency -- DNS failure counter** (`DnsMonitoringService`): `_consecutiveEnforcementFailures` now uses `Interlocked.Increment` / `Interlocked.Exchange`. Prevents under-counting of consecutive failures which could suppress a CRITICAL escalation event.
+- **Concurrency -- adapter baseline flag** (`DnsMonitoringService`): `_adapterBaselineSet` marked `volatile`. Prevents the JIT from caching a stale `false`, which would silently disable rogue-adapter detection for the entire session.
+- **Single-instance enforcement** (`PrivacyWarden.exe`): `Global\PrivacyWarden_ServiceInstance` named mutex added at process startup. Prevents duplicate instances from issuing conflicting VPN commands and corrupting the HMAC audit chain.
+- **False-positive flood -- suspicious process** (`ThreatMonitorService`): Each suspicious process name now alerts once per service session instead of every 30 seconds. New `suppressedProcessAlerts` config field for permanent per-name suppression.
+- **False-positive -- installer temp executables** (`ThreatMonitorService`): New `suppressedTempPaths` and `suppressedTempFilePatterns` config fields. Default patterns (`*setup*`, `*install*`, `*unins*`, `*update*`) suppress common installer filenames out of the box.
+- **False-positive -- browser shutdown alert** (`ThreatMonitorService`): 5-minute per-file cooldown added. Prevents repeated HIGH alerts for the same browser credential file after normal browser close.
+- **AuditLogger lock contention** (`AuditLogger`): `_lock` scope narrowed to only the `_lastHash` update. HMAC computation now runs outside the lock.
+- **CI/CD -- hardcoded version strings** (`.github/workflows/build-release.yml`): All 4 hardcoded `v1.1.1` references replaced with dynamic version variable. Future releases require zero manual edits to the workflow.
 
 ### Improved
-- **SSD-safe logging** — log writes are now buffered in memory and flushed to disk every 30 seconds instead of on every monitoring tick. Reduces disk writes from ~700/hour to ~2/hour.
-- **Log rotation** — log files older than 7 days are automatically deleted on startup. Configurable via `logRetentionDays` in `config.json`. Prevents logs from filling the drive over time.
-- **Log size enforcement** — if a log file exceeds `maxLogSizeBytes`, it is archived with a timestamp suffix and a fresh file is started.
-- **Smaller binaries** — switched from self-contained to framework-dependent builds. `StreamGuard.exe` is now ~5-8 MB instead of ~80-120 MB. Requires .NET 8 runtime (ships with Windows 10/11 via Windows Update).
-- **Tray auto-starts on login** — installer now registers `StreamGuardTray.exe` in `HKCU\Run` so the tray icon appears automatically after every login without any extra setup.
-- **Upgraded to .NET 8** — from .NET 7 (out of support). .NET 8 is the current LTS release.
-
-### Added
-- `logRetentionDays` config option (default: 7) — controls how many days of logs to keep.
+- **Timer efficiency** (`Worker`, `ThreatMonitorService`): `Task.Delay` loops replaced with `PeriodicTimer`. Reduces timer allocations from ~6,720 per 8-hour session to 2 permanent instances.
 
 ---
 
-## [1.0.1] — 2026-05-31
+## [1.1.0] -- 2026-05-31
 
 ### Fixed
-- Logs not recording — service was blocked from writing to Documents by Windows Defender Controlled Folder Access (logs moved back to ProgramData where LocalSystem always has access)
-- Tray icon not showing — Windows Services run in Session 0 with no desktop access; split into separate StreamGuardTray.exe process that runs in the user's session
-- NEW_ADAPTER_DETECTED false positive on every startup — adapter baseline now taken after VPN connects so the Mullvad adapter is already present when the snapshot is made
-- LOG_INTEGRITY_FAILED on reinstall — HMAC seed now persists in ProgramData across reinstalls instead of being re-derived from InstallDate
+- **Tray sync bug** -- tray always showed "Service Stopped" because the service was writing `"Privacy Mode"` but the tray was looking for `"PRIVACY_MODE"`. All mode strings are now consistent uppercase tokens (`PRIVACY_MODE`, `STREAMING_MODE`, `STARTING`, `STOPPED`).
+- **Black console window** -- double-clicking `PrivacyWarden.exe` no longer opens a black CMD window. `FreeConsole()` is called at startup when running interactively.
+
+### Improved
+- **SSD-safe logging** -- log writes are now buffered in memory and flushed to disk every 30 seconds instead of on every monitoring tick. Reduces disk writes from ~700/hour to ~2/hour.
+- **Log rotation** -- log files older than 7 days are automatically deleted on startup. Configurable via `logRetentionDays` in `config.json`. Prevents logs from filling the drive over time.
+- **Log size enforcement** -- if a log file exceeds `maxLogSizeBytes`, it is archived with a timestamp suffix and a fresh file is started.
+- **Smaller binaries** -- switched from self-contained to framework-dependent builds. `PrivacyWarden.exe` is now ~5-8 MB instead of ~80-120 MB. Requires .NET 8 runtime (ships with Windows 10/11 via Windows Update).
+- **Tray auto-starts on login** -- installer now registers `PrivacyWarden.exe` in `HKCU\Run` so the tray icon appears automatically after every login without any extra setup.
+- **Upgraded to .NET 8** -- from .NET 7 (out of support). .NET 8 is the current LTS release.
 
 ### Added
-- StreamGuardTray.exe — Mullvad-style compact tray app, auto-starts on login, shows current mode and service status
-- Three-file log split — service.log, session.log, threat.log — each with a clear purpose
-- New human-readable log format modeled on Mullvad's daemon.log — plain English, no JSON, no hashes on every line
-- ThreatMonitorService — personal black box for social engineering evidence: monitors temp folder executables, browser credential access, unknown outbound connections, config tampering, rogue adapters, packet capture tools
-- SessionLogger — writes streaming session timeline to session.log with periodic VPN checks every 5 minutes
-- HMAC sidecar file (.hmac) — integrity chain moved out of the readable log into a separate file
+- `logRetentionDays` config option (default: 7) -- controls how many days of logs to keep.
 
 ---
 
-## [1.0.0] — 2026-05-30
+## [1.0.1] -- 2026-05-31
+
+### Fixed
+- Logs not recording -- service was blocked from writing to Documents by Windows Defender Controlled Folder Access (logs moved back to ProgramData where LocalSystem always has access)
+- Tray icon not showing -- Windows Services run in Session 0 with no desktop access; split into separate tray process that runs in the user's session
+- NEW_ADAPTER_DETECTED false positive on every startup -- adapter baseline now taken after VPN connects so the Mullvad adapter is already present when the snapshot is made
+- LOG_INTEGRITY_FAILED on reinstall -- HMAC seed now persists in ProgramData across reinstalls instead of being re-derived from InstallDate
+
+### Added
+- Tray app -- Mullvad-style compact tray app, auto-starts on login, shows current mode and service status
+- Three-file log split -- service.log, session.log, threat.log -- each with a clear purpose
+- New human-readable log format modeled on Mullvad's daemon.log -- plain English, no JSON, no hashes on every line
+- ThreatMonitorService -- personal black box for social engineering evidence: monitors temp folder executables, browser credential access, unknown outbound connections, config tampering, rogue adapters, packet capture tools
+- SessionLogger -- writes streaming session timeline to session.log with periodic VPN checks every 5 minutes
+- HMAC sidecar file (.hmac) -- integrity chain moved out of the readable log into a separate file
+
+---
+
+## [1.0.0] -- 2026-05-30
 
 First release.
 

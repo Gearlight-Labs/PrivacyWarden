@@ -3,7 +3,7 @@ using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// Handles unrecoverable errors by forcing the service back to a safe state.

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// SessionLogger — tracks streaming session timeline in session.log.
@@ -53,7 +53,7 @@ namespace StreamGuard.Services
                 $"STREAM SESSION  |  {dateStr}  |  Started {timeStr}",
                 "");
 
-            _audit.Session("streamguard.session", AuditLogger.Level.INFO,
+            _audit.Session("privacywarden.session", AuditLogger.Level.INFO,
                 $"Stream session started — {streamingApp} detected");
 
             var vpnDetails = new Dictionary<string, string>
@@ -63,7 +63,7 @@ namespace StreamGuard.Services
                 ["DAITA"]   = daita ? "on" : "off",
                 ["Quantum"] = quantum ? "on" : "off",
             };
-            _audit.Session("streamguard.vpn.check", AuditLogger.Level.INFO,
+            _audit.Session("privacywarden.vpn.check", AuditLogger.Level.INFO,
                 "VPN status at session start", vpnDetails);
         }
 
@@ -79,7 +79,7 @@ namespace StreamGuard.Services
 
             _lastVpnCheck = now;
 
-            _audit.Session("streamguard.vpn.check", AuditLogger.Level.INFO,
+            _audit.Session("privacywarden.vpn.check", AuditLogger.Level.INFO,
                 "Periodic VPN check — still active",
                 new Dictionary<string, string>
                 {
@@ -103,7 +103,7 @@ namespace StreamGuard.Services
                 ? $"{(int)duration.TotalHours}h {duration.Minutes}m {duration.Seconds}s"
                 : $"{duration.Minutes}m {duration.Seconds}s";
 
-            _audit.Session("streamguard.session", AuditLogger.Level.INFO,
+            _audit.Session("privacywarden.session", AuditLogger.Level.INFO,
                 $"Stream session ended — {streamingApp} closed",
                 new Dictionary<string, string>
                 {
@@ -128,7 +128,7 @@ namespace StreamGuard.Services
                 ? new Dictionary<string, string> { ["Detail"] = detail }
                 : null;
 
-            _audit.Session("streamguard.vpn.check", AuditLogger.Level.WARN, message, fields);
+            _audit.Session("privacywarden.vpn.check", AuditLogger.Level.WARN, message, fields);
         }
 
         public bool IsSessionActive => _sessionActive;
