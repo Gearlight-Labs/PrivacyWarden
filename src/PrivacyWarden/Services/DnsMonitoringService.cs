@@ -8,11 +8,12 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// Forensic-grade DNS leak detection and enforcement service.
@@ -43,9 +44,10 @@ namespace StreamGuard.Services
 
         // Known adapters — to detect new rogue adapters appearing
         private readonly HashSet<string> _knownAdapters = new();
-        private bool _adapterBaselineSet = false;
+        // volatile: read in HasDnsLeak() (worker thread), written in EstablishAdapterBaseline() (startup)
+        private volatile bool _adapterBaselineSet = false;
 
-        // Enforcement failure tracking
+        // Enforcement failure tracking — use Interlocked for thread-safe increment/reset
         private int _consecutiveEnforcementFailures = 0;
         private const int EnforcementCriticalThreshold = 2;
 
@@ -179,6 +181,39 @@ namespace StreamGuard.Services
         // ── DNS Enforcement ───────────────────────────────────────────────────
 
         /// <summary>
+        /// Restore DNS to automatic (DHCP) on all active adapters.
+        /// Called when Mullvad is not installed so a previously-applied DNS lock
+        /// does not cut internet connectivity for the user.
+        /// </summary>
+        public async Task RestoreDnsToAutomaticAsync()
+        {
+            _logger.LogInformation("Restoring DNS to automatic (DHCP) on all adapters...");
+            var interfaces = GetMonitoredInterfaces().ToList();
+            foreach (var ni in interfaces)
+            {
+                try
+                {
+                    var safeName = SanitizeAdapterName(ni.Name);
+                    bool hasIPv6 = AdapterHasIPv6(ni.GetIPProperties());
+                    await RunNetshAsync($"interface ipv4 set dnsservers \"{safeName}\" dhcp");
+                    if (hasIPv6)
+                        await RunNetshAsync($"interface ipv6 set dnsservers \"{safeName}\" dhcp");
+                    _logger.LogInformation("DNS restored to automatic on adapter [{Adapter}]", ni.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Failed to restore DNS on adapter [{Adapter}] -- internet may still be affected", ni.Name);
+                    _audit.LogMedium("DNS_RESTORE_FAILED",
+                        $"Could not restore DNS to automatic on '{ni.Name}': {ex.Message}",
+                        "Internet connectivity may be affected. Try setting DNS to automatic manually in Network Settings.");
+                }
+            }
+            _audit.LogInfo("DNS_RESTORED",
+                $"DNS restored to automatic (DHCP) on {interfaces.Count} adapter(s). Internet should be working normally.");
+        }
+
+        /// <summary>
         /// Enforce Mullvad DNS on all active adapters using netsh.
         /// Enforces IPv4 DNS on all adapters.
         /// Only enforces IPv6 DNS on adapters where IPv6 is actually enabled.
@@ -200,23 +235,23 @@ namespace StreamGuard.Services
 
             if (anyFailure)
             {
-                _consecutiveEnforcementFailures++;
-                if (_consecutiveEnforcementFailures >= EnforcementCriticalThreshold)
+                var failures = Interlocked.Increment(ref _consecutiveEnforcementFailures);
+                if (failures >= EnforcementCriticalThreshold)
                 {
                     _audit.LogCritical("DNS_ENFORCEMENT_CRITICAL",
-                        $"DNS enforcement failed {_consecutiveEnforcementFailures} consecutive times",
+                        $"DNS enforcement failed {Interlocked.CompareExchange(ref _consecutiveEnforcementFailures, 0, 0)} consecutive times",
                         "System may be unable to prevent DNS leaks. Manual intervention required. Check netsh permissions and adapter state.");
                 }
                 else
                 {
                     _audit.LogHigh("DNS_ENFORCEMENT_FAILED",
-                        $"DNS enforcement failed on one or more adapters (failure #{_consecutiveEnforcementFailures})",
+                        $"DNS enforcement failed on one or more adapters (failure #{Interlocked.CompareExchange(ref _consecutiveEnforcementFailures, 0, 0)})",
                         "Will retry on next monitoring tick.");
                 }
             }
             else
             {
-                _consecutiveEnforcementFailures = 0;
+                Interlocked.Exchange(ref _consecutiveEnforcementFailures, 0);
                 _audit.LogInfo("DNS_ENFORCED",
                     $"DNS locked to [{string.Join(", ", _config.AllowedDnsServers)}] on {interfaces.Count} adapter(s).");
             }
@@ -338,7 +373,20 @@ namespace StreamGuard.Services
             using var process = Process.Start(psi)
                 ?? throw new InvalidOperationException("Failed to start netsh.");
 
-            await process.WaitForExitAsync();
+            // FIX v8.1: Add 10-second timeout to prevent indefinite hang if netsh freezes.
+            // On systems with broken network stacks, netsh can hang forever, blocking the
+            // entire Worker loop and making the service unresponsive.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new InvalidOperationException(
+                    $"netsh timed out after 10 seconds (args: {arguments}). Process was killed.");
+            }
 
             if (process.ExitCode != 0)
             {

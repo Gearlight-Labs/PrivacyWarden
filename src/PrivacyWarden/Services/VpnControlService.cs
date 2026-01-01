@@ -11,9 +11,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// Controls Mullvad VPN via its CLI with forensic-grade threat detection.
@@ -66,7 +66,8 @@ namespace StreamGuard.Services
         private string? _mullvadBinaryHash = null;
 
         // Manual disconnect detection — set by NetworkAddressChanged event
-        private volatile bool _networkChangedFlag = false;
+        // int (0/1) + Interlocked.Exchange gives a single atomic read-and-clear with no race window.
+        private int _networkChangedFlag = 0;
 
         public VpnControlService(
             ILogger<VpnControlService> logger,
@@ -88,8 +89,8 @@ namespace StreamGuard.Services
 
         private void OnNetworkAddressChanged(object? sender, EventArgs e)
         {
-            // Set flag — Worker will check on next tick or immediately if waiting
-            _networkChangedFlag = true;
+            // Atomically set flag — Worker will check on next tick
+            Interlocked.Exchange(ref _networkChangedFlag, 1);
         }
 
         /// <summary>
@@ -98,12 +99,8 @@ namespace StreamGuard.Services
         /// </summary>
         public bool ConsumeNetworkChangedFlag()
         {
-            if (_networkChangedFlag)
-            {
-                _networkChangedFlag = false;
-                return true;
-            }
-            return false;
+            // Atomically read and clear in one operation — no race window between read and write
+            return Interlocked.Exchange(ref _networkChangedFlag, 0) == 1;
         }
 
         // ── Streaming Detection ──────────────────────────────────────────────
@@ -329,7 +326,7 @@ namespace StreamGuard.Services
 
                 // Success — reset failure counter and clear any stale network change flag
                 _consecutiveConnectFailures = 0;
-                _networkChangedFlag = false;
+                Interlocked.Exchange(ref _networkChangedFlag, 0);
 
                 _audit.LogInfo("PRIVACY_MODE_ACTIVE",
                     $"VPN connected and verified. DNS locked. Obfuscation: {_config.ObfuscationMode}. " +
@@ -475,7 +472,7 @@ namespace StreamGuard.Services
                 {
                     _audit.LogHigh("MULLVAD_BINARY_MISSING",
                         $"Mullvad CLI not found at: {_config.MullvadCliPath}",
-                        "Mullvad VPN may not be installed. StreamGuard cannot function without it.");
+                        "Mullvad VPN may not be installed. PrivacyWarden cannot function without it.");
                     return;
                 }
 
@@ -550,7 +547,6 @@ namespace StreamGuard.Services
                 throw new InvalidOperationException(
                     $"Mullvad CLI path '{_config.MullvadCliPath}' is not in the allowed path list.");
             }
-
             var psi = new ProcessStartInfo
             {
                 FileName = _config.MullvadCliPath,
@@ -560,20 +556,34 @@ namespace StreamGuard.Services
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
-
             using var process = Process.Start(psi)
                 ?? throw new InvalidOperationException($"Failed to start Mullvad CLI with args: {arguments}");
 
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
+            // Read stdout and stderr concurrently to prevent deadlock when both buffers fill.
+            // A 30-second timeout prevents the entire Worker loop from hanging if the
+            // Mullvad daemon becomes unresponsive mid-command (e.g. during connect/disconnect).
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask  = process.StandardError.ReadToEndAsync();
 
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new InvalidOperationException(
+                    $"Mullvad CLI timed out after 30 seconds (args: {arguments}). Process was killed.");
+            }
+
+            var output = await stdoutTask;
             if (process.ExitCode != 0)
             {
-                var error = await process.StandardError.ReadToEndAsync();
+                var error = await stderrTask;
                 _logger.LogWarning("Mullvad CLI exited with code {Code} for args '{Args}': {Error}",
                     process.ExitCode, arguments, error);
             }
-
             return output.Trim();
         }
     }

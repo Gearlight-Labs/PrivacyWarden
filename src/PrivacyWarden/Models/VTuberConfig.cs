@@ -7,11 +7,11 @@ using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace StreamGuard.Models
+namespace PrivacyWarden.Models
 {
     /// <summary>
-    /// Configuration for the StreamGuard.
-    /// Loaded from C:\ProgramData\StreamGuard\config.json
+    /// Configuration for the PrivacyWarden.
+    /// Loaded from C:\ProgramData\PrivacyWarden\config.json
     /// Edit that file to customize behavior — no recompile needed.
     ///
     /// Security: config file and log directory are in ProgramData, protected with ALLOW-only ACLs
@@ -120,12 +120,44 @@ namespace StreamGuard.Models
             "prism live studio", "lightstream"
         };
 
+        // ── False-Positive Bypass ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Process names to exclude from the suspicious-process alert.
+        /// Use this if PrivacyWarden flags a tool you intentionally run (e.g. Wireshark for debugging).
+        /// Names are case-insensitive. Example: ["wireshark", "fiddler"]
+        /// </summary>
+        [JsonPropertyName("suppressedProcessAlerts")]
+        public List<string> SuppressedProcessAlerts { get; set; } = new List<string>();
+
+        /// <summary>
+        /// File path prefixes to exclude from the temp-executable alert.
+        /// Use this if an installer or game launcher drops files to a known safe location.
+        /// Example: ["C:\\Users\\YourName\\AppData\\Local\\Temp\\Steam"]
+        /// </summary>
+        [JsonPropertyName("suppressedTempPaths")]
+        public List<string> SuppressedTempPaths { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Filename glob patterns to exclude from the temp-executable alert.
+        /// Supports a single '*' wildcard. Case-insensitive.
+        /// Example: ["*setup*", "*install*", "*unins*"]
+        /// </summary>
+        [JsonPropertyName("suppressedTempFilePatterns")]
+        public List<string> SuppressedTempFilePatterns { get; set; } = new List<string>
+        {
+            "*setup*",
+            "*install*",
+            "*unins*",
+            "*update*"
+        };
+
         // ── Logging ───────────────────────────────────────────────────────────
 
         [JsonPropertyName("logDirectory")]
         public string LogDirectory { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "StreamGuard", "Logs");
+            "PrivacyWarden", "Logs");
 
         [JsonPropertyName("maxLogSizeBytes")]
         public long MaxLogSizeBytes { get; set; } = 10485760; // 10MB
@@ -142,7 +174,7 @@ namespace StreamGuard.Models
         private static readonly string ConfigPath =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "config.json");
+                "PrivacyWarden", "config.json");
 
         /// <summary>
         /// Public accessor for the config file path — used by ThreatDetectionService for integrity monitoring.
