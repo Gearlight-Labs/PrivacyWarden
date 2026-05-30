@@ -1,0 +1,54 @@
+# SHA256 Checksums - VTuber VPN Security Service v1.0.0 (Source Code)
+
+These are the SHA256 hashes for all source code files in this package. Use these to verify file integrity and ensure no corruption during download.
+
+## Source Code Files
+
+052361306376e41fe7aa9138a42b3f3f158ed2493b364b7662a5bcec4bf9e54a  src/VTuberVPNService/Services/VpnControlService.cs
+0d3eb5c9ea7656c28ebc1d9cabeb39ccf14b917eb14b30a58826a2cd3c40f495  src/VTuberVPNService/VTuberVPNService.csproj
+1b396ae6336d6f3c16813381dfefc084357101783a9500d54d2348b917a299f2  src/VTuberVPNService/Program.cs
+4b2a0fa486dd082cebcd3676e59e18497d5971ed9e70d62f32d38ac3ba080ecc  src/VTuberVPNService/Services/DnsMonitoringService.cs
+59556f43003f2b601b5ab7f92c1235826c6620d7fe0f205316a1654bf23b3021  src/VTuberVPNService/Services/SecurityAuditService.cs
+69e9885b263682b368e4d6c12e1d6af3ea20f4f6de4698c83d65459874f5d234  src/VTuberVPNService/Services/NetworkOptimizationService.cs
+76ca8199d1956c0a1228faaf9173f12513a413743b7be92bd4d6b35243bcc814  src/VTuberVPNService/Models/VTuberConfig.cs
+c1ce73a0333633e359f2b029961538a3534a6705a825e222049601463063407b  src/VTuberVPNService/Worker.cs
+fdb4080dd73b438ebba919b5b35a1396169ddb71851272fe3cf919f05cb5cbf6  src/VTuberVPNService/Services/ErrorRecoveryService.cs
+
+## Documentation & Configuration
+
+75d5a18bfafee86903408d8657333f62e6dba3de4e74525afb43f343ff831804  CHANGELOG.md
+396cdcc2c9baa30994e117c3889d2b4abeb18267e570be92ebdf8d9b5e7235d3  COMPILATION_GUIDE.md
+85ecf595db85b2ff9b718e12b25ce96f9ace02fe77dfc23e471952ebb699741f  LICENSE
+bc88ab2b00446dcfa9db9a062025d26b92303d86df462326a76f9d94b321ad67  SECURITY.md
+cbed134c8bc8b85079dd45fbeeab58a54b8b93746c7dabca21d512982320987d  .gitignore
+debb5d10839f5935632566d18bc18ed2fbb8b62bb1f0dcc3a3ca843449415b64  README.md
+59854984853104df5c353e2f681a15fc7924742f9a2e468c29af248dce45ce03  VERSION.txt
+
+## How to Verify
+
+On Windows PowerShell:
+```powershell
+Get-FileHash -Path "path\to\file" -Algorithm SHA256
+```
+
+On Linux/Mac:
+```bash
+sha256sum path/to/file
+```
+
+Compare the output with the hash listed above. If they match exactly, the file is intact and hasn't been corrupted or tampered with.
+
+## Security Notes
+
+- These hashes verify **file integrity** only (corruption detection during download)
+- They do NOT verify authenticity (that the file came from Aya Yoki)
+- For full security, check the PGP signature on the GitHub release (future enhancement)
+- Always download from the official GitHub repository: github.com/Gearlight-Labs/VTuberVPNService
+
+## What to Do After Verification
+
+1. Extract the source code
+2. Open the project in Visual Studio 2022 or later
+3. Build the solution: `dotnet build -c Release`
+4. The compiled executable will be in `bin/Release/net7.0/`
+5. Follow COMPILATION_GUIDE.md for detailed instructions
