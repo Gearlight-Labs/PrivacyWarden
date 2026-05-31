@@ -71,7 +71,12 @@ namespace StreamGuard
                 _audit.LogHigh("STARTUP_ERROR", $"Startup failed: {ex.GetType().Name}", ex.Message);
             }
 
-            while (!stoppingToken.IsCancellationRequested)
+            // PeriodicTimer: coalesces missed ticks, allocates no new timer per iteration,
+            // and guarantees the next tick cannot fire until the current TickAsync has returned.
+            using var workerTimer = new System.Threading.PeriodicTimer(
+                TimeSpan.FromMilliseconds(_config.MonitoringIntervalMs));
+
+            while (await workerTimer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
                 try { await TickAsync(); }
                 catch (OperationCanceledException) { break; }
@@ -82,7 +87,6 @@ namespace StreamGuard
                     await _recovery.RecoverAsync(ex);
                     _currentState = ServiceState.PrivacyMode;
                 }
-                await Task.Delay(_config.MonitoringIntervalMs, stoppingToken);
             }
 
             WriteStatus("STOPPED", "Service stopping");

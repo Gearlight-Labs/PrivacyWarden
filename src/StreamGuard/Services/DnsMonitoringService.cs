@@ -8,6 +8,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using StreamGuard.Models;
@@ -43,9 +44,10 @@ namespace StreamGuard.Services
 
         // Known adapters — to detect new rogue adapters appearing
         private readonly HashSet<string> _knownAdapters = new();
-        private bool _adapterBaselineSet = false;
+        // volatile: read in HasDnsLeak() (worker thread), written in EstablishAdapterBaseline() (startup)
+        private volatile bool _adapterBaselineSet = false;
 
-        // Enforcement failure tracking
+        // Enforcement failure tracking — use Interlocked for thread-safe increment/reset
         private int _consecutiveEnforcementFailures = 0;
         private const int EnforcementCriticalThreshold = 2;
 
@@ -200,23 +202,23 @@ namespace StreamGuard.Services
 
             if (anyFailure)
             {
-                _consecutiveEnforcementFailures++;
-                if (_consecutiveEnforcementFailures >= EnforcementCriticalThreshold)
+                var failures = Interlocked.Increment(ref _consecutiveEnforcementFailures);
+                if (failures >= EnforcementCriticalThreshold)
                 {
                     _audit.LogCritical("DNS_ENFORCEMENT_CRITICAL",
-                        $"DNS enforcement failed {_consecutiveEnforcementFailures} consecutive times",
+                        $"DNS enforcement failed {Interlocked.CompareExchange(ref _consecutiveEnforcementFailures, 0, 0)} consecutive times",
                         "System may be unable to prevent DNS leaks. Manual intervention required. Check netsh permissions and adapter state.");
                 }
                 else
                 {
                     _audit.LogHigh("DNS_ENFORCEMENT_FAILED",
-                        $"DNS enforcement failed on one or more adapters (failure #{_consecutiveEnforcementFailures})",
+                        $"DNS enforcement failed on one or more adapters (failure #{Interlocked.CompareExchange(ref _consecutiveEnforcementFailures, 0, 0)})",
                         "Will retry on next monitoring tick.");
                 }
             }
             else
             {
-                _consecutiveEnforcementFailures = 0;
+                Interlocked.Exchange(ref _consecutiveEnforcementFailures, 0);
                 _audit.LogInfo("DNS_ENFORCED",
                     $"DNS locked to [{string.Join(", ", _config.AllowedDnsServers)}] on {interfaces.Count} adapter(s).");
             }

@@ -174,34 +174,35 @@ namespace StreamGuard.Services
                 var logSb    = new StringBuilder();
                 var hmacSb   = new StringBuilder();
 
-                lock (_lock)
+                foreach (var e in entries)
                 {
-                    foreach (var e in entries)
+                    if (e.IsRaw)
                     {
-                        if (e.IsRaw)
-                        {
-                            logSb.Append(e.RawText);
-                            continue;
-                        }
-
-                        var ts      = e.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                        var sb2     = new StringBuilder();
-                        sb2.Append($"[{ts}][{e.Category}][{e.Level}] {e.Message}");
-                        if (e.Fields != null && e.Fields.Count > 0)
-                        {
-                            sb2.AppendLine();
-                            foreach (var kv in e.Fields)
-                                sb2.AppendLine($"  {kv.Key,-8}: {kv.Value}");
-                        }
-                        var logLine = sb2.ToString();
-                        logSb.Append(logLine + (e.Fields == null ? Environment.NewLine : ""));
-
-                        // HMAC chain
-                        var prevHash = _lastHash[target];
-                        var hash     = ComputeHmac(prevHash, ts, e.Category, e.Level, e.Message);
-                        _lastHash[target] = hash;
-                        hmacSb.AppendLine($"{target.ToString().ToUpper()}|{ts}|{e.Category}|{e.Level}|{prevHash}|{hash}");
+                        logSb.Append(e.RawText);
+                        continue;
                     }
+
+                    var ts      = e.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                    var sb2     = new StringBuilder();
+                    sb2.Append($"[{ts}][{e.Category}][{e.Level}] {e.Message}");
+                    if (e.Fields != null && e.Fields.Count > 0)
+                    {
+                        sb2.AppendLine();
+                        foreach (var kv in e.Fields)
+                            sb2.AppendLine($"  {kv.Key,-8}: {kv.Value}");
+                    }
+                    var logLine = sb2.ToString();
+                    logSb.Append(logLine + (e.Fields == null ? Environment.NewLine : ""));
+
+                    // HMAC chain — only lock around _lastHash (the only shared mutable state)
+                    string prevHash, hash;
+                    lock (_lock)
+                    {
+                        prevHash = _lastHash[target];
+                        hash     = ComputeHmac(prevHash, ts, e.Category, e.Level, e.Message);
+                        _lastHash[target] = hash;
+                    }
+                    hmacSb.AppendLine($"{target.ToString().ToUpper()}|{ts}|{e.Category}|{e.Level}|{prevHash}|{hash}");
                 }
 
                 try

@@ -120,6 +120,38 @@ namespace StreamGuard.Models
             "prism live studio", "lightstream"
         };
 
+        // ── False-Positive Bypass ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Process names to exclude from the suspicious-process alert.
+        /// Use this if StreamGuard flags a tool you intentionally run (e.g. Wireshark for debugging).
+        /// Names are case-insensitive. Example: ["wireshark", "fiddler"]
+        /// </summary>
+        [JsonPropertyName("suppressedProcessAlerts")]
+        public List<string> SuppressedProcessAlerts { get; set; } = new List<string>();
+
+        /// <summary>
+        /// File path prefixes to exclude from the temp-executable alert.
+        /// Use this if an installer or game launcher drops files to a known safe location.
+        /// Example: ["C:\\Users\\YourName\\AppData\\Local\\Temp\\Steam"]
+        /// </summary>
+        [JsonPropertyName("suppressedTempPaths")]
+        public List<string> SuppressedTempPaths { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Filename glob patterns to exclude from the temp-executable alert.
+        /// Supports a single '*' wildcard. Case-insensitive.
+        /// Example: ["*setup*", "*install*", "*unins*"]
+        /// </summary>
+        [JsonPropertyName("suppressedTempFilePatterns")]
+        public List<string> SuppressedTempFilePatterns { get; set; } = new List<string>
+        {
+            "*setup*",
+            "*install*",
+            "*unins*",
+            "*update*"
+        };
+
         // ── Logging ───────────────────────────────────────────────────────────
 
         [JsonPropertyName("logDirectory")]
