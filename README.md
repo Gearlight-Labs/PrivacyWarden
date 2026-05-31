@@ -115,6 +115,6 @@ gearlightlabs@gmail.com or open a [GitHub issue](https://github.com/Gearlight-La
 
 ---
 
-**Version:** 1.1.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Version:** 1.1.1 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
 
 [License](LICENSE) — free to use, credit required if you distribute it.

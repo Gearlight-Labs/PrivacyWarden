@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,21 @@ using StreamGuard.Models;
 using StreamGuard.Services;
 
 [assembly: SupportedOSPlatform("windows")]
+
+// ── Single-instance guard ────────────────────────────────────────────────────────────
+// Prevents a second copy of the service process from running alongside the first.
+// Global\ prefix makes the mutex visible across all sessions (including Session 0),
+// so a service instance and an interactive instance cannot coexist.
+// The mutex is held for the lifetime of the process via a top-level `using` statement.
+using var instanceMutex = new Mutex(true, @"Global\StreamGuard_ServiceInstance", out bool isFirstInstance);
+if (!isFirstInstance)
+{
+    // Another instance is already running — exit silently.
+    // When running as a Windows Service, SCM will never start a second instance
+    // because it tracks the service PID itself; this guard covers the edge case
+    // where someone runs the exe directly while the service is already active.
+    Environment.Exit(0);
+}
 
 // ── Hide the console window when running interactively (not as a Windows Service) ──
 // Windows Services run in Session 0 with no console, so this only fires when a user
