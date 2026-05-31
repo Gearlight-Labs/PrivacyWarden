@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # Main service
+  - package-ecosystem: "nuget"
+    directory: "/src/StreamGuard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "bump"
+    ignore:
+      # Major/minor updates need manual review — only auto-merge patches
+      - dependency-name: "Microsoft.Extensions.Hosting"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "Microsoft.Extensions.Hosting.WindowsServices"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "Microsoft.Extensions.Logging.EventLog"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # Tray app
+  - package-ecosystem: "nuget"
+    directory: "/src/StreamGuardTray"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "bump"
+    ignore:
+      - dependency-name: "System.ServiceProcess.ServiceController"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
