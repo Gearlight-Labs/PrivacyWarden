@@ -27,6 +27,20 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      # Determine version string early so every subsequent step can use it.
+      # On a tag push: strip the leading 'v' from the tag name (v1.2.0 → 1.2.0).
+      # On workflow_dispatch: use the manually supplied input.
+      - name: Determine version string
+        id: version
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $ver = "${{ github.ref_name }}" -replace '^v', ''
+          } else {
+            $ver = "${{ github.event.inputs.version }}"
+          }
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Building version: $ver"
+
       - name: Restore dependencies
         run: |
           dotnet restore src/StreamGuard/StreamGuard.csproj
@@ -129,10 +143,21 @@ jobs:
           # script (e.g. ..\StreamGuard_Release) resolve correctly.
           makensis installer\StreamGuard_Installer.nsi
 
+      - name: Rename installer to versioned filename
+        run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          $src = "installer\StreamGuard-Setup-v1.1.1.exe"
+          $dst = "installer\StreamGuard-Setup-v${ver}.exe"
+          if ($src -ne $dst) {
+            Rename-Item -Path $src -NewName "StreamGuard-Setup-v${ver}.exe"
+          }
+          Write-Host "Installer: $dst"
+
       - name: Sign installer
         env:
           CODE_SIGN_PASSWORD: ${{ secrets.CODE_SIGN_PASSWORD }}
         run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
           $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" `
             -Recurse -Filter "signtool.exe" `
             | Where-Object { $_.FullName -like "*\x64\*" } `
@@ -145,35 +170,27 @@ jobs:
             /du "https://gearlight-labs.github.io/StreamGuard/" `
             /t "http://timestamp.digicert.com" `
             /v `
-            "installer/StreamGuard-Setup-v1.1.1.exe"
-
-      - name: Determine version string
-        id: version
-        run: |
-          if ("${{ github.ref_type }}" -eq "tag") {
-            $ver = "${{ github.ref_name }}" -replace '^v', ''
-          } else {
-            $ver = "${{ github.event.inputs.version }}"
-          }
-          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+            "installer\StreamGuard-Setup-v${ver}.exe"
 
       - name: Create release ZIP
         run: |
-          Compress-Archive -Path "StreamGuard_Release/*" -DestinationPath "StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip"
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          Compress-Archive -Path "StreamGuard_Release/*" -DestinationPath "StreamGuard-v${ver}-release.zip"
 
       - name: Compute SHA256 hashes
         run: |
-          $installer = (Get-FileHash "installer/StreamGuard-Setup-v1.1.1.exe" -Algorithm SHA256).Hash
-          $zip       = (Get-FileHash "StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip" -Algorithm SHA256).Hash
+          $ver       = "${{ steps.version.outputs.VERSION }}"
+          $installer = (Get-FileHash "installer\StreamGuard-Setup-v${ver}.exe" -Algorithm SHA256).Hash
+          $zip       = (Get-FileHash "StreamGuard-v${ver}-release.zip" -Algorithm SHA256).Hash
           @"
-          StreamGuard v${{ steps.version.outputs.VERSION }} — SHA256 Checksums
+          StreamGuard v${ver} — SHA256 Checksums
           =======================================
           Built by GitHub Actions — verifiable from source
 
-          StreamGuard-Setup-v1.1.1.exe
+          StreamGuard-Setup-v${ver}.exe
             $installer
 
-          StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip
+          StreamGuard-v${ver}-release.zip
             $zip
           "@ | Out-File -FilePath "SHA256.txt" -Encoding UTF8
 
@@ -182,7 +199,7 @@ jobs:
         with:
           name: streamguard-release
           path: |
-            installer/StreamGuard-Setup-v1.1.1.exe
+            installer/StreamGuard-Setup-v${{ steps.version.outputs.VERSION }}.exe
             StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip
             SHA256.txt
           retention-days: 90
@@ -192,7 +209,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            installer/StreamGuard-Setup-v1.1.1.exe
+            installer/StreamGuard-Setup-v${{ steps.version.outputs.VERSION }}.exe
             StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip
             SHA256.txt
           generate_release_notes: true
