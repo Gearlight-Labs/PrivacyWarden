@@ -12,6 +12,24 @@
 
 ---
 
+## [1.1.1-patch1] — 2026-05-31 — Post-Release Concurrency & Quality Audit
+
+### Fixed
+- **Race condition — network change detection** (`VpnControlService`): `volatile bool` flag replaced with `int` + `Interlocked.Exchange`. Eliminates a race window where a rapid VPN disconnect could be silently swallowed, leaving the user unprotected for up to one monitoring interval.
+- **Concurrency — DNS failure counter** (`DnsMonitoringService`): `_consecutiveEnforcementFailures` now uses `Interlocked.Increment` / `Interlocked.Exchange`. Prevents under-counting of consecutive failures which could suppress a CRITICAL escalation event.
+- **Concurrency — adapter baseline flag** (`DnsMonitoringService`): `_adapterBaselineSet` marked `volatile`. Prevents the JIT from caching a stale `false`, which would silently disable rogue-adapter detection for the entire session.
+- **Single-instance enforcement** (`StreamGuard.exe`): `Global\StreamGuard_ServiceInstance` named mutex added at process startup. Prevents duplicate instances from issuing conflicting VPN commands and corrupting the HMAC audit chain.
+- **False-positive flood — suspicious process** (`ThreatMonitorService`): Each suspicious process name now alerts once per service session instead of every 30 seconds. New `suppressedProcessAlerts` config field for permanent per-name suppression.
+- **False-positive — installer temp executables** (`ThreatMonitorService`): New `suppressedTempPaths` and `suppressedTempFilePatterns` config fields. Default patterns (`*setup*`, `*install*`, `*unins*`, `*update*`) suppress common installer filenames out of the box.
+- **False-positive — browser shutdown alert** (`ThreatMonitorService`): 5-minute per-file cooldown added. Prevents repeated HIGH alerts for the same browser credential file after normal browser close.
+- **AuditLogger lock contention** (`AuditLogger`): `_lock` scope narrowed to only the `_lastHash` update. HMAC computation now runs outside the lock.
+- **CI/CD — hardcoded version strings** (`.github/workflows/build-release.yml`): All 4 hardcoded `v1.1.1` references replaced with dynamic version variable. Future releases require zero manual edits to the workflow.
+
+### Improved
+- **Timer efficiency** (`Worker`, `ThreatMonitorService`): `Task.Delay` loops replaced with `PeriodicTimer`. Reduces timer allocations from ~6,720 per 8-hour session to 2 permanent instances.
+
+---
+
 ## [1.1.0] — 2026-05-31
 
 ### Fixed

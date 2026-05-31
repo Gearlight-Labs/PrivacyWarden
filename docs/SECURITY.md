@@ -34,11 +34,11 @@ DNS is enforced by setting the network adapter's DNS servers directly via `netsh
 - **Rogue network adapters** — detects injection of new VPN or proxy adapters
 - **Packet capture tools** — detects Wireshark, npcap, and similar tools starting
 
-All detections are written to `2026-05-31_threat.log` in plain English with process name, PID, file path, remote IP, and a hash of any suspicious file.
+All detections are written to `YYYY-MM-DD_threat.log` in plain English with process name, PID, file path, remote IP, and a hash of any suspicious file.
 
 ### Log Integrity
 
-Logs use a cryptographic HMAC chain. Each entry's hash depends on the previous entry's hash. The HMAC key is derived from a machine-specific seed stored in `C:\ProgramData\StreamGuard\hmac_seed.bin` — this file is created on first run and persists across reinstalls.
+Logs use a cryptographic HMAC-SHA256 chain. Each entry's hash depends on the previous entry's hash, creating a tamper-evident sequence. The HMAC key is a cryptographically random 32-byte key generated on first run, stored in `C:\ProgramData\StreamGuard\hmac_seed.bin`, and protected by Windows DPAPI (`LocalMachine` scope). Only SYSTEM and Administrators can decrypt it — standard users on the machine cannot read or derive the key.
 
 The chain is stored in a separate `.hmac` sidecar file so the readable log stays clean.
 
@@ -48,6 +48,34 @@ To verify manually:
 ```powershell
 .\Verify-SecurityAudit.ps1
 ```
+
+### Binary Integrity
+
+On startup, the service verifies the Mullvad CLI binary in two ways:
+
+1. **Authenticode publisher check** — reads the embedded X.509 certificate and confirms the publisher name contains `Mullvad VPN AB`. A mismatch logs `MULLVAD_SIGNATURE_MISMATCH` at CRITICAL severity and blocks VPN operations.
+2. **SHA256 hash baseline** — records the binary's hash at startup. On every Privacy Mode activation, the hash is recomputed and compared. A change logs `MULLVAD_BINARY_TAMPERED` at CRITICAL severity. The baseline updates after alerting to avoid repeated warnings after a legitimate Mullvad auto-update.
+
+The Mullvad CLI path is also validated against a hardcoded allowlist (`C:\Program Files\Mullvad VPN\resources\mullvad.exe` and the x86 equivalent) before every subprocess call, preventing config tampering from redirecting execution to a malicious binary.
+
+### Config File and Directory ACL Hardening
+
+On every startup, the service applies restrictive Windows ACLs to `config.json` and the `C:\ProgramData\StreamGuard\` directory:
+
+- **SYSTEM — Full Control** (inherited by all files and subdirectories)
+- **Administrators — Full Control** (inherited by all files and subdirectories)
+- **Users — Deny Write, Delete, DeleteSubdirectoriesAndFiles** (explicit deny, inherited)
+
+The deny ACE takes precedence over any inherited allow from the parent `ProgramData` directory. This prevents a non-admin process from modifying `config.json` to alter detection thresholds, redirect the Mullvad CLI path, or disable security features.
+
+### Concurrency Hardening
+
+All shared mutable state accessed from multiple threads uses atomic operations:
+
+- **Network change flag** — `Interlocked.Exchange` eliminates the race window where a rapid VPN disconnect could be silently swallowed.
+- **DNS failure counter** — `Interlocked.Increment` / `Interlocked.Exchange` ensures the CRITICAL escalation threshold is always accurate.
+- **Adapter baseline flag** — `volatile bool` prevents the JIT from caching a stale value that would disable rogue-adapter detection.
+- **Single-instance mutex** — `Global\StreamGuard_ServiceInstance` prevents duplicate process instances from issuing conflicting VPN commands or corrupting the HMAC chain.
 
 ---
 
@@ -62,7 +90,7 @@ To verify manually:
 | Config | `C:\ProgramData\StreamGuard\config.json` |
 | HMAC seed | `C:\ProgramData\StreamGuard\hmac_seed.bin` |
 
-The `C:\ProgramData\StreamGuard\` directory has ACL hardening: SYSTEM and Administrators have full control, standard users have read-only access. This prevents non-admin processes from tampering with the config or seed file.
+The `C:\ProgramData\StreamGuard\` directory has ACL hardening applied on every service startup: SYSTEM and Administrators have full control; standard users have an explicit Deny ACE for Write, Delete, and DeleteSubdirectoriesAndFiles. This prevents non-admin processes from tampering with `config.json`, `hmac_seed.bin`, or any log file.
 
 ---
 

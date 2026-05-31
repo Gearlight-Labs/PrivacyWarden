@@ -33,6 +33,15 @@ It's a cryptographically random 32-byte key generated on first run. It's stored 
 **Why was v1.1.0 pulled?**
 Six security vulnerabilities were found after release — including a critical unquoted service path that could allow privilege escalation to SYSTEM, and a command injection vector in the DNS enforcement code. All six were patched in v1.1.1. If you installed v1.1.0, uninstall it and install v1.1.1 instead. Full details in the release notes.
 
+**The threat log is full of repeated warnings about Wireshark / Fiddler / a tool I use intentionally.**
+Add the process name to `suppressedProcessAlerts` in `config.json`. For example: `"suppressedProcessAlerts": ["wireshark"]`. After saving, restart the service. The alert will be silenced permanently for that tool. If you only want to reduce noise without fully silencing it, the service already deduplicates — each process name alerts at most once per service session even without suppression.
+
+**The threat log fires HIGH every time I install software.**
+This is the temp-executable check catching installer files. The default suppression patterns (`*setup*`, `*install*`, `*unins*`, `*update*`) cover most installers. If yours isn't covered, add the filename pattern to `suppressedTempFilePatterns` in `config.json` (e.g. `"*myapp*"`), or add the temp subfolder path to `suppressedTempPaths`.
+
+**Can I run two copies of StreamGuard at the same time?**
+No, and it's intentional. A named mutex (`Global\StreamGuard_ServiceInstance`) prevents a second instance from starting. Running two copies would cause conflicting VPN commands and corrupt the audit log chain. If you need to restart the service, use `services.msc` or `Restart-Service StreamGuard`.
+
 **What is LOG_INTEGRITY_FAILED?**
 It means the HMAC chain from the previous session doesn't match the current one. This is normal after reinstalling or updating. It's not a sign of tampering — just means the previous chain ended and a new one started.
 

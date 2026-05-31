@@ -57,6 +57,12 @@ The config file is at `C:\ProgramData\StreamGuard\config.json`
 - **`enableQuantumResistance`** — post-quantum encryption. Default: `false`.
 - **`logRetentionDays`** — how many days of logs to keep before automatic deletion. Default: `7`. Set to `0` to keep logs forever (not recommended — logs will grow indefinitely).
 
+**False-positive bypass options** (new in patch1):
+
+- **`suppressedProcessAlerts`** — list of process names to never alert on. Useful if you run Wireshark, Fiddler, or a proxy tool regularly and don't want repeated warnings. Example: `["wireshark", "fiddler"]`. Default: `[]` (nothing suppressed).
+- **`suppressedTempPaths`** — list of folder path prefixes in `%TEMP%` to ignore for the executable-drop check. Example: `["C:\\Users\\Aya\\AppData\\Local\\Temp\\Steam"]`. Default: `[]`.
+- **`suppressedTempFilePatterns`** — list of filename glob patterns (using `*` as wildcard) to ignore for the executable-drop check. Default: `["*setup*", "*install*", "*unins*", "*update*"]` — these cover most legitimate installers out of the box. Remove entries if you want maximum sensitivity.
+
 After editing, restart the service: open `services.msc`, find StreamGuard, right-click → Restart.
 
 ---
