@@ -101,27 +101,9 @@ jobs:
             "build/service/StreamGuard.exe" `
             "build/tray/StreamGuardTray.exe"
 
-      # Windows Server 2025 runners no longer ship NSIS pre-installed.
-      # Download directly from SourceForge and add to PATH — same approach
-      # used by gauge, electron-builder, and other projects after the runner change.
+      # Install NSIS via Chocolatey — avoids SourceForge SSL errors on GitHub-hosted runners.
       - name: Install NSIS
-        env:
-          NSIS_VERSION: '3.11'
-        run: |
-          Invoke-WebRequest `
-            "https://sourceforge.net/projects/nsis/files/NSIS%203/${env:NSIS_VERSION}/nsis-${env:NSIS_VERSION}.zip/download" `
-            -UserAgent "PowerShell" `
-            -OutFile "./nsis.zip"
-          Expand-Archive -LiteralPath ./nsis.zip -DestinationPath "${env:ProgramFiles(x86)}"
-          # Also extract the 8k-strings variant on top for large scripts
-          Invoke-WebRequest `
-            "https://sourceforge.net/projects/nsis/files/NSIS%203/${env:NSIS_VERSION}/nsis-${env:NSIS_VERSION}-strlen_8192.zip/download" `
-            -UserAgent "PowerShell" `
-            -OutFile "./nsis-8192.zip"
-          Expand-Archive -Force -LiteralPath ./nsis-8192.zip -DestinationPath "${env:ProgramFiles(x86)}\nsis-${env:NSIS_VERSION}"
-          # Add to PATH for all subsequent steps
-          echo "${env:ProgramFiles(x86)}\nsis-${env:NSIS_VERSION}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          Write-Host "NSIS installed at: ${env:ProgramFiles(x86)}\nsis-${env:NSIS_VERSION}"
+        run: choco install nsis --version 3.11 -y --no-progress
 
       - name: Copy assets for installer
         run: |
