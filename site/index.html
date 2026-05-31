@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="StreamGuard — auto-toggles Mullvad VPN and enforces DNS lock for streamers. Built by Aya Yoki (AyaYokiVT) — Gearlight Labs. Zero telemetry. 100% local." />
+  <meta property="og:title" content="StreamGuard by Aya Yoki (AyaYokiVT)" />
+  <meta property="og:description" content="Auto VPN toggle + DNS leak protection for streamers. Zero telemetry. 100% local." />
+  <meta property="og:image" content="assets/banner.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:creator" content="@AyaYokiVT" />
+  <meta name="twitter:title" content="StreamGuard by Aya Yoki (AyaYokiVT)" />
+  <meta name="twitter:description" content="Auto VPN toggle + DNS leak protection for streamers. Zero telemetry. 100% local." />
+  <meta name="twitter:image" content="assets/banner.png" />
+  <title>StreamGuard — by Aya Yoki (AyaYokiVT)</title>
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ── NAV ── -->
+  <nav>
+    <a class="nav-logo" href="#">
+      <img src="assets/logo.png" alt="StreamGuard" />
+      StreamGuard
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">How it works</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a class="nav-cta" href="https://github.com/Gearlight-Labs/StreamGuard/releases/latest">Download</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="hero">
+    <div class="hero-banner">
+      <img src="assets/banner.png" alt="StreamGuard — Auto VPN toggle for streamers" />
+    </div>
+
+    <h1>StreamGuard</h1>
+    <p class="hero-tagline">Stops your VPN from being off when it shouldn't be.</p>
+    <p class="hero-author">
+      Built by <a href="https://twitter.com/AyaYokiVT">Aya Yoki (AyaYokiVT)</a> — Gearlight Labs
+    </p>
+
+    <div class="badge-row">
+      <span class="badge badge-green">Zero Telemetry</span>
+      <span class="badge badge-blue">Mullvad only</span>
+      <span class="badge badge-red">Windows 10/11</span>
+      <span class="badge badge-purple">v1.1.0</span>
+    </div>
+
+    <div class="btn-row">
+      <a class="btn btn-primary" href="https://github.com/Gearlight-Labs/StreamGuard/releases/latest">
+        ⬇&nbsp; Download v1.1.0
+      </a>
+      <a class="btn btn-outline" href="https://github.com/Gearlight-Labs/StreamGuard">
+        View on GitHub
+      </a>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── TELEMETRY ── -->
+  <div class="container" style="padding-top: 3.5rem; padding-bottom: 3.5rem;">
+    <div class="telemetry-banner">
+      <h2>Nothing leaves your machine. Ever.</h2>
+      <p>
+        StreamGuard only talks to the Mullvad CLI already on your PC. No analytics, no crash reports,
+        no pinging home. I built this because I was worried about my own privacy — adding telemetry
+        would completely defeat the point.
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── FEATURES ── -->
+  <section class="container" id="features">
+    <p class="section-label">What it actually does</p>
+    <h2 class="section-title">The stuff that matters.</h2>
+    <p class="section-desc">
+      I built this to solve my own problem. These are the things it does.
+    </p>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-icon">🔄</div>
+        <h3>Auto VPN on/off</h3>
+        <p>Detects when OBS starts, turns the VPN off. OBS closes, VPN comes back on. You never touch it.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🛡️</div>
+        <h3>DNS stays locked</h3>
+        <p>Even when the VPN is off during a stream, your DNS is still locked to Mullvad. Your ISP can't see what you're doing.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔍</div>
+        <h3>Watches for sketchy stuff</h3>
+        <p>Logs unknown processes touching your browser credentials, new network adapters, packet capture tools, config changes. Your personal black box.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📋</div>
+        <h3>Tamper-proof logs</h3>
+        <p>Every log entry is part of a cryptographic chain. If someone edits the log file after the fact, the chain breaks and you'll know.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚠️</div>
+        <h3>Alerts when things go wrong</h3>
+        <p>Suspicious process, rogue adapter, binary replaced — it escalates to CRITICAL and writes it to the threat log. You'll have a record.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔧</div>
+        <h3>Tries to fix itself</h3>
+        <p>If DNS gets changed by something else, it puts it back. If the VPN drops unexpectedly, it tries to reconnect. If it can't, it logs exactly why.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── HOW IT WORKS ── -->
+  <section class="container" id="how-it-works">
+    <p class="section-label">Under the hood</p>
+    <h2 class="section-title">What happens after you install it.</h2>
+    <p class="section-desc">
+      It's a Windows background service. Here's the sequence from boot to stream.
+    </p>
+
+    <div class="steps-grid">
+      <div class="step">
+        <h3>Boots with Windows</h3>
+        <p>It's a registered Windows service — starts automatically on boot, no shortcut to click, nothing to remember.</p>
+      </div>
+      <div class="step">
+        <h3>Takes a snapshot</h3>
+        <p>On startup it hashes the Mullvad binary, the config file, and itself. If any of those change later, it flags it immediately.</p>
+      </div>
+      <div class="step">
+        <h3>Watches for OBS</h3>
+        <p>Polls for OBS and other streaming apps every few seconds. Goes live → VPN off. Goes offline → VPN back on.</p>
+      </div>
+      <div class="step">
+        <h3>Keeps checking DNS</h3>
+        <p>Every few minutes it verifies DNS is still locked. If something changed it, it fixes it and writes what happened to the log.</p>
+      </div>
+      <div class="step">
+        <h3>Logs everything</h3>
+        <p>Three log files per day in plain English. Cryptographic chain in a sidecar file proves they haven't been edited.</p>
+      </div>
+      <div class="step">
+        <h3>Escalates threats</h3>
+        <p>Unknown process, rogue adapter, binary swap — each one gets logged with severity. CRITICAL events show up in the tray icon.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── INSTALL ── -->
+  <section class="container" id="install">
+    <p class="section-label">Get it running</p>
+    <h2 class="section-title">Install.</h2>
+    <p class="section-desc">
+      Grab the installer, run it as admin, done. Or use the ZIP if you want to see what's happening.
+    </p>
+
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>⬇&nbsp; Installer <span style="font-weight:400;color:var(--muted);font-size:0.8rem;">(easiest)</span></h3>
+        <ol>
+          <li><a href="https://github.com/Gearlight-Labs/StreamGuard/releases/latest" style="color:var(--accent2)">Download <strong>StreamGuard-Setup-v1.1.0.exe</strong></a></li>
+          <li>Run it as <strong>Administrator</strong></li>
+          <li>Make sure <strong>Mullvad VPN</strong> is installed first</li>
+          <li>That's it — it starts automatically</li>
+        </ol>
+      </div>
+      <div class="install-card">
+        <h3>📦&nbsp; Manual (ZIP)</h3>
+        <ol>
+          <li><a href="https://github.com/Gearlight-Labs/StreamGuard/releases/latest" style="color:var(--accent2)">Download <strong>StreamGuard-v1.1.0-release.zip</strong></a></li>
+          <li>Extract it anywhere</li>
+          <li>Open PowerShell as <strong>Administrator</strong></li>
+          <li>Run <code>.\Install-StreamGuard.ps1</code></li>
+        </ol>
+      </div>
+      <div class="install-card">
+        <h3>✅&nbsp; Verify it's working</h3>
+        <ol>
+          <li>Open PowerShell as <strong>Administrator</strong></li>
+          <li>Run <code>.\Verify-SecurityAudit.ps1</code></li>
+          <li>Check the tray icon in your system tray</li>
+          <li>Check <code>C:\ProgramData\StreamGuard\Logs\</code></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="req-bar">
+      <strong>Requirements:</strong>&nbsp;
+      Windows 10/11 Pro or higher &nbsp;·&nbsp;
+      Administrator rights &nbsp;·&nbsp;
+      <a href="https://mullvad.net/download">Mullvad VPN</a> installed
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── ABOUT ── -->
+  <section class="container" id="about">
+    <p class="section-label">The person behind it</p>
+    <h2 class="section-title">About.</h2>
+
+    <div class="about-card">
+      <img class="about-logo" src="assets/logo.png" alt="StreamGuard logo" />
+      <div class="about-text">
+        <h2>Aya Yoki (AyaYokiVT)</h2>
+        <p>
+          Hey, I'm Aya. I'm a VTuber and I got doxxed-adjacent once because I forgot to turn my VPN back on
+          after a stream. Spent two hours browsing with my real IP exposed and had no idea. That's the kind
+          of thing that ends careers.
+        </p>
+        <p>
+          So I built StreamGuard. It's not a big fancy tool — it just solves that one problem automatically
+          so I never have to think about it again. Source code is all on GitHub if you want to see exactly what it does.
+        </p>
+        <div class="about-links">
+          <a href="https://twitter.com/AyaYokiVT">🐦 @AyaYokiVT</a>
+          <a href="https://github.com/Gearlight-Labs">💻 Gearlight Labs</a>
+          <a href="mailto:gearlightlabs@gmail.com">✉ gearlightlabs@gmail.com</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── FAQ ── -->
+  <section class="container" id="faq">
+    <p class="section-label">Questions</p>
+    <h2 class="section-title">FAQ.</h2>
+    <p class="section-desc">
+      Honest answers. No marketing speak.
+    </p>
+
+    <div class="faq-list">
+
+      <details class="faq-item">
+        <summary>Is this actually useful or is it pointless?</summary>
+        <p>
+          It solves one specific problem: you go offline, forget to turn the VPN back on, and your real IP is exposed for hours without you noticing.
+          StreamGuard handles that automatically. If you've never done that — great, you don't need it.
+          If you have, or you're worried about it, this is the fix.
+        </p>
+        <p>
+          The threat detection and audit logs are extras. They're there if you ever get hit by a social engineering attack or need to prove
+          what was happening on your machine at a specific time. Most people will never need them. But they're there if you do.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Does this work with any VPN?</summary>
+        <p>
+          No. It's built specifically for <strong>Mullvad VPN</strong> and uses the Mullvad CLI directly.
+          Other VPNs (NordVPN, ExpressVPN, ProtonVPN, etc.) won't work. Mullvad support was chosen because it's
+          privacy-first, has a proper CLI, and is popular in the streamer/VTuber space.
+          Support for other VPNs may come in a future version.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Do I need a Mullvad subscription?</summary>
+        <p>
+          Yes, for the VPN part. The DNS lock works without an active subscription,
+          but Privacy Mode (VPN on) needs a valid Mullvad account with time on it.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Will this slow down my stream?</summary>
+        <p>
+          No. When OBS (or any supported streaming app) is detected, the VPN turns off automatically.
+          You stream at full native speed. DNS lock has no measurable impact on latency.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>What streaming apps does it support?</summary>
+        <p>
+          OBS Studio, Streamlabs, XSplit, StreamElements OBS Live, and Prism Live Studio by default.
+          You can add others in <code>config.json</code> by adding the process name to <code>streamingProcessNames</code>.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Does this collect any data?</summary>
+        <p>
+          No. Zero telemetry, no analytics, no crash reporting to external servers.
+          Everything stays on your machine. The logs are yours and only yours.
+          The only thing StreamGuard talks to is the Mullvad CLI already installed on your PC.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>What does the threat monitor actually watch?</summary>
+        <p>
+          New executables appearing in temp folders, unknown processes accessing browser credentials,
+          unknown processes making outbound network connections, config file changes, new network adapters,
+          and packet capture tools. It only watches your own machine — no traffic capture,
+          no logging of what websites you visit.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Where are the logs?</summary>
+        <p>
+          <code>C:\ProgramData\StreamGuard\Logs\</code> — three files per day:
+          <code>_service.log</code>, <code>_session.log</code>, and <code>_threat.log</code>.
+          Open File Explorer and type the path directly into the address bar (ProgramData is hidden by default).
+          They're plain text — open them in Notepad.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Windows SmartScreen is blocking the installer. Is it safe?</summary>
+        <p>
+          Yes. Click "More info" then "Run anyway". StreamGuard is a private indie tool without a
+          corporate code signing certificate (those cost $300+/year). The SHA256 hash in <code>SHA256.txt</code>
+          lets you verify the file is genuine. The full source code is on GitHub if you want to check exactly
+          what it does before running it.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>VirusTotal shows 1/71 flagged — is the installer malware?</summary>
+        <p>
+          No. The one flag is CrowdStrike's heuristic ML model at 60% confidence — below their own threshold
+          for a real detection. Every other vendor (Microsoft, Kaspersky, ESET, Sophos, Malwarebytes,
+          SentinelOne, and 65+ others) says clean.
+        </p>
+        <p>
+          Heuristic scanners flag StreamGuard because it does things that look suspicious in isolation:
+          installs a Windows Service, spawns <code>mullvad.exe</code> as a subprocess, modifies DNS settings,
+          and auto-starts a tray app on login. That's exactly what it's supposed to do.
+          The installer also isn't signed with a commercial CA certificate (those cost $200–400/year),
+          which makes ML models nervous.
+        </p>
+        <p>
+          If you want to verify it yourself: the full source code is public on GitHub, the SHA256 hash
+          is in <code>SHA256.txt</code> in the release, and you can build it from source using the
+          <a href="https://github.com/Gearlight-Labs/StreamGuard/blob/main/docs/COMPILATION_GUIDE.md">compilation guide</a>.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>The tray icon isn't showing.</summary>
+        <p>
+          Run <code>StreamGuardTray.exe</code> manually from
+          <code>C:\Program Files\StreamGuard\StreamGuardTray.exe</code>.
+          If it still doesn't appear, check that it's in your startup apps
+          (Task Manager → Startup apps tab).
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>The service won't start.</summary>
+        <p>
+          Open <code>services.msc</code>, find StreamGuard, and check the status.
+          If it failed, check Windows Event Log → Applications for the error message.
+          Make sure Mullvad VPN is installed — StreamGuard won't start without it.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Can I use this commercially or modify it?</summary>
+        <p>
+          Personal use is completely free. If you distribute it or build something on top of it,
+          you need to keep my name on it — Aya Yoki (AyaYokiVT) and Gearlight Labs, with a link back to the repo.
+          Commercial use needs permission first. Check the <a href="https://github.com/Gearlight-Labs/StreamGuard/blob/main/LICENSE">LICENSE file</a> for the full terms.
+        </p>
+      </details>
+
+      <details class="faq-item">
+        <summary>Where do I report bugs or request features?</summary>
+        <p>
+          Open a <a href="https://github.com/Gearlight-Labs/StreamGuard/issues">GitHub Issue</a>.
+          For security-related issues, email
+          <a href="mailto:gearlightlabs@gmail.com">gearlightlabs@gmail.com</a> directly
+          instead of opening a public issue.
+        </p>
+      </details>
+
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer>
+    <p>
+      StreamGuard v1.1.0
+      <span class="sep">·</span>
+      Built by <a href="https://twitter.com/AyaYokiVT">Aya Yoki (AyaYokiVT)</a> — Gearlight Labs
+      <span class="sep">·</span>
+      <a href="https://github.com/Gearlight-Labs/StreamGuard">GitHub</a>
+      <span class="sep">·</span>
+      <a href="mailto:gearlightlabs@gmail.com">Contact</a>
+    </p>
+    <p style="margin-top: 0.5rem; font-size: 0.78rem; opacity: 0.6;">
+      Free to use — credit required if distributed — <a href="https://github.com/Gearlight-Labs/StreamGuard/blob/main/LICENSE" style="color:inherit;">Gearlight Labs Source License</a>
+    </p>
+  
+    <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid #333; font-size:0.85rem; color:#888;">
+      <strong style="color:#ccc;">Code Signing Policy</strong><br>
+      StreamGuard binaries are signed with a self-signed certificate issued to Gearlight Labs.
+      All releases are built from source via GitHub Actions.
+      Free code signing provided by <a href="https://signpath.io" style="color:#888;">SignPath.io</a>,
+      certificate by <a href="https://signpath.org" style="color:#888;">SignPath Foundation</a> (pending approval).
+      See <a href="https://github.com/Gearlight-Labs/StreamGuard/blob/main/docs/CODE_SIGNING.md" style="color:#888;">CODE_SIGNING.md</a> for details.
+    </div>
+</footer>
+
+</body>
+</html>

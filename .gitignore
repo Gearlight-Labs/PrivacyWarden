@@ -1,0 +1,24 @@
+# Build output
+src/StreamGuard/bin/
+src/StreamGuard/obj/
+src/StreamGuardTray/bin/
+src/StreamGuardTray/obj/
+*.user
+*.suo
+.vs/
+
+# Published output
+publish/
+
+# Release binaries — distributed via GitHub Releases, not committed to git
+release/*.exe
+release/*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (keep structure, not content)
+*.log
+*.sealed.log
+*.hmac
