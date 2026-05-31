@@ -5,7 +5,7 @@
 ; General
 
 !define PRODUCT_NAME "StreamGuard"
-!define PRODUCT_VERSION "1.1.0"
+!define PRODUCT_VERSION "1.1.1"
 !define PRODUCT_PUBLISHER "Aya Yoki (AyaYokiVT) - Gearlight Labs"
 !define PRODUCT_AUTHOR "Aya Yoki (AyaYokiVT)"
 !define PRODUCT_CONTACT "gearlightlabs@gmail.com"
@@ -82,7 +82,7 @@ VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "2026 Aya Yoki (AyaYokiVT) - Gearlight Labs"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "${PRODUCT_NAME} Installer"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "1.1.0.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "1.1.1.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "Comments" "Created by Aya Yoki (AyaYokiVT) - gearlightlabs@gmail.com"
 
 ;--------------------------------
