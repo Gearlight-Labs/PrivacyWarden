@@ -1,5 +1,5 @@
 # PrivacyWarden
-**Created by Aya Yoki (AyaYokiVT) — Gearlight Labs**
+**Created by Aya Yoki (AyaYokiVT) -- Gearlight Labs**
 
 Hey, I'm Aya Yoki. I built this because I got tired of choosing between privacy and streaming quality.
 
@@ -17,10 +17,10 @@ This is a Windows background service that runs 24/7 and handles your VPN automat
 
 **Two modes, switches automatically:**
 
-- **Privacy Mode** — VPN on, DNS locked, DAITA and Quantum resistance enabled. This is the default whenever you're not live.
-- **Streaming Mode** — VPN off so your latency doesn't tank, but DNS is still locked to Mullvad so your ISP can't see what you're doing.
+- **Privacy Mode** -- VPN on, DNS locked, DAITA and Quantum resistance enabled. This is the default whenever you're not live.
+- **Streaming Mode** -- VPN off so your latency doesn't tank, but DNS is still locked to Mullvad so your ISP can't see what you're doing.
 
-You go live → it switches to Streaming Mode. You go offline → it switches back to Privacy Mode. You never touch it.
+You go live -> it switches to Streaming Mode. You go offline -> it switches back to Privacy Mode. You never touch it.
 
 ---
 
@@ -28,9 +28,9 @@ You go live → it switches to Streaming Mode. You go offline → it switches ba
 
 | File | What it is |
 |---|---|
-| `PrivacyWarden.exe` | The background service — runs 24/7, does the actual work |
-| `PrivacyWardenTray.exe` | Tray icon — shows you what mode you're in right now |
-| `PrivacyWarden-Setup-v1.1.1.exe` | Installer — sets everything up for you |
+| `PrivacyWarden.exe` | The background service -- runs 24/7, does the actual work |
+| `PrivacyWardenTray.exe` | Tray icon -- shows you what mode you're in right now |
+| `PrivacyWarden-Setup-v1.1.1.exe` | Installer -- sets everything up for you |
 
 ---
 
@@ -46,7 +46,7 @@ You go live → it switches to Streaming Mode. You go offline → it switches ba
 
 Grab `PrivacyWarden-Setup-v1.1.1.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
 
-The installer handles everything — registers the service to start on boot, adds the tray app to your startup, done.
+The installer handles everything -- registers the service to start on boot, adds the tray app to your startup, done.
 
 ---
 
@@ -56,13 +56,13 @@ After install you'll see the icon in your system tray. Right-click it:
 
 ```
 PrivacyWarden
-─────────────────────────
-● Privacy Mode
+-------------------------
+* Privacy Mode
   VPN: Connected
-  DNS: Locked — 100.64.0.1
-─────────────────────────
+  DNS: Locked -- 100.64.0.1
+-------------------------
   Open Log Folder
-─────────────────────────
+-------------------------
   Exit
 ```
 
@@ -70,13 +70,13 @@ PrivacyWarden
 
 ## Logs
 
-Logs live in `C:\ProgramData\PrivacyWarden\Logs\` — three files per day:
+Logs live in `C:\ProgramData\PrivacyWarden\Logs\` -- three files per day:
 
-- `_service.log` — every mode switch, VPN connect/disconnect, DNS check
-- `_session.log` — your stream sessions with timestamps
-- `_threat.log` — anything suspicious: unknown processes, credential access attempts, weird outbound connections
+- `_service.log` -- every mode switch, VPN connect/disconnect, DNS check
+- `_session.log` -- your stream sessions with timestamps
+- `_threat.log` -- anything suspicious: unknown processes, credential access attempts, weird outbound connections
 
-Plain English, readable in Notepad. Each log has a `.hmac` sidecar that cryptographically proves it hasn't been tampered with — useful if you ever need them as evidence.
+Plain English, readable in Notepad. Each log has a `.hmac` sidecar that cryptographically proves it hasn't been tampered with -- useful if you ever need them as evidence.
 
 ---
 
@@ -115,6 +115,6 @@ gearlightlabs@gmail.com or open a [GitHub issue](https://github.com/Gearlight-La
 
 ---
 
-**Version:** 1.1.1 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Version:** 1.1.1 * **Creator:** Aya Yoki (AyaYokiVT) * **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
 
-[License](LICENSE) — free to use, credit required if you distribute it.
+[License](LICENSE) -- free to use, credit required if you distribute it.

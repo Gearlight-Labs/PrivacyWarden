@@ -5,7 +5,7 @@
 - Windows 10 or 11
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - [NSIS](https://nsis.sourceforge.io/) (only needed to build the installer)
-- [Obfuscar](https://github.com/obfuscar/obfuscar) (optional — for obfuscated builds)
+- [Obfuscar](https://github.com/obfuscar/obfuscar) (optional -- for obfuscated builds)
 
 ## Build the service
 

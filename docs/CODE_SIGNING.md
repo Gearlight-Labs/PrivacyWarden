@@ -5,15 +5,15 @@
 PrivacyWarden binaries are signed with a **self-signed certificate** issued to **Gearlight Labs**.
 
 This means:
-- Windows will show a SmartScreen warning on first install saying "Unknown Publisher" — this is expected and normal for self-signed certificates
+- Windows will show a SmartScreen warning on first install saying "Unknown Publisher" -- this is expected and normal for self-signed certificates
 - The signature proves the installer was built by the same key that has always signed PrivacyWarden releases
 - The signature does **not** mean Windows "trusts" the publisher in the same way it trusts Microsoft or major software vendors
 
 ## Why SmartScreen Shows a Warning
 
 SmartScreen trust is based on two things:
-1. A certificate from a trusted Certificate Authority (CA) — we have a self-signed cert, not a CA-issued one
-2. Download reputation — software that has been downloaded many times without being reported as malware gets a reputation score
+1. A certificate from a trusted Certificate Authority (CA) -- we have a self-signed cert, not a CA-issued one
+2. Download reputation -- software that has been downloaded many times without being reported as malware gets a reputation score
 
 As PrivacyWarden gets more downloads, the SmartScreen warning will reduce automatically even with a self-signed certificate.
 
@@ -36,9 +36,9 @@ Compare the output to the hash in `SHA256.txt` from the release page. If they ma
 
 We are working toward obtaining a proper code signing certificate from a trusted Certificate Authority. Options being evaluated:
 
-- **SignPath Foundation** — free for qualifying open source projects. PrivacyWarden will apply once the project meets the 6-month activity requirement.
-- **Certum Open Source** — free certificate from a Polish CA, requires identity verification.
-- **Standard OV Certificate** — commercial certificate (~$70-200/year) that would fully eliminate SmartScreen warnings.
+- **SignPath Foundation** -- free for qualifying open source projects. PrivacyWarden will apply once the project meets the 6-month activity requirement.
+- **Certum Open Source** -- free certificate from a Polish CA, requires identity verification.
+- **Standard OV Certificate** -- commercial certificate (~$70-200/year) that would fully eliminate SmartScreen warnings.
 
 ## Certificate Details
 
