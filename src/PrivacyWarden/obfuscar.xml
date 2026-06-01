@@ -15,17 +15,17 @@
   <Var name="RegenerateDebugInfo" value="false" />
   <Var name="MarkedOnly" value="false" />
 
-  <Module file="$(InPath)/StreamGuard.dll">
+  <Module file="$(InPath)/PrivacyWarden.dll">
     <!-- Keep entry point and hosted service names so .NET DI can resolve them -->
-    <SkipType name="StreamGuard.Program" />
-    <SkipType name="StreamGuard.Worker" />
-    <SkipMethod type="StreamGuard.Program" name="Main" />
+    <SkipType name="PrivacyWarden.Program" />
+    <SkipType name="PrivacyWarden.Worker" />
+    <SkipMethod type="PrivacyWarden.Program" name="Main" />
 
     <!-- Keep Windows Service infrastructure names -->
-    <SkipType name="StreamGuard.Services.SystemTrayService" />
+    <SkipType name="PrivacyWarden.Services.SystemTrayService" />
 
     <!-- Keep config model so JSON deserialization works -->
-    <SkipType name="StreamGuard.Models.VTuberConfig" />
-    <SkipProperty type="StreamGuard.Models.VTuberConfig" name="*" />
+    <SkipType name="PrivacyWarden.Models.VTuberConfig" />
+    <SkipProperty type="PrivacyWarden.Models.VTuberConfig" name="*" />
   </Module>
 </Obfuscator>
