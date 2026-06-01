@@ -169,17 +169,20 @@ jobs:
           $ver       = "${{ steps.version.outputs.VERSION }}"
           $installer = (Get-FileHash "installer\StreamGuard-Setup-v${ver}.exe" -Algorithm SHA256).Hash
           $zip       = (Get-FileHash "StreamGuard-v${ver}-release.zip" -Algorithm SHA256).Hash
-          @"
-          StreamGuard v${ver} — SHA256 Checksums
-          =======================================
-          Built by GitHub Actions — verifiable from source
-
-          StreamGuard-Setup-v${ver}.exe
-            $installer
-
-          StreamGuard-v${ver}-release.zip
-            $zip
-          "@ | Out-File -FilePath "SHA256.txt" -Encoding UTF8
+          # Build the file as an array of lines then join with Unix LF.
+          # Avoids PowerShell here-string leading-whitespace and CRLF issues.
+          $lines = @(
+            "StreamGuard v${ver} - SHA256 Checksums",
+            "=======================================",
+            "Built by GitHub Actions - verifiable from source",
+            "",
+            "StreamGuard-Setup-v${ver}.exe",
+            "  $installer",
+            "",
+            "StreamGuard-v${ver}-release.zip",
+            "  $zip"
+          )
+          [System.IO.File]::WriteAllText("SHA256.txt", ($lines -join "`n"), [System.Text.Encoding]::UTF8)
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -199,6 +202,6 @@ jobs:
             installer/StreamGuard-Setup-v${{ steps.version.outputs.VERSION }}.exe
             StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip
             SHA256.txt
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: false
