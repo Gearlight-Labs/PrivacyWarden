@@ -9,7 +9,7 @@ using System.Windows.Forms;
 
 [assembly: SupportedOSPlatform("windows")]
 
-namespace StreamGuardTray
+namespace PrivacyWardenTray
 {
     // ─────────────────────────────────────────────────────────────────────────
     // Status model — mirrors what the service writes to status.json
@@ -33,7 +33,7 @@ namespace StreamGuardTray
         static void Main()
         {
             // Single instance guard
-            using var mutex = new Mutex(true, "StreamGuardTray_SingleInstance", out bool isNew);
+            using var mutex = new Mutex(true, "PrivacyWardenTray_SingleInstance", out bool isNew);
             if (!isNew) return;
 
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
@@ -54,12 +54,12 @@ namespace StreamGuardTray
         private static readonly string StatusFile =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "status.json");
+                "PrivacyWarden", "status.json");
 
         private static readonly string LogDir =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "Logs");
+                "PrivacyWarden", "Logs");
 
         // Status menu items we update on every tick
         private readonly ToolStripMenuItem _itemMode;
@@ -74,7 +74,7 @@ namespace StreamGuardTray
             // ── Build context menu ────────────────────────────────────────────
 
             // App name header — non-clickable label
-            var itemHeader = new ToolStripMenuItem("StreamGuard")
+            var itemHeader = new ToolStripMenuItem("PrivacyWarden")
             {
                 Enabled = false,
                 Font    = new Font("Segoe UI", 9f, FontStyle.Bold)
@@ -114,7 +114,7 @@ namespace StreamGuardTray
             // ── NotifyIcon ────────────────────────────────────────────────────
             _trayIcon = new NotifyIcon
             {
-                Text              = "StreamGuard",
+                Text              = "PrivacyWarden",
                 Visible           = true,
                 Icon              = LoadIcon(),
                 ContextMenuStrip  = menu
@@ -182,11 +182,11 @@ namespace StreamGuardTray
             // so we encode state in the tooltip text instead
             _trayIcon.Text = mode switch
             {
-                "PRIVACY_MODE"   => "StreamGuard — Privacy Mode",
-                "STREAMING_MODE" => "StreamGuard — Streaming Mode",
-                "STARTING"       => "StreamGuard — Starting...",
-                "STOPPED"        => "StreamGuard — Service Stopped",
-                _                => "StreamGuard — Service Stopped"
+                "PRIVACY_MODE"   => "PrivacyWarden — Privacy Mode",
+                "STREAMING_MODE" => "PrivacyWarden — Streaming Mode",
+                "STARTING"       => "PrivacyWarden — Starting...",
+                "STOPPED"        => "PrivacyWarden — Service Stopped",
+                _                => "PrivacyWarden — Service Stopped"
             };
         }
 
@@ -195,11 +195,11 @@ namespace StreamGuardTray
             // Tooltip is limited to 63 chars by Windows
             string tip = s.Mode switch
             {
-                "PRIVACY_MODE"   => "StreamGuard — Privacy Mode",
-                "STREAMING_MODE" => "StreamGuard — Streaming Mode",
-                "STARTING"       => "StreamGuard — Starting...",
-                "STOPPED"        => "StreamGuard — Service Stopped",
-                _                => "StreamGuard — Service Stopped"
+                "PRIVACY_MODE"   => "PrivacyWarden — Privacy Mode",
+                "STREAMING_MODE" => "PrivacyWarden — Streaming Mode",
+                "STARTING"       => "PrivacyWarden — Starting...",
+                "STOPPED"        => "PrivacyWarden — Service Stopped",
+                _                => "PrivacyWarden — Service Stopped"
             };
             if (tip.Length > 63) tip = tip[..63];
             _trayIcon.Text = tip;
@@ -252,7 +252,7 @@ namespace StreamGuardTray
             {
                 var seedPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                    "StreamGuard", "hmac_seed.bin");
+                    "PrivacyWarden", "hmac_seed.bin");
 
                 if (!File.Exists(seedPath))
                     return string.Empty; // seed not yet written — first run
@@ -297,7 +297,7 @@ namespace StreamGuardTray
             else
                 MessageBox.Show(
                     "No logs found yet.\n\nLogs appear here once the service has run at least once.",
-                    "StreamGuard",
+                    "PrivacyWarden",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
         }

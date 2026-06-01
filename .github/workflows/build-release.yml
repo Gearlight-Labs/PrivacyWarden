@@ -1,4 +1,4 @@
-name: Build and Release StreamGuard
+name: Build and Release PrivacyWarden
 
 on:
   push:
@@ -43,23 +43,23 @@ jobs:
 
       - name: Restore dependencies
         run: |
-          dotnet restore src/StreamGuard/StreamGuard.csproj
-          dotnet restore src/StreamGuardTray/StreamGuardTray.csproj
+          dotnet restore src/PrivacyWarden/PrivacyWarden.csproj
+          dotnet restore src/PrivacyWardenTray/PrivacyWardenTray.csproj
 
       # Framework-dependent builds: SelfContained=false keeps exe small (~5-8 MB).
       # .NET 8 ships with Windows 10/11 via Windows Update, so users already have it.
-      - name: Build StreamGuard service
+      - name: Build PrivacyWarden service
         run: |
-          dotnet publish src/StreamGuard/StreamGuard.csproj `
+          dotnet publish src/PrivacyWarden/PrivacyWarden.csproj `
             -c Release `
             -r win-x64 `
             --self-contained false `
             -p:PublishSingleFile=true `
             -o build/service
 
-      - name: Build StreamGuardTray
+      - name: Build PrivacyWardenTray
         run: |
-          dotnet publish src/StreamGuardTray/StreamGuardTray.csproj `
+          dotnet publish src/PrivacyWardenTray/PrivacyWardenTray.csproj `
             -c Release `
             -r win-x64 `
             --self-contained false `
@@ -94,12 +94,12 @@ jobs:
             /f "$env:TEMP\codesign.pfx" `
             /p $env:CODE_SIGN_PASSWORD `
             /fd SHA256 `
-            /d "StreamGuard — VPN Privacy Manager" `
-            /du "https://gearlight-labs.github.io/StreamGuard/" `
+            /d "PrivacyWarden — VPN Privacy Manager" `
+            /du "https://gearlight-labs.github.io/PrivacyWarden/" `
             /t "http://timestamp.digicert.com" `
             /v `
-            "build/service/StreamGuard.exe" `
-            "build/tray/StreamGuardTray.exe"
+            "build/service/PrivacyWarden.exe" `
+            "build/tray/PrivacyWardenTray.exe"
 
       # Install NSIS via Chocolatey — avoids SourceForge SSL errors on GitHub-hosted runners.
       - name: Install NSIS
@@ -112,31 +112,31 @@ jobs:
 
       - name: Copy assets for installer
         run: |
-          New-Item -ItemType Directory -Force -Path StreamGuard_Release
-          Copy-Item "build/service/StreamGuard.exe"     "StreamGuard_Release/"
-          Copy-Item "build/tray/StreamGuardTray.exe"    "StreamGuard_Release/"
-          Copy-Item "src/StreamGuardTray/tray_icon.ico" "StreamGuard_Release/"
-          Copy-Item "docs/USER_GUIDE.md"                "StreamGuard_Release/"
-          Copy-Item "docs/FAQ.md"                       "StreamGuard_Release/"
-          Copy-Item "docs/SECURITY.md"                  "StreamGuard_Release/"
-          Copy-Item "LICENSE"                           "StreamGuard_Release/"
-          Copy-Item "CHANGELOG.md"                      "StreamGuard_Release/" -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path PrivacyWarden_Release
+          Copy-Item "build/service/PrivacyWarden.exe"     "PrivacyWarden_Release/"
+          Copy-Item "build/tray/PrivacyWardenTray.exe"    "PrivacyWarden_Release/"
+          Copy-Item "src/PrivacyWardenTray/tray_icon.ico" "PrivacyWarden_Release/"
+          Copy-Item "docs/USER_GUIDE.md"                "PrivacyWarden_Release/"
+          Copy-Item "docs/FAQ.md"                       "PrivacyWarden_Release/"
+          Copy-Item "docs/SECURITY.md"                  "PrivacyWarden_Release/"
+          Copy-Item "LICENSE"                           "PrivacyWarden_Release/"
+          Copy-Item "CHANGELOG.md"                      "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
           Write-Host "Release folder contents:"
-          Get-ChildItem StreamGuard_Release
+          Get-ChildItem PrivacyWarden_Release
 
       - name: Build NSIS installer
         run: |
           # Run makensis from the repo root so that relative paths in the .nsi
-          # script (e.g. ..\StreamGuard_Release) resolve correctly.
-          makensis installer\StreamGuard_Installer.nsi
+          # script (e.g. ..\PrivacyWarden_Release) resolve correctly.
+          makensis installer\PrivacyWarden_Installer.nsi
 
       - name: Rename installer to versioned filename
         run: |
           $ver = "${{ steps.version.outputs.VERSION }}"
-          $src = "installer\StreamGuard-Setup-v1.1.1.exe"
-          $dst = "installer\StreamGuard-Setup-v${ver}.exe"
+          $src = "installer\PrivacyWarden-Setup-v1.1.1.exe"
+          $dst = "installer\PrivacyWarden-Setup-v${ver}.exe"
           if ($src -ne $dst) {
-            Rename-Item -Path $src -NewName "StreamGuard-Setup-v${ver}.exe"
+            Rename-Item -Path $src -NewName "PrivacyWarden-Setup-v${ver}.exe"
           }
           Write-Host "Installer: $dst"
 
@@ -153,33 +153,33 @@ jobs:
             /f "$env:TEMP\codesign.pfx" `
             /p $env:CODE_SIGN_PASSWORD `
             /fd SHA256 `
-            /d "StreamGuard Installer" `
-            /du "https://gearlight-labs.github.io/StreamGuard/" `
+            /d "PrivacyWarden Installer" `
+            /du "https://gearlight-labs.github.io/PrivacyWarden/" `
             /t "http://timestamp.digicert.com" `
             /v `
-            "installer\StreamGuard-Setup-v${ver}.exe"
+            "installer\PrivacyWarden-Setup-v${ver}.exe"
 
       - name: Create release ZIP
         run: |
           $ver = "${{ steps.version.outputs.VERSION }}"
-          Compress-Archive -Path "StreamGuard_Release/*" -DestinationPath "StreamGuard-v${ver}-release.zip"
+          Compress-Archive -Path "PrivacyWarden_Release/*" -DestinationPath "PrivacyWarden-v${ver}-release.zip"
 
       - name: Compute SHA256 hashes
         run: |
           $ver       = "${{ steps.version.outputs.VERSION }}"
-          $installer = (Get-FileHash "installer\StreamGuard-Setup-v${ver}.exe" -Algorithm SHA256).Hash
-          $zip       = (Get-FileHash "StreamGuard-v${ver}-release.zip" -Algorithm SHA256).Hash
+          $installer = (Get-FileHash "installer\PrivacyWarden-Setup-v${ver}.exe" -Algorithm SHA256).Hash
+          $zip       = (Get-FileHash "PrivacyWarden-v${ver}-release.zip" -Algorithm SHA256).Hash
           # Build the file as an array of lines then join with Unix LF.
           # Avoids PowerShell here-string leading-whitespace and CRLF issues.
           $lines = @(
-            "StreamGuard v${ver} - SHA256 Checksums",
+            "PrivacyWarden v${ver} - SHA256 Checksums",
             "=======================================",
             "Built by GitHub Actions - verifiable from source",
             "",
-            "StreamGuard-Setup-v${ver}.exe",
+            "PrivacyWarden-Setup-v${ver}.exe",
             "  $installer",
             "",
-            "StreamGuard-v${ver}-release.zip",
+            "PrivacyWarden-v${ver}-release.zip",
             "  $zip"
           )
           [System.IO.File]::WriteAllText("SHA256.txt", ($lines -join "`n"), [System.Text.Encoding]::UTF8)
@@ -187,10 +187,10 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: streamguard-release
+          name: privacywarden-release
           path: |
-            installer/StreamGuard-Setup-v${{ steps.version.outputs.VERSION }}.exe
-            StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip
+            installer/PrivacyWarden-Setup-v${{ steps.version.outputs.VERSION }}.exe
+            PrivacyWarden-v${{ steps.version.outputs.VERSION }}-release.zip
             SHA256.txt
           retention-days: 90
 
@@ -199,8 +199,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            installer/StreamGuard-Setup-v${{ steps.version.outputs.VERSION }}.exe
-            StreamGuard-v${{ steps.version.outputs.VERSION }}-release.zip
+            installer/PrivacyWarden-Setup-v${{ steps.version.outputs.VERSION }}.exe
+            PrivacyWarden-v${{ steps.version.outputs.VERSION }}-release.zip
             SHA256.txt
           generate_release_notes: false
           draft: false

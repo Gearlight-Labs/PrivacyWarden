@@ -11,9 +11,9 @@ using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// Forensic-grade DNS leak detection and enforcement service.

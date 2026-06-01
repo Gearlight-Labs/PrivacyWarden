@@ -1,4 +1,4 @@
-# StreamGuard
+# PrivacyWarden
 **Created by Aya Yoki (AyaYokiVT) — Gearlight Labs**
 
 Hey, I'm Aya Yoki. I built this because I got tired of choosing between privacy and streaming quality.
@@ -28,9 +28,9 @@ You go live → it switches to Streaming Mode. You go offline → it switches ba
 
 | File | What it is |
 |---|---|
-| `StreamGuard.exe` | The background service — runs 24/7, does the actual work |
-| `StreamGuardTray.exe` | Tray icon — shows you what mode you're in right now |
-| `StreamGuard-Setup-v1.1.1.exe` | Installer — sets everything up for you |
+| `PrivacyWarden.exe` | The background service — runs 24/7, does the actual work |
+| `PrivacyWardenTray.exe` | Tray icon — shows you what mode you're in right now |
+| `PrivacyWarden-Setup-v1.1.1.exe` | Installer — sets everything up for you |
 
 ---
 
@@ -44,7 +44,7 @@ You go live → it switches to Streaming Mode. You go offline → it switches ba
 
 ## Install
 
-Grab `StreamGuard-Setup-v1.1.1.exe` from the [latest release](https://github.com/Gearlight-Labs/StreamGuard/releases/latest) and run it as Administrator.
+Grab `PrivacyWarden-Setup-v1.1.1.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
 
 The installer handles everything — registers the service to start on boot, adds the tray app to your startup, done.
 
@@ -55,7 +55,7 @@ The installer handles everything — registers the service to start on boot, add
 After install you'll see the icon in your system tray. Right-click it:
 
 ```
-StreamGuard
+PrivacyWarden
 ─────────────────────────
 ● Privacy Mode
   VPN: Connected
@@ -70,7 +70,7 @@ StreamGuard
 
 ## Logs
 
-Logs live in `C:\ProgramData\StreamGuard\Logs\` — three files per day:
+Logs live in `C:\ProgramData\PrivacyWarden\Logs\` — three files per day:
 
 - `_service.log` — every mode switch, VPN connect/disconnect, DNS check
 - `_session.log` — your stream sessions with timestamps
@@ -91,9 +91,9 @@ I built this for privacy. Tracking you would defeat the entire purpose.
 ## Controlling the service
 
 ```powershell
-Get-Service StreamGuard    # check if it's running
-Stop-Service StreamGuard   # stop it
-Start-Service StreamGuard  # start it
+Get-Service PrivacyWarden    # check if it's running
+Stop-Service PrivacyWarden   # stop it
+Start-Service PrivacyWarden  # start it
 ```
 
 Or just right-click the tray icon.
@@ -111,7 +111,7 @@ Or just right-click the tray icon.
 
 ## Questions
 
-gearlightlabs@gmail.com or open a [GitHub issue](https://github.com/Gearlight-Labs/StreamGuard/issues).
+gearlightlabs@gmail.com or open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues).
 
 ---
 

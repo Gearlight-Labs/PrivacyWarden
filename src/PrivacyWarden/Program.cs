@@ -5,9 +5,9 @@ using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using StreamGuard;
-using StreamGuard.Models;
-using StreamGuard.Services;
+using PrivacyWarden;
+using PrivacyWarden.Models;
+using PrivacyWarden.Services;
 
 [assembly: SupportedOSPlatform("windows")]
 
@@ -16,7 +16,7 @@ using StreamGuard.Services;
 // Global\ prefix makes the mutex visible across all sessions (including Session 0),
 // so a service instance and an interactive instance cannot coexist.
 // The mutex is held for the lifetime of the process via a top-level `using` statement.
-using var instanceMutex = new Mutex(true, @"Global\StreamGuard_ServiceInstance", out bool isFirstInstance);
+using var instanceMutex = new Mutex(true, @"Global\PrivacyWarden_ServiceInstance", out bool isFirstInstance);
 if (!isFirstInstance)
 {
     // Another instance is already running — exit silently.
@@ -33,7 +33,7 @@ if (!isFirstInstance)
 if (Environment.UserInteractive)
     NativeMethods.FreeConsole();
 
-// Load config from C:\ProgramData\StreamGuard\config.json (creates defaults if missing)
+// Load config from C:\ProgramData\PrivacyWarden\config.json (creates defaults if missing)
 var config = VTuberConfig.Load();
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -41,7 +41,7 @@ var builder = Host.CreateApplicationBuilder(args);
 // Register as a Windows Service (no-op when running interactively)
 builder.Services.AddWindowsService(options =>
 {
-    options.ServiceName = "StreamGuard";
+    options.ServiceName = "PrivacyWarden";
 });
 
 // Register all services
@@ -61,19 +61,19 @@ if (!Environment.UserInteractive)
 {
     builder.Logging.AddEventLog(settings =>
     {
-        settings.SourceName = "StreamGuard";
+        settings.SourceName = "PrivacyWarden";
     });
 }
 
 var host = builder.Build();
 
-// Note: System tray is handled by StreamGuardTray.exe — a separate process that runs
+// Note: System tray is handled by PrivacyWardenTray.exe — a separate process that runs
 // in the user's session. Windows Services cannot show tray icons (Session 0 isolation).
 
 await host.RunAsync();
 
 // ── Native interop helpers ───────────────────────────────────────────────────────────────
-namespace StreamGuard
+namespace PrivacyWarden
 {
     internal static partial class NativeMethods
     {

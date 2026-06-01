@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-    Completely uninstalls the StreamGuard and removes every trace
+    Completely uninstalls the PrivacyWarden and removes every trace
     it left on the system.
 
 .DESCRIPTION
     This is the deep-clean uninstaller. It removes everything the service ever touched:
 
       - The Windows Service registration
-      - The install directory (C:\Program Files\StreamGuard\)
-      - The runtime data directory (C:\ProgramData\StreamGuard\) including config.json
+      - The install directory (C:\Program Files\PrivacyWarden\)
+      - The runtime data directory (C:\ProgramData\PrivacyWarden\) including config.json
       - The Windows Event Log source
       - All DNS overrides on your network adapters (resets to automatic/DHCP)
       - All registry keys written by the installer and the service
@@ -18,14 +18,14 @@
     No leftovers. Clean slate.
 
     ONE THING IS KEPT ON PURPOSE:
-    Your audit logs at C:\ProgramData\StreamGuard\Logs\ are NOT deleted.
+    Your audit logs at C:\ProgramData\PrivacyWarden\Logs\ are NOT deleted.
     Those are your legal defense records. Back them up somewhere safe before
     you delete that folder manually.
 
 .NOTES
     Author   : Aya Yoki (AyaYokiVT) — Gearlight Labs
     Contact  : gearlightlabs@gmail.com
-    GitHub   : https://github.com/Gearlight-Labs/StreamGuard
+    GitHub   : https://github.com/Gearlight-Labs/PrivacyWarden
     Version  : 1.1.1
     Requires : Administrator privileges
 #>
@@ -42,17 +42,17 @@ function Write-Skip  { param([string]$msg) Write-Host "  [--]  $msg" -Foreground
 function Write-Warn  { param([string]$msg) Write-Host "  [!!]  $msg" -ForegroundColor Yellow }
 function Write-Fail  { param([string]$msg) Write-Host "  [XX]  $msg" -ForegroundColor Red }
 
-$ServiceName  = "StreamGuard"
-$InstallDir   = "$env:ProgramFiles\StreamGuard"
-$DataDir      = "C:\ProgramData\StreamGuard"
+$ServiceName  = "PrivacyWarden"
+$InstallDir   = "$env:ProgramFiles\PrivacyWarden"
+$DataDir      = "C:\ProgramData\PrivacyWarden"
 $LogDir       = "$DataDir\Logs"
 $ConfigFile   = "$DataDir\config.json"
-$EventSource  = "StreamGuard"
+$EventSource  = "PrivacyWarden"
 $EventLog     = "Application"
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Magenta
-Write-Host "  StreamGuard — Deep Uninstall  " -ForegroundColor Magenta
+Write-Host "  PrivacyWarden — Deep Uninstall  " -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host ""
 Write-Host "Your audit logs at '$LogDir' will be KEPT." -ForegroundColor Yellow
@@ -296,8 +296,8 @@ public static extern bool MoveFileEx(string lpExistingFileName, string lpNewFile
 Write-Step "Removing registry keys..."
 
 $regKeys = @(
-    "HKLM:\Software\GearLightLabs\StreamGuard",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamGuard"
+    "HKLM:\Software\GearLightLabs\PrivacyWarden",
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden"
 )
 
 foreach ($key in $regKeys) {
@@ -333,12 +333,12 @@ if (Test-Path $parentKey) {
 Write-Step "Removing shortcuts..."
 
 $shortcuts = @(
-    "$env:USERPROFILE\Desktop\StreamGuard.lnk",
-    "$env:PUBLIC\Desktop\StreamGuard.lnk",
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\StreamGuard\StreamGuard.lnk",
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\StreamGuard\Uninstall.lnk",
-    "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\StreamGuard\StreamGuard.lnk",
-    "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\StreamGuard\Uninstall.lnk"
+    "$env:USERPROFILE\Desktop\PrivacyWarden.lnk",
+    "$env:PUBLIC\Desktop\PrivacyWarden.lnk",
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\PrivacyWarden\PrivacyWarden.lnk",
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\PrivacyWarden\Uninstall.lnk",
+    "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\PrivacyWarden\PrivacyWarden.lnk",
+    "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\PrivacyWarden\Uninstall.lnk"
 )
 
 foreach ($lnk in $shortcuts) {
@@ -356,8 +356,8 @@ foreach ($lnk in $shortcuts) {
 
 # Remove Start Menu folder if now empty
 $startMenuFolders = @(
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\StreamGuard",
-    "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\StreamGuard"
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\PrivacyWarden",
+    "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\PrivacyWarden"
 )
 foreach ($folder in $startMenuFolders) {
     if (Test-Path $folder) {

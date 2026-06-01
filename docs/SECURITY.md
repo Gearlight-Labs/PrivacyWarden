@@ -1,8 +1,8 @@
-# StreamGuard — Security
+# PrivacyWarden — Security
 
 ## What This Tool Protects Against
 
-StreamGuard is built for VTubers and streamers who need real privacy protection. The threat model is:
+PrivacyWarden is built for VTubers and streamers who need real privacy protection. The threat model is:
 
 - ISP traffic analysis and DNS snooping
 - Social engineering attacks (fake brand deals, malicious files)
@@ -38,7 +38,7 @@ All detections are written to `YYYY-MM-DD_threat.log` in plain English with proc
 
 ### Log Integrity
 
-Logs use a cryptographic HMAC-SHA256 chain. Each entry's hash depends on the previous entry's hash, creating a tamper-evident sequence. The HMAC key is a cryptographically random 32-byte key generated on first run, stored in `C:\ProgramData\StreamGuard\hmac_seed.bin`, and protected by Windows DPAPI (`LocalMachine` scope). Only SYSTEM and Administrators can decrypt it — standard users on the machine cannot read or derive the key.
+Logs use a cryptographic HMAC-SHA256 chain. Each entry's hash depends on the previous entry's hash, creating a tamper-evident sequence. The HMAC key is a cryptographically random 32-byte key generated on first run, stored in `C:\ProgramData\PrivacyWarden\hmac_seed.bin`, and protected by Windows DPAPI (`LocalMachine` scope). Only SYSTEM and Administrators can decrypt it — standard users on the machine cannot read or derive the key.
 
 The chain is stored in a separate `.hmac` sidecar file so the readable log stays clean.
 
@@ -60,7 +60,7 @@ The Mullvad CLI path is also validated against a hardcoded allowlist (`C:\Progra
 
 ### Config File and Directory ACL Hardening
 
-On every startup, the service applies restrictive Windows ACLs to `config.json` and the `C:\ProgramData\StreamGuard\` directory:
+On every startup, the service applies restrictive Windows ACLs to `config.json` and the `C:\ProgramData\PrivacyWarden\` directory:
 
 - **SYSTEM — Full Control** (inherited by all files and subdirectories)
 - **Administrators — Full Control** (inherited by all files and subdirectories)
@@ -75,7 +75,7 @@ All shared mutable state accessed from multiple threads uses atomic operations:
 - **Network change flag** — `Interlocked.Exchange` eliminates the race window where a rapid VPN disconnect could be silently swallowed.
 - **DNS failure counter** — `Interlocked.Increment` / `Interlocked.Exchange` ensures the CRITICAL escalation threshold is always accurate.
 - **Adapter baseline flag** — `volatile bool` prevents the JIT from caching a stale value that would disable rogue-adapter detection.
-- **Single-instance mutex** — `Global\StreamGuard_ServiceInstance` prevents duplicate process instances from issuing conflicting VPN commands or corrupting the HMAC chain.
+- **Single-instance mutex** — `Global\PrivacyWarden_ServiceInstance` prevents duplicate process instances from issuing conflicting VPN commands or corrupting the HMAC chain.
 
 ---
 
@@ -83,14 +83,14 @@ All shared mutable state accessed from multiple threads uses atomic operations:
 
 | File | Location |
 |---|---|
-| Service log | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD_service.log` |
-| Session log | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD_session.log` |
-| Threat log | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD_threat.log` |
-| HMAC chain | `C:\ProgramData\StreamGuard\Logs\YYYY-MM-DD.hmac` |
-| Config | `C:\ProgramData\StreamGuard\config.json` |
-| HMAC seed | `C:\ProgramData\StreamGuard\hmac_seed.bin` |
+| Service log | `C:\ProgramData\PrivacyWarden\Logs\YYYY-MM-DD_service.log` |
+| Session log | `C:\ProgramData\PrivacyWarden\Logs\YYYY-MM-DD_session.log` |
+| Threat log | `C:\ProgramData\PrivacyWarden\Logs\YYYY-MM-DD_threat.log` |
+| HMAC chain | `C:\ProgramData\PrivacyWarden\Logs\YYYY-MM-DD.hmac` |
+| Config | `C:\ProgramData\PrivacyWarden\config.json` |
+| HMAC seed | `C:\ProgramData\PrivacyWarden\hmac_seed.bin` |
 
-The `C:\ProgramData\StreamGuard\` directory has ACL hardening applied on every service startup: SYSTEM and Administrators have full control; standard users have an explicit Deny ACE for Write, Delete, and DeleteSubdirectoriesAndFiles. This prevents non-admin processes from tampering with `config.json`, `hmac_seed.bin`, or any log file.
+The `C:\ProgramData\PrivacyWarden\` directory has ACL hardening applied on every service startup: SYSTEM and Administrators have full control; standard users have an explicit Deny ACE for Write, Delete, and DeleteSubdirectoriesAndFiles. This prevents non-admin processes from tampering with `config.json`, `hmac_seed.bin`, or any log file.
 
 ---
 
@@ -115,13 +115,13 @@ If you need to use logs as evidence:
 - Do not edit or delete any log files
 - Run `Verify-SecurityAudit.ps1` and save the output
 - Keep the `.hmac` sidecar files alongside the logs
-- Contact gearlightlabs@gmail.com with subject `[LEGAL] StreamGuard Log Verification`
+- Contact gearlightlabs@gmail.com with subject `[LEGAL] PrivacyWarden Log Verification`
 
 ---
 
 ## Reporting Security Issues
 
-If you find a security vulnerability in StreamGuard, contact gearlightlabs@gmail.com privately. Do not post it publicly.
+If you find a security vulnerability in PrivacyWarden, contact gearlightlabs@gmail.com privately. Do not post it publicly.
 
 Include:
 - What you found

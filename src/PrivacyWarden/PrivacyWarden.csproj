@@ -7,7 +7,7 @@
     <!--
       Framework-dependent build: requires .NET 8 runtime.
       Windows 10/11 ships .NET 8 via Windows Update, so users already have it.
-      This keeps StreamGuard.exe at ~5-8 MB instead of ~80-120 MB (self-contained).
+      This keeps PrivacyWarden.exe at ~5-8 MB instead of ~80-120 MB (self-contained).
       If a user doesn't have .NET 8, Windows will prompt them to install it automatically.
     -->
     <SelfContained>false</SelfContained>
@@ -21,15 +21,15 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
-    <AssemblyName>StreamGuard</AssemblyName>
-    <RootNamespace>StreamGuard</RootNamespace>
-    <Description>StreamGuard — auto-toggles Mullvad VPN and enforces DNS lock for VTubers. Created by Aya Yoki (AyaYokiVT) — Gearlight Labs.</Description>
+    <AssemblyName>PrivacyWarden</AssemblyName>
+    <RootNamespace>PrivacyWarden</RootNamespace>
+    <Description>PrivacyWarden — auto-toggles Mullvad VPN and enforces DNS lock for VTubers. Created by Aya Yoki (AyaYokiVT) — Gearlight Labs.</Description>
     <Version>1.1.1</Version>
     <Authors>Aya Yoki (AyaYokiVT)</Authors>
     <Company>Gearlight Labs</Company>
     <Copyright>© 2026 Aya Yoki (AyaYokiVT) — Gearlight Labs. Private Use Only.</Copyright>
-    <PackageProjectUrl>https://github.com/Gearlight-Labs/StreamGuard</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/Gearlight-Labs/StreamGuard</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/Gearlight-Labs/PrivacyWarden</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Gearlight-Labs/PrivacyWarden</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>

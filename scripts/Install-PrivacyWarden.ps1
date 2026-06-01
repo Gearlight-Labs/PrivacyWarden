@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs the StreamGuard.
+    Installs the PrivacyWarden.
 
 .DESCRIPTION
     Hey, I'm Aya Yoki (AyaYokiVT). I built this tool because I got tired of choosing between
@@ -12,7 +12,7 @@
 .NOTES
     Author   : Aya Yoki (AyaYokiVT) — Gearlight Labs
     Contact  : gearlightlabs@gmail.com
-    GitHub   : https://github.com/Gearlight-Labs/StreamGuard
+    GitHub   : https://github.com/Gearlight-Labs/PrivacyWarden
     Version  : 1.1.1
 #>
 
@@ -30,16 +30,16 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 if ($PWD.Path -match "System32") {
     Write-Warning "You are running this script from System32!"
     Write-Warning "Please navigate to the folder where you extracted the release package first."
-    Write-Warning "Example: cd `"C:\Users\YourName\Downloads\StreamGuard_Release`""
+    Write-Warning "Example: cd `"C:\Users\YourName\Downloads\PrivacyWarden_Release`""
     Pause
     Exit
 }
 
-$ServiceName = "StreamGuard"
-$ServicePath = "$env:ProgramFiles\StreamGuard"
-$ExePath = "$ServicePath\StreamGuard.exe"
+$ServiceName = "PrivacyWarden"
+$ServicePath = "$env:ProgramFiles\PrivacyWarden"
+$ExePath = "$ServicePath\PrivacyWarden.exe"
 
-Write-Host "Installing StreamGuard..." -ForegroundColor Cyan
+Write-Host "Installing PrivacyWarden..." -ForegroundColor Cyan
 
 # Create installation directory
 if (-not (Test-Path $ServicePath)) {
@@ -62,7 +62,7 @@ if (-not (Test-Path $ExePath)) {
 
 # Install the service
 Write-Host "Registering the service..."
-New-Service -Name $ServiceName -BinaryPathName $ExePath -DisplayName "StreamGuard" -Description "Automates Mullvad VPN toggling, DNS leak protection, and security monitoring for VTubers." -StartupType Automatic
+New-Service -Name $ServiceName -BinaryPathName $ExePath -DisplayName "PrivacyWarden" -Description "Automates Mullvad VPN toggling, DNS leak protection, and security monitoring for VTubers." -StartupType Automatic
 
 # Start the service
 Write-Host "Starting the service..."
@@ -71,10 +71,10 @@ Start-Service -Name $ServiceName
 # Create Desktop Shortcut
 Write-Host "Creating desktop shortcut..."
 $WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\StreamGuard.lnk")
+$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\PrivacyWarden.lnk")
 $Shortcut.TargetPath = $ExePath
 $Shortcut.WorkingDirectory = $ServicePath
-$Shortcut.Description = "StreamGuard"
+$Shortcut.Description = "PrivacyWarden"
 $Shortcut.Save()
 
 Write-Host "Installation complete! The service is now running and a shortcut has been created on your desktop." -ForegroundColor Green

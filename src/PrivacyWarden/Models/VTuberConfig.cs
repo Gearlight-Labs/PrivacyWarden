@@ -7,11 +7,11 @@ using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace StreamGuard.Models
+namespace PrivacyWarden.Models
 {
     /// <summary>
-    /// Configuration for the StreamGuard.
-    /// Loaded from C:\ProgramData\StreamGuard\config.json
+    /// Configuration for the PrivacyWarden.
+    /// Loaded from C:\ProgramData\PrivacyWarden\config.json
     /// Edit that file to customize behavior — no recompile needed.
     ///
     /// Security: config file and log directory are in ProgramData, protected with ALLOW-only ACLs
@@ -124,7 +124,7 @@ namespace StreamGuard.Models
 
         /// <summary>
         /// Process names to exclude from the suspicious-process alert.
-        /// Use this if StreamGuard flags a tool you intentionally run (e.g. Wireshark for debugging).
+        /// Use this if PrivacyWarden flags a tool you intentionally run (e.g. Wireshark for debugging).
         /// Names are case-insensitive. Example: ["wireshark", "fiddler"]
         /// </summary>
         [JsonPropertyName("suppressedProcessAlerts")]
@@ -157,7 +157,7 @@ namespace StreamGuard.Models
         [JsonPropertyName("logDirectory")]
         public string LogDirectory { get; set; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "StreamGuard", "Logs");
+            "PrivacyWarden", "Logs");
 
         [JsonPropertyName("maxLogSizeBytes")]
         public long MaxLogSizeBytes { get; set; } = 10485760; // 10MB
@@ -174,7 +174,7 @@ namespace StreamGuard.Models
         private static readonly string ConfigPath =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "config.json");
+                "PrivacyWarden", "config.json");
 
         /// <summary>
         /// Public accessor for the config file path — used by ThreatDetectionService for integrity monitoring.

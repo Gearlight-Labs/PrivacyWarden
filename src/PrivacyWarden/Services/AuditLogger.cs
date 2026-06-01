@@ -8,24 +8,24 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
-    /// StreamGuard Audit Logger — three-file split, Mullvad-style format, HMAC sidecar.
+    /// PrivacyWarden Audit Logger — three-file split, Mullvad-style format, HMAC sidecar.
     ///
-    /// Files written per day to C:\ProgramData\StreamGuard\Logs\:
+    /// Files written per day to C:\ProgramData\PrivacyWarden\Logs\:
     ///   2026-05-31_service.log  — service events (start/stop, VPN, DNS, config)
     ///   2026-05-31_session.log  — streaming session timeline (OBS on/off, VPN checks)
     ///   2026-05-31_threat.log   — threat detections (processes, network, file drops, browser)
     ///   2026-05-31.hmac         — HMAC chain for all three files (integrity sidecar)
     ///
     /// Line format (Mullvad daemon.log style):
-    ///   [2026-05-31 20:14:33.421][streamguard.threat.network][HIGH] message
+    ///   [2026-05-31 20:14:33.421][privacywarden.threat.network][HIGH] message
     ///
     /// Multi-line threat events use indented detail fields:
-    ///   [2026-05-31 20:14:33.421][streamguard.threat.network][HIGH] Unknown process made outbound connection
+    ///   [2026-05-31 20:14:33.421][privacywarden.threat.network][HIGH] Unknown process made outbound connection
     ///     Process : RegAsm.exe (PID 4821)
     ///     Remote  : 89.105.223.80:27105
     ///     DNS     : vm95039.vps.client-server.site
@@ -81,7 +81,7 @@ namespace StreamGuard.Services
         private static readonly string _seedFilePath =
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "StreamGuard", "hmac_seed.bin");
+                "PrivacyWarden", "hmac_seed.bin");
 
         // ── Constructor ───────────────────────────────────────────────────────────
         public AuditLogger(ILogger<AuditLogger> logger, VTuberConfig config)
@@ -269,23 +269,23 @@ namespace StreamGuard.Services
 
         // ── Legacy compatibility shim (used by existing callers in Worker.cs etc.) ─
         public void LogInfo(string eventId, string message, string? detail = null)
-            => Service("streamguard.service", Level.INFO, TranslateMessage(eventId, message),
+            => Service("privacywarden.service", Level.INFO, TranslateMessage(eventId, message),
                 detail != null ? new Dictionary<string, string> { ["Detail"] = detail } : null);
 
         public void LogLow(string eventId, string message, string? detail = null)
-            => Service("streamguard.service", Level.INFO, TranslateMessage(eventId, message),
+            => Service("privacywarden.service", Level.INFO, TranslateMessage(eventId, message),
                 detail != null ? new Dictionary<string, string> { ["Detail"] = detail } : null);
 
         public void LogMedium(string eventId, string message, string? detail = null)
-            => Service("streamguard.service", Level.WARN, TranslateMessage(eventId, message),
+            => Service("privacywarden.service", Level.WARN, TranslateMessage(eventId, message),
                 detail != null ? new Dictionary<string, string> { ["Detail"] = detail } : null);
 
         public void LogHigh(string eventId, string message, string? detail = null)
-            => Service("streamguard.service", Level.HIGH, TranslateMessage(eventId, message),
+            => Service("privacywarden.service", Level.HIGH, TranslateMessage(eventId, message),
                 detail != null ? new Dictionary<string, string> { ["Detail"] = detail } : null);
 
         public void LogCritical(string eventId, string message, string? detail = null)
-            => Service("streamguard.service", Level.CRIT, TranslateMessage(eventId, message),
+            => Service("privacywarden.service", Level.CRIT, TranslateMessage(eventId, message),
                 detail != null ? new Dictionary<string, string> { ["Detail"] = detail } : null);
 
         public void LogEvent(string eventType, string details, bool isError = false)
@@ -473,8 +473,8 @@ namespace StreamGuard.Services
         // ── Message translation — converts old event IDs to plain English ─────────
         private static string TranslateMessage(string eventId, string message) => eventId switch
         {
-            "SERVICE_START"              => "StreamGuard started",
-            "SERVICE_STOP"               => "StreamGuard stopped — restoring Privacy Mode",
+            "SERVICE_START"              => "PrivacyWarden started",
+            "SERVICE_STOP"               => "PrivacyWarden stopped — restoring Privacy Mode",
             "STARTUP_CHECK"              => "Performing startup security check",
             "STARTUP_ERROR"              => $"Startup failed: {message}",
             "STREAMING_DETECTED"         => "Streaming software detected — switching to Streaming Mode",
@@ -491,7 +491,7 @@ namespace StreamGuard.Services
             "CONFIG_TAMPERED"            => "Config file was modified — possible tampering",
             "LOG_INTEGRITY_FAILED"       => "Log chain broken — service was reinstalled or updated (this is normal after updates)",
             "MULLVAD_BINARY_REPLACED"    => "Mullvad binary changed — possible replacement attack",
-            "SERVICE_BINARY_REPLACED"    => "StreamGuard binary changed — possible replacement attack",
+            "SERVICE_BINARY_REPLACED"    => "PrivacyWarden binary changed — possible replacement attack",
             "LOG_DIRECTORY_DELETED"      => "Log directory was deleted — audit trail may be compromised",
             "LOG_FILES_DELETED"          => "Log files were deleted — audit trail may be compromised",
             "SUSPICIOUS_PROCESS_DETECTED"=> $"Suspicious process running: {message}",

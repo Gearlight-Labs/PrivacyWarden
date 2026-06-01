@@ -10,13 +10,13 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <AssemblyName>StreamGuardTray</AssemblyName>
-    <RootNamespace>StreamGuardTray</RootNamespace>
+    <AssemblyName>PrivacyWardenTray</AssemblyName>
+    <RootNamespace>PrivacyWardenTray</RootNamespace>
     <ApplicationIcon>tray_icon.ico</ApplicationIcon>
     <Version>1.1.1</Version>
     <Authors>Aya Yoki (AyaYokiVT)</Authors>
     <Company>Gearlight Labs</Company>
-    <Description>StreamGuard system tray monitor</Description>
+    <Description>PrivacyWarden system tray monitor</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />

@@ -1,13 +1,13 @@
 using System;
 using System.Runtime.Versioning;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Services;
+using PrivacyWarden.Services;
 
-namespace StreamGuard
+namespace PrivacyWarden
 {
     [SupportedOSPlatform("windows")]
     public class Worker : BackgroundService
@@ -44,8 +44,8 @@ namespace StreamGuard
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("StreamGuard starting at: {Time}", DateTimeOffset.Now);
-            _audit.LogInfo("SERVICE_START", "StreamGuard started");
+            _logger.LogInformation("PrivacyWarden starting at: {Time}", DateTimeOffset.Now);
+            _audit.LogInfo("SERVICE_START", "PrivacyWarden started");
 
             if (!_audit.VerifyLogIntegrity())
             {
@@ -90,7 +90,7 @@ namespace StreamGuard
             }
 
             WriteStatus("STOPPED", "Service stopping");
-            _audit.LogInfo("SERVICE_STOP", "StreamGuard stopped — restoring Privacy Mode");
+            _audit.LogInfo("SERVICE_STOP", "PrivacyWarden stopped — restoring Privacy Mode");
 
             if (_session.IsSessionActive)
                 _session.OnSessionEnd(_activeStreamingApp);

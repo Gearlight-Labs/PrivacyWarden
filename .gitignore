@@ -1,8 +1,8 @@
 # Build output
-src/StreamGuard/bin/
-src/StreamGuard/obj/
-src/StreamGuardTray/bin/
-src/StreamGuardTray/obj/
+src/PrivacyWarden/bin/
+src/PrivacyWarden/obj/
+src/PrivacyWardenTray/bin/
+src/PrivacyWardenTray/obj/
 *.user
 *.suo
 .vs/

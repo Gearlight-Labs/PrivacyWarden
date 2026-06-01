@@ -11,9 +11,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StreamGuard.Models;
+using PrivacyWarden.Models;
 
-namespace StreamGuard.Services
+namespace PrivacyWarden.Services
 {
     /// <summary>
     /// Controls Mullvad VPN via its CLI with forensic-grade threat detection.
@@ -472,7 +472,7 @@ namespace StreamGuard.Services
                 {
                     _audit.LogHigh("MULLVAD_BINARY_MISSING",
                         $"Mullvad CLI not found at: {_config.MullvadCliPath}",
-                        "Mullvad VPN may not be installed. StreamGuard cannot function without it.");
+                        "Mullvad VPN may not be installed. PrivacyWarden cannot function without it.");
                     return;
                 }
 

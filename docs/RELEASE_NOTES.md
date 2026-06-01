@@ -1,11 +1,11 @@
-# StreamGuard v1.1.1 — Security Patch
+# PrivacyWarden v1.1.1 — Security Patch
 
 v1.1.0 had security issues. i pulled it as soon as i found them and patched everything before putting this out. if you installed v1.1.0, uninstall it and install this instead.
 
 ## What was fixed
 
 ### Critical
-**Unquoted service binary path in the installer.** If you installed to a folder with spaces in the name (like `C:\Program Files\StreamGuard`), Windows would try to run the wrong executable first when starting the service. An attacker with write access to your C:\ drive could exploit that to run arbitrary code as SYSTEM. Fixed by quoting the binary path properly in the installer.
+**Unquoted service binary path in the installer.** If you installed to a folder with spaces in the name (like `C:\Program Files\PrivacyWarden`), Windows would try to run the wrong executable first when starting the service. An attacker with write access to your C:\ drive could exploit that to run arbitrary code as SYSTEM. Fixed by quoting the binary path properly in the installer.
 
 ### High
 **`status.json` was unauthenticated.** The tray app reads a file called `status.json` to know what the service is doing. That file had no integrity check on it, so a local attacker could replace it with a fake one to make the tray show "VPN: Connected" when it wasn't — hiding an active privacy breach. The file is now signed with HMAC-SHA256 on every write and the tray verifies the signature before trusting it.
@@ -18,7 +18,7 @@ v1.1.0 had security issues. i pulled it as soon as i found them and patched ever
 **`explorer.exe` launched without absolute path.** The tray app was opening the log folder using `explorer.exe` without a full path. If your system PATH was poisoned, a malicious `explorer.exe` in a writable folder could run instead. Fixed to use `%SystemRoot%\explorer.exe`.
 
 ### Low
-**Uninstaller couldn't clean up ProgramData.** The service applies deny ACEs to the `C:\ProgramData\StreamGuard\` folder to protect config and key files. The uninstaller wasn't stripping those before trying to delete the folder, so it would fail silently and leave files behind. Fixed — uninstaller now removes the deny ACEs first.
+**Uninstaller couldn't clean up ProgramData.** The service applies deny ACEs to the `C:\ProgramData\PrivacyWarden\` folder to protect config and key files. The uninstaller wasn't stripping those before trying to delete the folder, so it would fail silently and leave files behind. Fixed — uninstaller now removes the deny ACEs first.
 
 ---
 
@@ -35,10 +35,10 @@ v1.1.0 had security issues. i pulled it as soon as i found them and patched ever
 
 ## Install
 
-Download `StreamGuard-Setup-v1.1.1.exe` from the [latest release](https://github.com/Gearlight-Labs/StreamGuard/releases/latest) and run it as Administrator.
+Download `PrivacyWarden-Setup-v1.1.1.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
 
 Requires Mullvad VPN and Windows 10/11 with .NET 8 (already installed via Windows Update on most systems).
 
 ---
 
-Questions: gearlightlabs@gmail.com | [GitHub Issues](https://github.com/Gearlight-Labs/StreamGuard/issues)
+Questions: gearlightlabs@gmail.com | [GitHub Issues](https://github.com/Gearlight-Labs/PrivacyWarden/issues)
