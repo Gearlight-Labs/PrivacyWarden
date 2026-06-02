@@ -181,6 +181,39 @@ namespace PrivacyWarden.Services
         // ── DNS Enforcement ───────────────────────────────────────────────────
 
         /// <summary>
+        /// Restore DNS to automatic (DHCP) on all active adapters.
+        /// Called when Mullvad is not installed so a previously-applied DNS lock
+        /// does not cut internet connectivity for the user.
+        /// </summary>
+        public async Task RestoreDnsToAutomaticAsync()
+        {
+            _logger.LogInformation("Restoring DNS to automatic (DHCP) on all adapters...");
+            var interfaces = GetMonitoredInterfaces().ToList();
+            foreach (var ni in interfaces)
+            {
+                try
+                {
+                    var safeName = SanitizeAdapterName(ni.Name);
+                    bool hasIPv6 = AdapterHasIPv6(ni.GetIPProperties());
+                    await RunNetshAsync($"interface ipv4 set dnsservers \"{safeName}\" dhcp");
+                    if (hasIPv6)
+                        await RunNetshAsync($"interface ipv6 set dnsservers \"{safeName}\" dhcp");
+                    _logger.LogInformation("DNS restored to automatic on adapter [{Adapter}]", ni.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Failed to restore DNS on adapter [{Adapter}] -- internet may still be affected", ni.Name);
+                    _audit.LogMedium("DNS_RESTORE_FAILED",
+                        $"Could not restore DNS to automatic on '{ni.Name}': {ex.Message}",
+                        "Internet connectivity may be affected. Try setting DNS to automatic manually in Network Settings.");
+                }
+            }
+            _audit.LogInfo("DNS_RESTORED",
+                $"DNS restored to automatic (DHCP) on {interfaces.Count} adapter(s). Internet should be working normally.");
+        }
+
+        /// <summary>
         /// Enforce Mullvad DNS on all active adapters using netsh.
         /// Enforces IPv4 DNS on all adapters.
         /// Only enforces IPv6 DNS on adapters where IPv6 is actually enabled.
