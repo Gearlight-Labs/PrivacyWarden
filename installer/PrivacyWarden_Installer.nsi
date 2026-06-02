@@ -32,6 +32,7 @@ Unicode True
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "Sections.nsh"
 
 !define MUI_ICON "${RELEASE_DIR}\tray_icon.ico"
 !define MUI_UNICON "${RELEASE_DIR}\tray_icon.ico"
@@ -50,7 +51,7 @@ Unicode True
 ; License page
 !insertmacro MUI_PAGE_LICENSE "${RELEASE_DIR}\LICENSE"
 
-; Components page
+; Components page (shows optional Network Hardening section)
 !insertmacro MUI_PAGE_COMPONENTS
 
 ; Directory page
@@ -152,12 +153,27 @@ Section "Documentation" SecDocs
   File "${RELEASE_DIR}\SECURITY.md"
 SectionEnd
 
+; Optional: Network Hardening
+; Unchecked by default -- user must opt in
+Section /o "Network Hardening (recommended)" SecHarden
+
+  ; Copy the hardening script to the install directory
+  SetOutPath "$INSTDIR"
+  File "${RELEASE_DIR}\Setup-MullvadNetwork.ps1"
+
+  ; Run the hardening script silently via PowerShell
+  ; -NonInteractive and -WindowStyle Hidden prevent any window from appearing
+  nsExec::ExecToLog 'powershell.exe -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\Setup-MullvadNetwork.ps1"'
+
+SectionEnd
+
 ;--------------------------------
 ; Section descriptions
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "The PrivacyWarden core files and Windows Service registration. Required."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDocs} "Documentation files including User Guide, FAQ, and Security Policy."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecHarden} "Locks DNS to Mullvad, disables LLMNR, NetBIOS, WPAD, Teredo, and 6to4. Prevents DNS leaks and local network attacks. Recommended if you use Mullvad VPN. Can be undone by running Setup-MullvadNetwork.ps1 manually."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ;--------------------------------
@@ -237,6 +253,7 @@ Section "Uninstall"
   RMDir /r "$APPDATA\..\..\ProgramData\PrivacyWarden"
 
   ; Delete installed files
+  Delete "$INSTDIR\Setup-MullvadNetwork.ps1"
   Delete /REBOOTOK "$INSTDIR\${PRODUCT_EXE}"
   Delete /REBOOTOK "$INSTDIR\PrivacyWardenTray.exe"
   Delete "$INSTDIR\tray_icon.ico"
