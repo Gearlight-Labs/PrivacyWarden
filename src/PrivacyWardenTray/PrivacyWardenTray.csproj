@@ -13,7 +13,7 @@
     <AssemblyName>PrivacyWardenTray</AssemblyName>
     <RootNamespace>PrivacyWardenTray</RootNamespace>
     <ApplicationIcon>tray_icon.ico</ApplicationIcon>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <Authors>Aya Yoki (AyaYokiVT)</Authors>
     <Company>Gearlight Labs</Company>
     <Description>PrivacyWarden system tray monitor</Description>
@@ -23,6 +23,11 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
+    <!--
+      tray_icon.ico is intentionally present in both project folders.
+      MSBuild requires ApplicationIcon to be in the same directory as the .csproj.
+      Both copies are identical. Do not delete either one.
+    -->
     <Content Include="tray_icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

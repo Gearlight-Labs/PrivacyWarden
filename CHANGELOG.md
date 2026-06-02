@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.0] -- 2026-06-02 -- Maximum Privacy Edition
+
+### Added
+- **Maximum Privacy Edition (v6.0 Network Script)**: Added 10 new exhaustively researched and verified safe privacy hardening steps to `Setup-MullvadNetwork.ps1`.
+  - Disabled OS Telemetry (Data Collection) and DiagTrack service.
+  - Disabled Advertising ID to stop cross-app behavioral profiling.
+  - Disabled Activity History and Timeline to stop local and cloud activity logging.
+  - Disabled Cloud Content and App Suggestions to stop sponsored app installs.
+  - Disabled Cortana and Bing Web Search in the Start menu.
+  - Disabled Cloud Clipboard Sync to prevent copied text/passwords from leaking to the cloud.
+  - Disabled Recall AI (Windows 11 24H2+) to stop AI-indexed screenshot surveillance.
+  - Disabled Location Tracking to stop physical location profiling.
+  - Disabled Wi-Fi Sense to stop credential exposure.
+  - Disabled 8 Telemetry Scheduled Tasks that collect and upload diagnostics.
+- **Interactive Uninstaller**: `Remove-PrivacyWarden.ps1` now prompts the user before reverting privacy settings. Users can choose to uninstall the app while keeping all Windows privacy hardening intact.
+
+### Changed
+- **Safe DNS Handling**: Removed the static DNS assignment from `Setup-MullvadNetwork.ps1`. Mullvad's public DNS IPs only accept encrypted DoH/DoT, causing plain UDP/53 queries to fail when the VPN is disconnected. The script now safely relies on the Mullvad app's internal tunnel DNS, ensuring internet connectivity never breaks when the VPN is off.
+- Updated all version references across the repository to `1.2.0`.
+
+---
+
 ## [1.1.1] -- 2026-05-31 -- Security Patch
 
 ### Security fixes

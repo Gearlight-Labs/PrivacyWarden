@@ -1,179 +1,212 @@
 #Requires -RunAsAdministrator
-# Remove-PrivacyWarden.ps1
-# Run this in an elevated PowerShell window (right-click -> Run as Administrator)
-# This removes everything PrivacyWarden or StreamGuard installed from your PC,
-# including any network hardening changes applied during installation.
+<#
+.SYNOPSIS
+    Remove-PrivacyWarden.ps1 -- Uninstaller and Reverter
+    Version 1.2.0
+
+.DESCRIPTION
+    Stops and removes the PrivacyWarden service, tray app, and scheduled tasks.
+    Optionally reverts all 18 Windows network and privacy hardening settings
+    back to Microsoft defaults.
+#>
 
 $ErrorActionPreference = "Continue"
 $netsh = "$env:SystemRoot\System32\netsh.exe"
 
 Write-Host ""
-Write-Host "PrivacyWarden -- Full Removal Script" -ForegroundColor Cyan
-Write-Host "=====================================" -ForegroundColor Cyan
+Write-Host "PrivacyWarden -- Uninstaller" -ForegroundColor Cyan
+Write-Host "============================" -ForegroundColor Cyan
 Write-Host ""
 
-# ── 1. Kill tray app ──────────────────────────────────────────────────────────
-Write-Host "[1/10] Stopping tray app..." -ForegroundColor Yellow
-Stop-Process -Name "PrivacyWardenTray" -Force -ErrorAction SilentlyContinue
-Stop-Process -Name "StreamGuardTray"   -Force -ErrorAction SilentlyContinue
-Write-Host "       Done." -ForegroundColor Green
-
-# ── 2. Stop and delete Windows services ──────────────────────────────────────
-Write-Host "[2/10] Stopping and removing Windows services..." -ForegroundColor Yellow
-foreach ($svc in @("PrivacyWarden", "StreamGuard")) {
-    $s = Get-Service -Name $svc -ErrorAction SilentlyContinue
-    if ($s) {
-        if ($s.Status -eq "Running") {
-            Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 3
-        }
-        sc.exe delete $svc | Out-Null
-        Write-Host "       Removed service: $svc" -ForegroundColor Green
-    }
+# ── 1. Ask user about keeping privacy settings ────────────────────────────────
+$keepSettings = $false
+$response = Read-Host "Do you want to KEEP the Windows privacy and network hardening settings? (Y/N)"
+if ($response -match "^[Yy]") {
+    $keepSettings = $true
+    Write-Host "-> OK, privacy settings will be kept. Only the app will be removed." -ForegroundColor Green
+} else {
+    Write-Host "-> OK, all privacy settings will be reverted to Windows defaults." -ForegroundColor Yellow
 }
-Start-Sleep -Seconds 1
+Write-Host ""
 
-# ── 3. Strip ACLs from ProgramData folder ────────────────────────────────────
-Write-Host "[3/10] Removing access restrictions from ProgramData folder..." -ForegroundColor Yellow
-foreach ($folder in @("C:\ProgramData\PrivacyWarden", "C:\ProgramData\StreamGuard")) {
-    if (Test-Path $folder) {
-        & icacls $folder /remove:d "*S-1-1-0"      /t /c | Out-Null
-        & icacls $folder /remove:d "*S-1-5-11"     /t /c | Out-Null
-        & icacls $folder /remove:d "*S-1-5-32-545" /t /c | Out-Null
-        & icacls $folder /grant   "*S-1-5-32-544:F" /t /c | Out-Null
-        Write-Host "       ACLs stripped on: $folder" -ForegroundColor Green
-    }
+# ── 2. Stop and remove the service ────────────────────────────────────────────
+Write-Host "[1/6] Stopping and removing PrivacyWarden service..." -ForegroundColor Yellow
+if (Get-Service -Name "PrivacyWarden" -ErrorAction SilentlyContinue) {
+    Stop-Service -Name "PrivacyWarden" -Force -ErrorAction SilentlyContinue
+    & sc.exe delete "PrivacyWarden" | Out-Null
+    Write-Host "       Service removed." -ForegroundColor Green
+} else {
+    Write-Host "       Service not found (already removed)." -ForegroundColor DarkGray
 }
 
-# ── 4. Delete installed files ─────────────────────────────────────────────────
-Write-Host "[4/10] Deleting installed files..." -ForegroundColor Yellow
-$installDirs = @(
-    "$env:ProgramFiles\PrivacyWarden",
-    "$env:ProgramFiles\StreamGuard",
-    "${env:ProgramFiles(x86)}\PrivacyWarden",
-    "${env:ProgramFiles(x86)}\StreamGuard"
-)
-foreach ($dir in $installDirs) {
+# ── 3. Kill the tray app ──────────────────────────────────────────────────────
+Write-Host "[2/6] Stopping tray app..." -ForegroundColor Yellow
+Get-Process -Name "PrivacyWardenTray" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process -Name "StreamGuardTray" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Write-Host "       Tray app stopped." -ForegroundColor Green
+
+# ── 4. Remove scheduled tasks ─────────────────────────────────────────────────
+Write-Host "[3/6] Removing scheduled tasks..." -ForegroundColor Yellow
+$tasks = @("PrivacyWarden_Startup", "StreamGuard_Startup")
+foreach ($task in $tasks) {
+    if (Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+        Write-Host "       Removed task: $task" -ForegroundColor Green
+    }
+}
+
+# ── 5. Remove files and folders ───────────────────────────────────────────────
+Write-Host "[4/6] Removing application files..." -ForegroundColor Yellow
+$installDir = "$env:ProgramFiles\PrivacyWarden"
+$legacyDir = "$env:ProgramFiles\StreamGuard"
+$dataDir = "$env:ProgramData\PrivacyWarden"
+
+# Remove deny ACEs from ProgramData so we can delete it
+if (Test-Path $dataDir) {
+    $acl = Get-Acl $dataDir
+    $rules = $acl.Access | Where-Object { $_.AccessControlType -eq "Deny" }
+    foreach ($rule in $rules) { $acl.RemoveAccessRule($rule) | Out-Null }
+    Set-Acl -Path $dataDir -AclObject $acl -ErrorAction SilentlyContinue
+}
+
+foreach ($dir in @($installDir, $legacyDir, $dataDir)) {
     if (Test-Path $dir) {
         Remove-Item -Path $dir -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "       Deleted: $dir" -ForegroundColor Green
+        Write-Host "       Removed folder: $dir" -ForegroundColor Green
     }
 }
 
-# ── 5. Delete ProgramData folder (logs kept by default) ──────────────────────
-Write-Host "[5/10] Cleaning up ProgramData..." -ForegroundColor Yellow
-foreach ($folder in @("C:\ProgramData\PrivacyWarden", "C:\ProgramData\StreamGuard")) {
-    if (Test-Path $folder) {
-        $logsPath = Join-Path $folder "Logs"
-        Get-ChildItem $folder -Exclude "Logs" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        if (Test-Path $logsPath) {
-            Write-Host "       Kept logs at: $logsPath (your audit records)" -ForegroundColor Cyan
-        } else {
-            Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host "       Deleted: $folder" -ForegroundColor Green
-        }
-    }
-}
-
-# ── 6. Remove registry keys ───────────────────────────────────────────────────
-Write-Host "[6/10] Removing registry entries..." -ForegroundColor Yellow
-$regKeys = @(
-    "HKLM:\Software\GearLightLabs\PrivacyWarden",
-    "HKLM:\Software\GearLightLabs\StreamGuard",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden",
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\StreamGuard"
-)
-foreach ($key in $regKeys) {
-    if (Test-Path $key) {
-        Remove-Item -Path $key -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "       Removed: $key" -ForegroundColor Green
-    }
-}
-$runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+# ── 6. Remove shortcuts and auto-start ────────────────────────────────────────
+Write-Host "[5/6] Removing shortcuts and auto-start entries..." -ForegroundColor Yellow
+$runKey = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 foreach ($name in @("PrivacyWardenTray", "StreamGuardTray")) {
-    if (Get-ItemProperty -Path $runKey -Name $name -ErrorAction SilentlyContinue) {
-        Remove-ItemProperty -Path $runKey -Name $name -ErrorAction SilentlyContinue
-        Write-Host "       Removed auto-start: $name" -ForegroundColor Green
-    }
+    Remove-ItemProperty -Path $runKey -Name $name -ErrorAction SilentlyContinue
 }
 
-# ── 7. Remove shortcuts ───────────────────────────────────────────────────────
-Write-Host "[7/10] Removing shortcuts..." -ForegroundColor Yellow
 $shortcuts = @(
     "$env:USERPROFILE\Desktop\PrivacyWarden.lnk",
-    "$env:USERPROFILE\Desktop\StreamGuard.lnk",
     "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\PrivacyWarden",
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\StreamGuard",
-    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\PrivacyWarden",
-    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StreamGuard"
+    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\PrivacyWarden"
 )
 foreach ($path in $shortcuts) {
     if (Test-Path $path) {
         Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "       Removed: $path" -ForegroundColor Green
     }
 }
+Write-Host "       Shortcuts removed." -ForegroundColor Green
 
-# ── 8. Undo network hardening (SMHNR, LLMNR, NetBIOS, WPAD, Teredo, 6to4) ───
-Write-Host "[8/10] Reverting network hardening changes..." -ForegroundColor Yellow
+# ── 7. Revert Privacy Settings (if requested) ─────────────────────────────────
+if ($keepSettings) {
+    Write-Host "[6/6] Skipping privacy settings reversion as requested." -ForegroundColor Green
+} else {
+    Write-Host "[6/6] Reverting all 18 privacy and network settings to default..." -ForegroundColor Yellow
 
-# Re-enable SMHNR and LLMNR (remove the policy keys)
-$smhnrPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"
-foreach ($val in @("DisableSmartNameResolution", "DisableParallelAandAAAA", "EnableMulticast")) {
-    Remove-ItemProperty -Path $smhnrPath -Name $val -ErrorAction SilentlyContinue
-}
-Write-Host "       SMHNR and LLMNR policy keys removed." -ForegroundColor Green
+    # 1. DoH/DoT
+    & $netsh dns delete global doh=no 2>$null | Out-Null
+    & $netsh dns delete global dot=no 2>$null | Out-Null
 
-# Re-enable NetBIOS over TCP/IP (set back to default = 0)
-$regBase = "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces"
-Get-ChildItem -Path $regBase -ErrorAction SilentlyContinue | ForEach-Object {
-    Set-ItemProperty -Path $_.PSPath -Name "NetbiosOptions" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
-}
-Write-Host "       NetBIOS restored to default on all interfaces." -ForegroundColor Green
+    # 2. LLMNR
+    $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"
+    Remove-ItemProperty -Path $p -Name "EnableMulticast" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $p -Name "DisableSmartNameResolution" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $p -Name "DisableParallelAandAAAA" -ErrorAction SilentlyContinue
 
-# Re-enable WPAD
-$wpadHklmPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp"
-Remove-ItemProperty -Path $wpadHklmPath -Name "DisableWpad" -ErrorAction SilentlyContinue
-$wpadHkcuPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
-Set-ItemProperty -Path $wpadHkcuPath -Name "AutoDetect" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
-$wpadHkcuWpadPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad"
-Remove-ItemProperty -Path $wpadHkcuWpadPath -Name "WpadOverride" -ErrorAction SilentlyContinue
-Write-Host "       WPAD restored to default." -ForegroundColor Green
+    # 3. NetBIOS
+    Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces" -ErrorAction SilentlyContinue |
+        ForEach-Object { Set-ItemProperty -Path $_.PSPath -Name "NetbiosOptions" -Value 0 -Force -ErrorAction SilentlyContinue }
 
-# Re-enable Teredo and 6to4
-& $netsh interface teredo set state default | Out-Null
-& $netsh interface 6to4  set state default  | Out-Null
-Write-Host "       Teredo and 6to4 restored to default." -ForegroundColor Green
+    # 4. WPAD
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" -Name "DisableWpad" -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name "AutoDetect" -Value 1 -Force -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" -Name "WpadOverride" -ErrorAction SilentlyContinue
 
-# ── 9. Restore DNS to automatic on all adapters ───────────────────────────────
-# NOTE: This step restores DNS to DHCP (automatic from your router).
-# If you want to keep Mullvad DNS after uninstalling PrivacyWarden,
-# comment out this entire step or skip it when prompted.
-Write-Host "[9/10] Restoring DNS to automatic (DHCP) on all adapters..." -ForegroundColor Yellow
-Write-Host "       (Skip this if you want to keep your current DNS settings)" -ForegroundColor DarkGray
-$adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
-foreach ($adapter in $adapters) {
-    try {
-        & $netsh interface ipv4 set dnsservers "$($adapter.Name)" dhcp | Out-Null
-        & $netsh interface ipv6 set dnsservers "$($adapter.Name)" dhcp | Out-Null
-        Write-Host "       DNS restored on: $($adapter.Name)" -ForegroundColor Green
-    } catch {
-        Write-Host "       Could not restore DNS on $($adapter.Name) -- do it manually in Network Settings" -ForegroundColor Red
+    # 5. Teredo/6to4
+    & $netsh interface teredo set state default | Out-Null
+    & $netsh interface 6to4  set state default  | Out-Null
+
+    # 6. NTP
+    & w32tm /config /manualpeerlist:"time.windows.com" /syncfromflags:manual /reliable:YES /update 2>$null | Out-Null
+    Restart-Service -Name "w32tm" -ErrorAction SilentlyContinue
+
+    # 7. Delivery Optimization
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -ErrorAction SilentlyContinue
+
+    # 8. Browser DoH
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+
+    # 9. Wi-Fi Sense
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" -Name "AutoConnectAllowedOEM" -ErrorAction SilentlyContinue
+
+    # 10. Telemetry
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "DoNotShowFeedbackNotifications" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" -Name "AllowTelemetry" -ErrorAction SilentlyContinue
+    Set-Service -Name "DiagTrack" -StartupType Automatic -ErrorAction SilentlyContinue
+    Start-Service -Name "DiagTrack" -ErrorAction SilentlyContinue
+
+    # 11. Advertising ID
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" -Name "DisabledByGroupPolicy" -ErrorAction SilentlyContinue
+
+    # 12. Activity History
+    $sys = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+    Remove-ItemProperty -Path $sys -Name "EnableActivityFeed" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $sys -Name "PublishUserActivities" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $sys -Name "UploadUserActivities" -ErrorAction SilentlyContinue
+
+    # 13. Cloud Content
+    $cc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
+    Remove-ItemProperty -Path $cc -Name "DisableWindowsConsumerFeatures" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $cc -Name "DisableSoftLanding" -ErrorAction SilentlyContinue
+    $cdm = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+    Remove-ItemProperty -Path $cdm -Name "SubscribedContent-338388Enabled" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $cdm -Name "SubscribedContent-338389Enabled" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $cdm -Name "SubscribedContent-353698Enabled" -ErrorAction SilentlyContinue
+
+    # 14. Cortana / Search
+    $sr = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+    Remove-ItemProperty -Path $sr -Name "AllowCortana" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $sr -Name "DisableWebSearch" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $sr -Name "ConnectedSearchUseWeb" -ErrorAction SilentlyContinue
+    $su = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
+    Remove-ItemProperty -Path $su -Name "BingSearchEnabled" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $su -Name "CortanaConsent" -ErrorAction SilentlyContinue
+
+    # 15. Cloud Clipboard
+    $cl = "HKCU:\Software\Microsoft\Clipboard"
+    Remove-ItemProperty -Path $cl -Name "EnableClipboardHistory" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $cl -Name "CloudClipboardAutomaticUpload" -ErrorAction SilentlyContinue
+
+    # 16. Recall AI
+    $ra = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
+    Remove-ItemProperty -Path $ra -Name "AllowRecallEnablement" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $ra -Name "DisableAIDataAnalysis" -ErrorAction SilentlyContinue
+
+    # 17. Location
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" -Name "DisableLocation" -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -ErrorAction SilentlyContinue
+
+    # 18. Telemetry Tasks
+    @(
+        "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+        "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
+        "\Microsoft\Windows\Autochk\Proxy",
+        "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+        "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+        "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
+        "\Microsoft\Windows\Feedback\Siuf\DmClient",
+        "\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload"
+    ) | ForEach-Object {
+        Enable-ScheduledTask -TaskPath (Split-Path $_) -TaskName (Split-Path $_ -Leaf) -ErrorAction SilentlyContinue | Out-Null
     }
+
+    & ipconfig /flushdns | Out-Null
+    Write-Host "       All privacy settings reverted to Windows defaults." -ForegroundColor Green
 }
 
-# ── 10. Re-enable OS-level DoH/DoT (restore to default) ──────────────────────
-Write-Host "[10/10] Restoring OS-level DNS settings to default..." -ForegroundColor Yellow
-& $netsh dns delete global doh=no  2>$null | Out-Null
-& $netsh dns delete global dot=no  2>$null | Out-Null
-Write-Host "        DoH/DoT settings restored to Windows default." -ForegroundColor Green
-
 Write-Host ""
-Write-Host "All done." -ForegroundColor Cyan
+Write-Host "All done. PrivacyWarden has been uninstalled." -ForegroundColor Cyan
+Write-Host "Reboot recommended." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Everything has been removed and all network settings restored." -ForegroundColor White
-Write-Host "Your audit logs (if any) were kept at C:\ProgramData\PrivacyWarden\Logs\" -ForegroundColor White
-Write-Host "Delete that folder manually if you want them gone too." -ForegroundColor White
-Write-Host ""
-Write-Host "Reboot recommended for all network changes to fully take effect." -ForegroundColor Yellow
-Write-Host ""
+Host ""

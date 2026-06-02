@@ -38,7 +38,7 @@ cd installer
 makensis PrivacyWarden_Installer.nsi
 ```
 
-Output: `installer\PrivacyWarden-Setup-v1.1.1.exe`
+Output: `installer\PrivacyWarden-Setup-v1.2.0.exe`
 
 ## Verify the build
 

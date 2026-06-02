@@ -24,7 +24,7 @@
     <AssemblyName>PrivacyWarden</AssemblyName>
     <RootNamespace>PrivacyWarden</RootNamespace>
     <Description>PrivacyWarden — auto-toggles Mullvad VPN and enforces DNS lock for VTubers. Created by Aya Yoki (AyaYokiVT) — Gearlight Labs.</Description>
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <Authors>Aya Yoki (AyaYokiVT)</Authors>
     <Company>Gearlight Labs</Company>
     <Copyright>© 2026 Aya Yoki (AyaYokiVT) — Gearlight Labs. Private Use Only.</Copyright>
@@ -40,6 +40,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      tray_icon.ico is intentionally present in both project folders.
+      MSBuild requires ApplicationIcon to be in the same directory as the .csproj.
+      Both copies are identical. Do not delete either one.
+    -->
     <Content Include="tray_icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

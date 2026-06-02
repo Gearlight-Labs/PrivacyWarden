@@ -20,7 +20,7 @@ The switch happens automatically. You don't do anything.
 - Mullvad VPN installed and logged in
 
 **Steps:**
-1. Download `PrivacyWarden-Setup-v1.1.1.exe` from the releases page
+1. Download `PrivacyWarden-Setup-v1.2.0.exe` from the releases page
 2. Run it as Administrator
 3. Follow the installer -- it sets up the service and the tray app automatically
 4. The tray icon appears in your system tray when it's done

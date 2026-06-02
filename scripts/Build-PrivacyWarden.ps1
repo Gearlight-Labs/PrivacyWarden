@@ -4,7 +4,7 @@
 # Run this from the repo root on a Windows machine with .NET 8 SDK and Obfuscar installed.
 
 param(
-    [string]$Version = "1.1.1"
+    [string]$Version = "1.2.0"
 )
 
 $ErrorActionPreference = "Stop"
