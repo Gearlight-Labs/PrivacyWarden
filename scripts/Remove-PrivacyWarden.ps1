@@ -131,11 +131,6 @@ Get-ChildItem -Path $regBase -ErrorAction SilentlyContinue | ForEach-Object {
 }
 Write-Host "       NetBIOS restored to default on all interfaces." -ForegroundColor Green
 
-# Restore IPv6 preference to default (remove DisabledComponents)
-$tcpip6Path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters"
-Remove-ItemProperty -Path $tcpip6Path -Name "DisabledComponents" -ErrorAction SilentlyContinue
-Write-Host "       IPv6 preference restored to Windows default." -ForegroundColor Green
-
 # Re-enable WPAD
 $wpadHklmPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp"
 Remove-ItemProperty -Path $wpadHklmPath -Name "DisableWpad" -ErrorAction SilentlyContinue
