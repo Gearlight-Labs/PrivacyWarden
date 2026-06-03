@@ -1,11 +1,11 @@
 using System;
 using System.IO;
 using System.Runtime.Versioning;
-using PrivacyWarden.Models;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using PrivacyWarden.Models;
 using PrivacyWarden.Services;
 
 namespace PrivacyWarden
@@ -24,6 +24,10 @@ namespace PrivacyWarden
         private readonly ErrorRecoveryService _recovery;
         private ServiceState _currentState = ServiceState.PrivacyMode;
         private string _activeStreamingApp = "streaming software";
+
+        // Maximum time a single tick is allowed to run before it is considered hung.
+        // Prevents the Worker from freezing if a VPN/DNS operation stalls unexpectedly.
+        private static readonly TimeSpan TickTimeout = TimeSpan.FromSeconds(90);
 
         public Worker(
             ILogger<Worker> logger,
@@ -115,8 +119,29 @@ namespace PrivacyWarden
 
             while (await workerTimer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
-                try { await TickAsync(); }
-                catch (OperationCanceledException) { break; }
+                try
+                {
+                    // Wrap each tick in a timeout so a hung VPN/DNS call cannot freeze the loop
+                    // indefinitely. If a tick exceeds 90 seconds, treat it as a failure and recover.
+                    using var tickCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    tickCts.CancelAfter(TickTimeout);
+                    await TickAsync().WaitAsync(tickCts.Token);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (OperationCanceledException)
+                {
+                    // Tick timed out — treat as an unhandled error and recover
+                    _logger.LogError("Monitoring tick timed out after {Timeout}s — forcing recovery.", TickTimeout.TotalSeconds);
+                    _audit.LogHigh("TICK_TIMEOUT",
+                        $"Monitoring tick exceeded {TickTimeout.TotalSeconds}s — possible VPN/DNS hang",
+                        "Service is recovering. This may indicate a Mullvad daemon issue.");
+                    if (_currentState != ServiceState.DegradedMode)
+                    {
+                        _currentState = ServiceState.Recovering;
+                        try { await _recovery.RecoverAsync(new TimeoutException("Tick timeout")); } catch { }
+                        _currentState = ServiceState.PrivacyMode;
+                    }
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Unhandled error in monitoring loop.");
@@ -167,7 +192,7 @@ namespace PrivacyWarden
                     {
                         await _dns.VerifyAndEnforceAsync();
                         await _vpn.EnablePrivacyModeAsync();
-                        await Task.Delay(3000);
+                        await Task.Delay(3000).ConfigureAwait(false);
                         _dns.EstablishAdapterBaseline();
                         _currentState = ServiceState.PrivacyMode;
                         WriteStatus("PRIVACY_MODE", "Mullvad installed -- Privacy Mode activated");
@@ -253,6 +278,10 @@ namespace PrivacyWarden
                     break;
 
                 case ServiceState.Recovering:
+                    // Recovering state is transient — Worker.cs sets it before calling RecoverAsync
+                    // and resets it to PrivacyMode after. If we somehow land here during a tick,
+                    // just skip the tick and let the next one run normally.
+                    _logger.LogWarning("TickAsync called while in Recovering state — skipping tick.");
                     break;
             }
         }

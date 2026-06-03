@@ -327,6 +327,7 @@ namespace PrivacyWarden
         private void ExitApp()
         {
             _timer.Stop();
+            _timer.Dispose();
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
             Application.Exit();
@@ -341,12 +342,22 @@ namespace PrivacyWarden
             }
             catch { }
 
+            // Fallback: generate a red circle icon.
+            // Icon.FromHandle transfers ownership of the HICON to the Icon object,
+            // but the Bitmap's HICON is a separate GDI handle that must be freed
+            // explicitly to avoid a GDI handle leak on every startup without an .ico file.
             using var bmp = new Bitmap(32, 32);
             using var g = Graphics.FromImage(bmp);
             g.Clear(Color.Transparent);
             g.FillEllipse(Brushes.Red, 2, 2, 28, 28);
-            return Icon.FromHandle(bmp.GetHicon());
+            var hIcon = bmp.GetHicon();
+            var icon = (Icon)Icon.FromHandle(hIcon).Clone(); // Clone so we own the Icon
+            DestroyIcon(hIcon);                               // Free the original GDI handle
+            return icon;
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
     }
 
     internal class ServiceStatus

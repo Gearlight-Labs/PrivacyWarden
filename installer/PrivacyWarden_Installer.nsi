@@ -6,7 +6,7 @@
 ; General
 
 !define PRODUCT_NAME      "PrivacyWarden"
-!define PRODUCT_VERSION   "1.3.0"
+!define PRODUCT_VERSION   "1.3.1"
 !define PRODUCT_PUBLISHER "Aya Yoki (AyaYokiVT) - Gearlight Labs"
 !define PRODUCT_AUTHOR    "Aya Yoki (AyaYokiVT)"
 !define PRODUCT_CONTACT   "gearlightlabs@gmail.com"
@@ -82,13 +82,13 @@ Var IS_UPGRADE
 ;--------------------------------
 ; Version Info (shown in Windows file properties)
 
-VIProductVersion "1.3.0.0"
+VIProductVersion "1.3.1.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName"     "${PRODUCT_NAME}"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion"  "${PRODUCT_VERSION}"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName"     "${PRODUCT_PUBLISHER}"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright"  "2026 Aya Yoki (AyaYokiVT) - Gearlight Labs"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "${PRODUCT_NAME} Installer"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion"     "1.3.0.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion"     "1.3.1.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "Comments"        "Created by Aya Yoki (AyaYokiVT) - gearlightlabs@gmail.com"
 
 ;--------------------------------

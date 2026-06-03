@@ -547,7 +547,6 @@ namespace PrivacyWarden.Services
                 throw new InvalidOperationException(
                     $"Mullvad CLI path '{_config.MullvadCliPath}' is not in the allowed path list.");
             }
-
             var psi = new ProcessStartInfo
             {
                 FileName = _config.MullvadCliPath,
@@ -557,20 +556,34 @@ namespace PrivacyWarden.Services
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
-
             using var process = Process.Start(psi)
                 ?? throw new InvalidOperationException($"Failed to start Mullvad CLI with args: {arguments}");
 
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
+            // Read stdout and stderr concurrently to prevent deadlock when both buffers fill.
+            // A 30-second timeout prevents the entire Worker loop from hanging if the
+            // Mullvad daemon becomes unresponsive mid-command (e.g. during connect/disconnect).
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask  = process.StandardError.ReadToEndAsync();
 
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new InvalidOperationException(
+                    $"Mullvad CLI timed out after 30 seconds (args: {arguments}). Process was killed.");
+            }
+
+            var output = await stdoutTask;
             if (process.ExitCode != 0)
             {
-                var error = await process.StandardError.ReadToEndAsync();
+                var error = await stderrTask;
                 _logger.LogWarning("Mullvad CLI exited with code {Code} for args '{Args}': {Error}",
                     process.ExitCode, arguments, error);
             }
-
             return output.Trim();
         }
     }
