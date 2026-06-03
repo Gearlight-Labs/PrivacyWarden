@@ -46,13 +46,13 @@ No, and it's intentional. A named mutex (`Global\PrivacyWarden_ServiceInstance`)
 It means the HMAC chain from the previous session doesn't match the current one. This is normal after reinstalling or updating. It's not a sign of tampering -- just means the previous chain ended and a new one started.
 
 **The tray icon isn't showing.**
-Run `PrivacyWardenTray.exe` manually from `C:\Program Files\PrivacyWarden\PrivacyWardenTray.exe`. If it still doesn't appear, check that it's in your startup apps (Task Manager -> Startup apps).
+Run `PrivacyWarden.exe` manually from `C:\Program Files\PrivacyWarden\PrivacyWarden.exe`. If it still doesn't appear, check that it's in your startup apps (Task Manager -> Startup apps).
 
 **The service won't start.**
 Open `services.msc`, find PrivacyWarden, check the status. If it failed, check Windows Event Log -> Applications for the error message.
 
 **Windows SmartScreen is blocking the installer.**
-Click "More info" then "Run anyway". This is a private indie tool without a commercial code signing certificate ($200-400/year). The SHA256 hash in `SHA256.txt` lets you verify the file is genuine.
+Click "More info" then "Run anyway". I signed the installer with my own self-signed certificate, so it will show "Aya Yoki (AyaYokiVT)" as the publisher instead of "Unknown Publisher", but SmartScreen still shows a warning because it's not a commercial certificate ($200-400/year). The SHA256 hash in `SHA256.txt` lets you verify the file is genuine.
 
 **VirusTotal shows 1/71 flagged -- is the installer malware?**
 No. The one flag is CrowdStrike's heuristic ML model at 60% confidence -- below their own threshold for a real detection. Every other vendor (Microsoft, Kaspersky, ESET, Sophos, Malwarebytes, SentinelOne, and 65+ others) says clean. Heuristic scanners flag PrivacyWarden because it does things that look suspicious in isolation: installs a Windows Service, spawns `mullvad.exe` as a subprocess, modifies DNS settings, and auto-starts a tray app on login. That's exactly what it's supposed to do. The installer also isn't signed with a commercial CA certificate (because those cost $300+/year), which makes ML models nervous. The source code is fully public if you want to verify and build it yourself.

@@ -26,11 +26,12 @@ You go live -> it switches to Streaming Mode. You go offline -> it switches back
 
 ## What you get
 
+As of v1.3.0, I merged everything into one single file. No more file multiplication.
+
 | File | What it is |
 |---|---|
-| `PrivacyWarden.exe` | The background service -- runs 24/7, does the actual work |
-| `PrivacyWardenTray.exe` | Tray icon -- shows you what mode you're in right now |
-| `PrivacyWarden-Setup-v1.3.0.exe` | Installer -- sets everything up for you |
+| `PrivacyWarden.exe` | The unified program. It runs as the background service, and it also runs the system tray icon. One file does it all. |
+| `PrivacyWarden-Setup-v1.3.0.exe` | The installer. It sets up the service, puts the icon in your tray, and can apply security hardening if you want it. |
 
 ---
 
@@ -46,7 +47,7 @@ You go live -> it switches to Streaming Mode. You go offline -> it switches back
 
 Grab `PrivacyWarden-Setup-v1.3.0.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
 
-The installer handles everything -- registers the service to start on boot, adds the tray app to your startup, done.
+The installer handles everything -- registers the service to start on boot, adds the tray app to your startup, done. If you already have an older version installed, it will detect it, upgrade it, and keep your settings.
 
 ---
 

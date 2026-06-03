@@ -31,7 +31,7 @@ The service starts automatically on every boot. The tray app starts automaticall
 
 ## The Tray App
 
-`PrivacyWardenTray.exe` runs in your system tray and shows you what's happening at a glance.
+`PrivacyWarden.exe` runs in your system tray and shows you what's happening at a glance.
 
 The icon changes color:
 - **Green** -- Privacy Mode active, VPN on
@@ -167,7 +167,7 @@ Or right-click the tray icon.
 ## Troubleshooting
 
 **Tray icon not showing:**
-Run `PrivacyWardenTray.exe` manually from `C:\Program Files\PrivacyWarden\PrivacyWardenTray.exe`. It should auto-start on login -- if it's not, check that it's in your startup apps.
+Run `PrivacyWarden.exe` manually from `C:\Program Files\PrivacyWarden\PrivacyWarden.exe`. It should auto-start on login -- if it's not, check that it's in your startup apps.
 
 **Service not starting:**
 Open `services.msc`, find PrivacyWarden, check the status. If it failed, check Windows Event Log -> Applications for the error.

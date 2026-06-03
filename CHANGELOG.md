@@ -63,7 +63,7 @@
 - **Log rotation** -- log files older than 7 days are automatically deleted on startup. Configurable via `logRetentionDays` in `config.json`. Prevents logs from filling the drive over time.
 - **Log size enforcement** -- if a log file exceeds `maxLogSizeBytes`, it is archived with a timestamp suffix and a fresh file is started.
 - **Smaller binaries** -- switched from self-contained to framework-dependent builds. `PrivacyWarden.exe` is now ~5-8 MB instead of ~80-120 MB. Requires .NET 8 runtime (ships with Windows 10/11 via Windows Update).
-- **Tray auto-starts on login** -- installer now registers `PrivacyWardenTray.exe` in `HKCU\Run` so the tray icon appears automatically after every login without any extra setup.
+- **Tray auto-starts on login** -- installer now registers `PrivacyWarden.exe` in `HKCU\Run` so the tray icon appears automatically after every login without any extra setup.
 - **Upgraded to .NET 8** -- from .NET 7 (out of support). .NET 8 is the current LTS release.
 
 ### Added
@@ -75,12 +75,12 @@
 
 ### Fixed
 - Logs not recording -- service was blocked from writing to Documents by Windows Defender Controlled Folder Access (logs moved back to ProgramData where LocalSystem always has access)
-- Tray icon not showing -- Windows Services run in Session 0 with no desktop access; split into separate PrivacyWardenTray.exe process that runs in the user's session
+- Tray icon not showing -- Windows Services run in Session 0 with no desktop access; split into separate tray process that runs in the user's session
 - NEW_ADAPTER_DETECTED false positive on every startup -- adapter baseline now taken after VPN connects so the Mullvad adapter is already present when the snapshot is made
 - LOG_INTEGRITY_FAILED on reinstall -- HMAC seed now persists in ProgramData across reinstalls instead of being re-derived from InstallDate
 
 ### Added
-- PrivacyWardenTray.exe -- Mullvad-style compact tray app, auto-starts on login, shows current mode and service status
+- Tray app -- Mullvad-style compact tray app, auto-starts on login, shows current mode and service status
 - Three-file log split -- service.log, session.log, threat.log -- each with a clear purpose
 - New human-readable log format modeled on Mullvad's daemon.log -- plain English, no JSON, no hashes on every line
 - ThreatMonitorService -- personal black box for social engineering evidence: monitors temp folder executables, browser credential access, unknown outbound connections, config tampering, rogue adapters, packet capture tools

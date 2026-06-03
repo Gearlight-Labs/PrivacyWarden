@@ -1,35 +1,23 @@
-# PrivacyWarden v1.1.1 -- Security Patch
+# PrivacyWarden v1.3.0 -- Unified Architecture & Security Audit
 
-v1.1.0 had security issues. I pulled it as soon as I found them and patched everything before putting this out. If you installed v1.1.0, uninstall it and install this instead.
+I merged everything into one single file. No more separate tray app and service app. One file does it all. I also merged the two hardening scripts into one, fixed the NetBIOS bug, and ran a full security audit.
 
-## What was fixed
+## What's new in v1.3.0
 
-### Critical
-**Unquoted service binary path in the installer.** If you installed to a folder with spaces in the name (like `C:\Program Files\PrivacyWarden`), Windows would try to run the wrong executable first when starting the service. An attacker with write access to your C:\ drive could exploit that to run arbitrary code as SYSTEM. I fixed this by quoting the binary path properly in the installer.
+### Unified Architecture
+- **One single `PrivacyWarden.exe`** -- handles both the Windows Service and the System Tray. No more separate `PrivacyWardenTray.exe`.
+- **Smart Installer** -- detects if it's a fresh install or an upgrade, preserves your settings during upgrades, and cleans up the old tray app.
+- **Smaller Installer** -- down to 46 MB from 91 MB.
 
-### High
-**`status.json` was unauthenticated.** The tray app reads a file called `status.json` to know what the service is doing. That file had no integrity check on it, so a local attacker could replace it with a fake one to make the tray show "VPN: Connected" when it wasn't -- hiding an active privacy breach. I fixed this so the file is now signed with HMAC-SHA256 on every write and the tray verifies the signature before trusting it.
+### Security & Hardening
+- **Merged Hardening Script** -- `Setup-PrivacyWarden-Hardening.ps1` now runs all 25 steps in one pass (network privacy, Windows telemetry, and anti-harassment hardening).
+- **NetBIOS Bug Fixed** -- replaced the old WMI method that failed in PowerShell 7 with a direct registry write that works everywhere.
+- **Authenticode Signed** -- I signed the installer and the executables with my own self-signed certificate. It now shows "Aya Yoki (AyaYokiVT)" as the publisher instead of "Unknown Publisher".
+- **Uninstaller Fix** -- the uninstaller now preserves your `Logs\` folder when you uninstall, only deleting the runtime files.
 
-**Command injection in DNS enforcement.** Adapter names were being passed unsanitized into a `netsh` subprocess call that runs as SYSTEM. That's a command injection vector. I fixed this by using the absolute path to `netsh.exe` and sanitizing adapter names before use.
-
-### Medium
-**HMAC key was readable by any user.** The key used to sign the audit logs was derived from `MachineGuid`, which any standard user on the machine can read from the registry. A local attacker could derive the key and forge log entries. I fixed this so the key is now a cryptographically random 32 bytes, generated on first run and protected by DPAPI so only SYSTEM and Administrators can decrypt it.
-
-**`explorer.exe` launched without absolute path.** The tray app was opening the log folder using `explorer.exe` without a full path. If your system PATH was poisoned, a malicious `explorer.exe` in a writable folder could run instead. I fixed this to use `%SystemRoot%\explorer.exe`.
-
-### Low
-**Uninstaller couldn't clean up ProgramData.** The service applies deny ACEs to the `C:\ProgramData\PrivacyWarden\` folder to protect config and key files. The uninstaller wasn't stripping those before trying to delete the folder, so it would fail silently and leave files behind. I fixed this so the uninstaller now removes the deny ACEs first.
-
----
-
-## Also in v1.1.1 (carried over from v1.1.0)
-
-- Tray sync fixed -- was always showing "Service Stopped" even when running fine
-- No more black console window on launch
-- SSD-safe logging -- writes buffered in memory, flushed every 30 seconds (~2 writes/hour instead of ~700)
-- Log rotation -- files older than 7 days deleted automatically
-- Smaller executables -- ~5-8 MB instead of ~80-120 MB
-- Tray auto-starts on login via installer
+### Quality of Life
+- **Unicode Installer Fix** -- fixed the weird ASCII characters showing up during installation.
+- **Author Credits** -- updated all scripts, docs, and the installer to properly credit Aya Yoki (AyaYokiVT) -- Gearlight Labs.
 
 ---
 
