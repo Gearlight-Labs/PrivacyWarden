@@ -586,12 +586,26 @@ Step-Progress "Hardening system..." "Building domain block list"
 $HostsPath = "$env:windir\System32\drivers\etc\hosts"
 
 $BlockedDomains = @(
-    # IP Loggers & Grabbers
-    "grabify.link", "grabify.org", "iplogger.org", "iplogger.com", "iplogger.ru",
-    "2no.co", "blasze.com", "canarytokens.com", "ps3cfw.com", "ip-api.com",
-    "ifconfig.me", "ipinfo.io", "icanhazip.com", "wtfismyip.com",
-    "checkip.dyndns.org", "myexternalip.com", "api.ipify.org", "ipv4.icanhazip.com",
-    "ipv6.icanhazip.com", "ident.me", "api4.my-ip.io", "ip4.seeip.org",
+    # IP Loggers & Grabbers (used to dox streamers via fake links)
+    "grabify.link", "grabify.org", "grabify.io",
+    "iplogger.org", "iplogger.com", "iplogger.ru", "iplogger.site",
+    "2no.co", "blasze.com", "blasze.tk",
+    "ps3cfw.com", "ip-api.com", "ip-api.io",
+    "yip.su", "iplis.ru", "02ip.ru", "ipgraber.ru",
+    "opentracker.net", "ip-tracker.org", "tracemyip.org",
+    "iplogger.info", "ipgrabber.ru", "ipstress.in",
+    "logninja.com", "loggly.com", "logflare.app",
+    "shorturl.at", "cutt.ly", "rebrand.ly",
+    # IP info / geolocation APIs abused for tracking
+    "ifconfig.me", "ifconfig.co", "ifconfig.io",
+    "ipinfo.io", "icanhazip.com", "wtfismyip.com",
+    "checkip.dyndns.org", "myexternalip.com",
+    "api.ipify.org", "ipv4.icanhazip.com", "ipv6.icanhazip.com",
+    "ident.me", "api4.my-ip.io", "ip4.seeip.org",
+    "ipecho.net", "ip.sb", "ip.42.pl", "ip.tyk.nu",
+    "myip.com", "whatismyip.com", "whatismyipaddress.com",
+    "ipaddress.com", "ipaddress.my", "ipaddresslabs.com",
+    "canarytokens.com", "canarytokens.org",
     
     # Doxxing / Credential Leak Forums
     "doxbin.com", "doxbin.org", "doxbin.net", "doxbin.to",
@@ -659,13 +673,44 @@ $BlockedDomains = @(
     "webhook.site", "requestbin.com", "pipedream.com", "hookbin.com", "interact.sh",
     "beeceptor.com", "mockbin.org", "httpbin.org",
     
-    # Known RAT / Stresser C2
+    # Known RAT / Stresser / DDoS-for-hire C2
     "orcus.pw", "nanocore.io", "darkcomet.org", "njrat.net",
-    "stresser.ai", "stresser.to", "booter.xyz",
-    
-    # Discord Token Grabber Infrastructure
+    "asyncrat.com", "remcos.com", "remcosrat.com",
+    "quasarrat.com", "luminosity.link",
+    "stresser.ai", "stresser.to", "stresser.pw", "stresser.gg",
+    "booter.xyz", "booter.pw", "booter.gg",
+    "ddosify.com", "ddos-guard.net",
+    "ipstresser.com", "vdos-s.com",
+
+    # Discord Token Grabber / Phishing Infrastructure
     "discord-nitro.gift", "discord-gift.co", "discordapp.io", "discordnitro.gift",
-    "discord-free.com", "discordgift.site"
+    "discord-free.com", "discordgift.site", "discord-gifts.com",
+    "discordapp.net", "discord-boost.com", "discord-nitro.com",
+    "discord-nitro.net", "discordnitro.net", "discordnitro.org",
+    "discordsafe.com", "discordverify.com", "discord-verify.com",
+    "dlscord.com", "dlscord.net", "discorcl.com",
+
+    # Extremism / Radicalization Platforms
+    "dailystormer.com", "dailystormer.in", "dailystormer.su",
+    "dailystormer.name", "dailystormer.nl",
+    "stormfront.org", "stormfront.com",
+    "gab.com", "gab.ai",
+    "patriot.win", "thedonald.win",
+    "thegatewaypundit.com",
+    "infowars.com", "infowars.net",
+    "prisonplanet.com",
+
+    # Brazilian Cybercrime / Fraud Forums
+    "forumhacker.com.br", "guiadohacker.com.br",
+    "undergroundbrasil.com", "hackingbrasil.com.br",
+    "zonasombria.com", "darkbrasil.com",
+    "hackersbrasil.com", "hackingclub.com.br",
+
+    # Doxxing / Swatting Coordination (Telegram mirror sites)
+    "swat.to", "swatting.to", "swatter.io",
+    "dox.to", "doxed.to", "doxer.io",
+    "pastebin.com", "paste.ee", "ghostbin.com",
+    "justpaste.it", "controlc.com", "rentry.co"
 )
 
 # Add 2000+ domains from StevenBlack malware list (malware + adware only, no social)
