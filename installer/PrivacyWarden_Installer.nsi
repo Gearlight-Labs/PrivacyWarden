@@ -1,18 +1,19 @@
 ; PrivacyWarden - Setup Wizard
 ; Built with NSIS (Nullsoft Scriptable Install System)
+; Author: Aya Yoki (AyaYokiVT) -- Gearlight Labs
 
 ;--------------------------------
 ; General
 
-!define PRODUCT_NAME "PrivacyWarden"
-!define PRODUCT_VERSION "1.2.0"
+!define PRODUCT_NAME      "PrivacyWarden"
+!define PRODUCT_VERSION   "1.3.0"
 !define PRODUCT_PUBLISHER "Aya Yoki (AyaYokiVT) - Gearlight Labs"
-!define PRODUCT_AUTHOR "Aya Yoki (AyaYokiVT)"
-!define PRODUCT_CONTACT "gearlightlabs@gmail.com"
-!define PRODUCT_URL "https://github.com/Gearlight-Labs/PrivacyWarden"
-!define PRODUCT_EXE "PrivacyWarden.exe"
-!define SERVICE_NAME "PrivacyWarden"
-!define INSTALL_DIR "$PROGRAMFILES64\PrivacyWarden"
+!define PRODUCT_AUTHOR    "Aya Yoki (AyaYokiVT)"
+!define PRODUCT_CONTACT   "gearlightlabs@gmail.com"
+!define PRODUCT_URL       "https://github.com/Gearlight-Labs/PrivacyWarden"
+!define PRODUCT_EXE       "PrivacyWarden.exe"
+!define SERVICE_NAME      "PrivacyWarden"
+!define INSTALL_DIR       "$PROGRAMFILES64\PrivacyWarden"
 
 ; RELEASE_DIR is the folder containing all built assets.
 ; The CI workflow creates it at the repo root, so we reference it
@@ -20,11 +21,14 @@
 !define RELEASE_DIR "..\PrivacyWarden_Release"
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "PrivacyWarden-Setup-v1.2.0.exe"
+OutFile "PrivacyWarden-Setup-v1.3.0.exe"
 InstallDir "${INSTALL_DIR}"
 InstallDirRegKey HKLM "Software\GearLightLabs\PrivacyWarden" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
+
+; Unicode True ensures all text (including special characters) renders correctly
+; in the installer window. Without this, some characters show as boxes or question marks.
 Unicode True
 
 ;--------------------------------
@@ -34,14 +38,14 @@ Unicode True
 !include "LogicLib.nsh"
 !include "Sections.nsh"
 
-!define MUI_ICON "${RELEASE_DIR}\tray_icon.ico"
+!define MUI_ICON   "${RELEASE_DIR}\tray_icon.ico"
 !define MUI_UNICON "${RELEASE_DIR}\tray_icon.ico"
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_RIGHT
 
-; Welcome/Finish page sidebar color
+; Welcome/Finish page title color
 !define MUI_WELCOMEPAGE_TITLE_COLOR "C0002A"
-!define MUI_FINISHPAGE_TITLE_COLOR "C0002A"
+!define MUI_FINISHPAGE_TITLE_COLOR  "C0002A"
 
 ; Welcome page
 !define MUI_WELCOMEPAGE_TITLE "Welcome to PrivacyWarden Setup"
@@ -51,7 +55,7 @@ Unicode True
 ; License page
 !insertmacro MUI_PAGE_LICENSE "${RELEASE_DIR}\LICENSE"
 
-; Components page (shows optional Network Hardening section)
+; Components page (shows optional sections)
 !insertmacro MUI_PAGE_COMPONENTS
 
 ; Directory page
@@ -71,20 +75,20 @@ Unicode True
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-; Languages
+; Language
 !insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
-; Version Info
+; Version Info (shown in Windows file properties)
 
-VIProductVersion "1.2.0.0"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "${PRODUCT_NAME}"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "${PRODUCT_VERSION}"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName" "${PRODUCT_PUBLISHER}"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "2026 Aya Yoki (AyaYokiVT) - Gearlight Labs"
+VIProductVersion "1.3.0.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName"     "${PRODUCT_NAME}"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion"  "${PRODUCT_VERSION}"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName"     "${PRODUCT_PUBLISHER}"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright"  "2026 Aya Yoki (AyaYokiVT) - Gearlight Labs"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "${PRODUCT_NAME} Installer"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "1.2.0.0"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "Comments" "Created by Aya Yoki (AyaYokiVT) - gearlightlabs@gmail.com"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion"     "1.3.0.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "Comments"        "Created by Aya Yoki (AyaYokiVT) - gearlightlabs@gmail.com"
 
 ;--------------------------------
 ; Sections
@@ -98,7 +102,7 @@ Section "PrivacyWarden (required)" SecMain
   nsExec::ExecToLog 'sc delete "${SERVICE_NAME}"'
   Sleep 1000
 
-  ; Install files
+  ; Install core files
   SetOutPath "$INSTDIR"
   File "${RELEASE_DIR}\${PRODUCT_EXE}"
   File "${RELEASE_DIR}\PrivacyWardenTray.exe"
@@ -112,7 +116,7 @@ Section "PrivacyWarden (required)" SecMain
   ; Register Windows Service
   ; SECURITY: binPath value is double-quoted to prevent unquoted service path privilege escalation
   nsExec::ExecToLog 'sc create "${SERVICE_NAME}" binPath= "\"$INSTDIR\${PRODUCT_EXE}\"" DisplayName= "${PRODUCT_NAME}" start= auto'
-  nsExec::ExecToLog 'sc description "${SERVICE_NAME}" "Automates Mullvad VPN toggling, DNS leak protection, and security monitoring for VTubers."'
+  nsExec::ExecToLog 'sc description "${SERVICE_NAME}" "Automates Mullvad VPN toggling, DNS leak protection, and security monitoring for VTubers. Created by Aya Yoki (AyaYokiVT)."'
   nsExec::ExecToLog 'sc start "${SERVICE_NAME}"'
 
   ; Create desktop shortcut
@@ -131,15 +135,15 @@ Section "PrivacyWarden (required)" SecMain
 
   ; Write registry keys
   WriteRegStr HKLM "Software\GearLightLabs\PrivacyWarden" "InstallDir" "$INSTDIR"
-  WriteRegStr HKLM "Software\GearLightLabs\PrivacyWarden" "Version" "${PRODUCT_VERSION}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "DisplayName" "${PRODUCT_NAME}"
+  WriteRegStr HKLM "Software\GearLightLabs\PrivacyWarden" "Version"    "${PRODUCT_VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "DisplayName"     "${PRODUCT_NAME}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "UninstallString" "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "DisplayIcon" "$INSTDIR\tray_icon.ico"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "Publisher" "${PRODUCT_PUBLISHER}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "URLInfoAbout" "${PRODUCT_URL}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "DisplayVersion" "${PRODUCT_VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "DisplayIcon"     "$INSTDIR\tray_icon.ico"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "Publisher"       "${PRODUCT_PUBLISHER}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "URLInfoAbout"    "${PRODUCT_URL}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "DisplayVersion"  "${PRODUCT_VERSION}"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "NoModify" 1
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "NoRepair" 1
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PrivacyWarden" "NoRepair"  1
 
   ; Write uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -153,27 +157,27 @@ Section "Documentation" SecDocs
   File "${RELEASE_DIR}\SECURITY.md"
 SectionEnd
 
-; Optional: Network Hardening
+; Optional: Full Security Hardening (Network + Anti-Harassment)
 ; Unchecked by default -- user must opt in
-Section /o "Network Hardening (recommended)" SecHarden
+Section /o "Security Hardening (recommended)" SecHarden
 
-  ; Copy the hardening script to the install directory
+  ; Copy the combined hardening script to the install directory
   SetOutPath "$INSTDIR"
-  File "${RELEASE_DIR}\Setup-MullvadNetwork.ps1"
+  File "${RELEASE_DIR}\Setup-PrivacyWarden-Hardening.ps1"
 
   ; Run the hardening script silently via PowerShell
   ; -NonInteractive and -WindowStyle Hidden prevent any window from appearing
-  nsExec::ExecToLog 'powershell.exe -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\Setup-MullvadNetwork.ps1"'
+  nsExec::ExecToLog 'powershell.exe -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\Setup-PrivacyWarden-Hardening.ps1"'
 
 SectionEnd
 
 ;--------------------------------
-; Section descriptions
+; Section descriptions (shown when hovering over each option)
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "The PrivacyWarden core files and Windows Service registration. Required."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecDocs} "Documentation files including User Guide, FAQ, and Security Policy."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecHarden} "Locks DNS to Mullvad, disables LLMNR, NetBIOS, WPAD, Teredo, and 6to4. Prevents DNS leaks and local network attacks. Recommended if you use Mullvad VPN. Can be undone by running Setup-MullvadNetwork.ps1 manually."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecMain}   "The PrivacyWarden core service and system tray app. Automatically manages Mullvad VPN and DNS protection while you stream. Required."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecDocs}   "Documentation files: User Guide, FAQ, and Security Policy."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecHarden} "Applies 25 security hardening steps in one pass: disables LLMNR, NetBIOS, WPAD, Windows telemetry, Recall AI, and protects against Discord token grabbers, IP loggers, RATs, and credential dumpers. Recommended for all users. Can be re-run manually at any time."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ;--------------------------------
@@ -243,17 +247,22 @@ Section "Uninstall"
   nsExec::ExecToLog 'sc delete "${SERVICE_NAME}"'
   Sleep 1000
 
-  ; SECURITY FIX: Strip deny ACEs from ProgramData folder before deletion.
+  ; SECURITY: Strip deny ACEs from ProgramData folder before deletion.
   ; The service applies restrictive ACLs to protect hmac_seed.bin and status.json.
   ; Without stripping these, the uninstaller cannot delete the folder.
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /remove:d *S-1-1-0 /t /c'
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /remove:d *S-1-5-11 /t /c'
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /remove:d *S-1-5-32-545 /t /c'
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /grant *S-1-5-32-544:F /t /c'
-  RMDir /r "$APPDATA\..\..\ProgramData\PrivacyWarden"
+  
+  ; Delete specific files instead of the whole directory to preserve Logs
+  Delete "$APPDATA\..\..\ProgramData\PrivacyWarden\config.json"
+  Delete "$APPDATA\..\..\ProgramData\PrivacyWarden\status.json"
+  Delete "$APPDATA\..\..\ProgramData\PrivacyWarden\status.json.sig"
+  Delete "$APPDATA\..\..\ProgramData\PrivacyWarden\hmac_seed.bin"
 
   ; Delete installed files
-  Delete "$INSTDIR\Setup-MullvadNetwork.ps1"
+  Delete "$INSTDIR\Setup-PrivacyWarden-Hardening.ps1"
   Delete /REBOOTOK "$INSTDIR\${PRODUCT_EXE}"
   Delete /REBOOTOK "$INSTDIR\PrivacyWardenTray.exe"
   Delete "$INSTDIR\tray_icon.ico"
@@ -280,7 +289,7 @@ Section "Uninstall"
   Delete "$DESKTOP\PrivacyWarden.lnk"
   Delete "$SMPROGRAMS\PrivacyWarden\PrivacyWarden.lnk"
   Delete "$SMPROGRAMS\PrivacyWarden\Uninstall.lnk"
-  RMDir "$SMPROGRAMS\PrivacyWarden"
+  RMDir  "$SMPROGRAMS\PrivacyWarden"
 
   ; Remove registry keys
   DeleteRegKey HKLM "Software\GearLightLabs\PrivacyWarden"

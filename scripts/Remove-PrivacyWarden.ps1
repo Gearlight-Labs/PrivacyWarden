@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Remove-PrivacyWarden.ps1 -- Uninstaller and Reverter
-    Version 1.2.0
+    Version 1.3.0
 
 .DESCRIPTION
     Stops and removes the PrivacyWarden service, tray app, and scheduled tasks.

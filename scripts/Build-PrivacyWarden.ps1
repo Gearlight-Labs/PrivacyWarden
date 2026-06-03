@@ -1,10 +1,11 @@
 # Build-PrivacyWarden.ps1
-# Aya Yoki (AyaYokiVT) — Gearlight Labs
-# Builds PrivacyWarden with obfuscation applied before packaging.
+# Author  : Aya Yoki (AyaYokiVT) -- Gearlight Labs
+# Contact : gearlightlabs@gmail.com
+# Builds PrivacyWarden v1.3.0 with obfuscation applied before packaging.
 # Run this from the repo root on a Windows machine with .NET 8 SDK and Obfuscar installed.
 
 param(
-    [string]$Version = "1.2.0"
+    [string]$Version = "1.3.0"
 )
 
 $ErrorActionPreference = "Stop"

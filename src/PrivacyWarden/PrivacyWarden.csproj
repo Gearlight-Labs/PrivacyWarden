@@ -24,10 +24,10 @@
     <AssemblyName>PrivacyWarden</AssemblyName>
     <RootNamespace>PrivacyWarden</RootNamespace>
     <Description>PrivacyWarden — auto-toggles Mullvad VPN and enforces DNS lock for VTubers. Created by Aya Yoki (AyaYokiVT) — Gearlight Labs.</Description>
-    <Version>1.2.0</Version>
-    <Authors>Aya Yoki (AyaYokiVT)</Authors>
+    <Version>1.3.0</Version>
+    <Authors>Aya Yoki</Authors>
     <Company>Gearlight Labs</Company>
-    <Copyright>© 2026 Aya Yoki (AyaYokiVT) — Gearlight Labs. Private Use Only.</Copyright>
+    <Copyright>© 2026 Aya Yoki (AyaYokiVT) — Gearlight Labs. All rights reserved.</Copyright>
     <PackageProjectUrl>https://github.com/Gearlight-Labs/PrivacyWarden</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Gearlight-Labs/PrivacyWarden</RepositoryUrl>
   </PropertyGroup>

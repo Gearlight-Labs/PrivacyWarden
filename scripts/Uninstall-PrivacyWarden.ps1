@@ -26,7 +26,7 @@
     Author   : Aya Yoki (AyaYokiVT) — Gearlight Labs
     Contact  : gearlightlabs@gmail.com
     GitHub   : https://github.com/Gearlight-Labs/PrivacyWarden
-    Version  : 1.2.0
+    Version  : 1.3.0
     Requires : Administrator privileges
 #>
 
