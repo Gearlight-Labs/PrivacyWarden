@@ -596,7 +596,14 @@ $BlockedDomains = @(
     # Doxxing Infrastructure
     "doxbin.com", "doxbin.org", "leakbase.io", "cracked.io", "nulled.to",
     "hackforums.net", "raidforums.com", "breached.vc", "exposed.vc",
-    "kiwifarms.net", "kiwifarms.st", "kiwifarms.ru",
+    # KiwiFarms -- all known domains, mirrors, and aliases
+    # (doxxing/harassment forum responsible for multiple suicides)
+    "kiwifarms.net", "kiwifarms.org", "kiwifarms.ru", "kiwifarms.st",
+    "kiwifarms.top", "kiwifarms.pl", "kiwifarms.is", "kiwifarms.cc",
+    "kiwifarms.co", "kiwifarms.io", "kiwifarms.tv", "kiwifarms.gg",
+    "kiwifarms.biz", "kiwifarms.info", "kiwifarms.online", "kiwifarms.site",
+    "kiwifarms.xyz", "kiwifarms.lol", "kiwifarms.cx", "kiwifarms.se",
+    "cwcki.com", "lolcow.farm", "lolcow.net",
     
     # Stalkerware C2
     "mspy.com", "flexispy.com", "hoverwatch.com", "spyic.com", "spyzie.com",
