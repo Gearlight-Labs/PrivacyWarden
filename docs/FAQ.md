@@ -16,13 +16,13 @@ OBS Studio, Streamlabs, XSplit, StreamElements OBS Live, and Prism Live Studio b
 `C:\ProgramData\PrivacyWarden\Logs\` -- three files per day: `_service.log`, `_session.log`, and `_threat.log`. Open File Explorer and type the path directly into the address bar (ProgramData is hidden by default).
 
 **What is the threat log for?**
-It's your personal black box. If you ever get hacked, hit by a social engineering attack, or need to prove what was happening on your machine at a specific time, the threat log has a timestamped, cryptographically signed record of suspicious activity -- new processes, credential access attempts, unknown outbound connections. You can hand it to law enforcement or your platform's trust & safety team.
+It's your personal black box. If you ever get hacked, hit by a social engineering attack, or need to prove what was happening on your machine at a specific time, the threat log has a timestamped, cryptographically signed record of suspicious activity -- new processes, credential access attempts, unknown outbound connections. I built this so you have something concrete to hand to law enforcement or your platform's trust & safety team.
 
 **What does the threat monitor actually watch?**
 New executables in temp folders, unknown processes accessing browser credentials, unknown processes making outbound network connections, config file changes, new network adapters, and packet capture tools. It only watches your own machine -- no traffic capture, no logging of what websites you visit.
 
 **Can I read the logs without technical knowledge?**
-Yes. The new format is plain English: `[timestamp][category][LEVEL] message`. No JSON, no cryptographic hashes on every line. Open them in Notepad.
+Yes. I made the format plain English: `[timestamp][category][LEVEL] message`. No JSON, no cryptographic hashes on every line. Just open them in Notepad.
 
 **What is the .hmac file?**
 The cryptographic integrity chain for the logs. Don't edit or delete it. It's what proves the logs haven't been tampered with if you ever need them as evidence.
@@ -31,7 +31,7 @@ The cryptographic integrity chain for the logs. Don't edit or delete it. It's wh
 It's a cryptographically random 32-byte key generated on first run. It's stored in `C:\ProgramData\PrivacyWarden\hmac_seed.bin` and protected by Windows DPAPI -- only SYSTEM and Administrators can decrypt it. Standard users on the machine cannot read or derive it.
 
 **Why was v1.1.0 pulled?**
-Six security vulnerabilities were found after release -- including a critical unquoted service path that could allow privilege escalation to SYSTEM, and a command injection vector in the DNS enforcement code. All six were patched in v1.1.1. If you installed v1.1.0, uninstall it and install v1.1.1 instead. Full details in the release notes.
+Six security vulnerabilities were found after release -- including a critical unquoted service path that could allow privilege escalation to SYSTEM, and a command injection vector in the DNS enforcement code. I patched all six in v1.1.1. If you installed v1.1.0, uninstall it and install the latest version instead. Full details are in the release notes.
 
 **The threat log is full of repeated warnings about Wireshark / Fiddler / a tool I use intentionally.**
 Add the process name to `suppressedProcessAlerts` in `config.json`. For example: `"suppressedProcessAlerts": ["wireshark"]`. After saving, restart the service. The alert will be silenced permanently for that tool. If you only want to reduce noise without fully silencing it, the service already deduplicates -- each process name alerts at most once per service session even without suppression.
@@ -55,7 +55,7 @@ Open `services.msc`, find PrivacyWarden, check the status. If it failed, check W
 Click "More info" then "Run anyway". This is a private indie tool without a commercial code signing certificate ($200-400/year). The SHA256 hash in `SHA256.txt` lets you verify the file is genuine.
 
 **VirusTotal shows 1/71 flagged -- is the installer malware?**
-No. The one flag is CrowdStrike's heuristic ML model at 60% confidence -- below their own threshold for a real detection. Every other vendor (Microsoft, Kaspersky, ESET, Sophos, Malwarebytes, SentinelOne, and 65+ others) says clean. Heuristic scanners flag PrivacyWarden because it does things that look suspicious in isolation: installs a Windows Service, spawns `mullvad.exe` as a subprocess, modifies DNS settings, and auto-starts a tray app on login. That's exactly what it's supposed to do. The installer also isn't signed with a commercial CA certificate, which makes ML models nervous. Source code is fully public if you want to verify and build it yourself.
+No. The one flag is CrowdStrike's heuristic ML model at 60% confidence -- below their own threshold for a real detection. Every other vendor (Microsoft, Kaspersky, ESET, Sophos, Malwarebytes, SentinelOne, and 65+ others) says clean. Heuristic scanners flag PrivacyWarden because it does things that look suspicious in isolation: installs a Windows Service, spawns `mullvad.exe` as a subprocess, modifies DNS settings, and auto-starts a tray app on login. That's exactly what it's supposed to do. The installer also isn't signed with a commercial CA certificate (because those cost $300+/year), which makes ML models nervous. The source code is fully public if you want to verify and build it yourself.
 
 **Does this collect any data?**
 No. Zero telemetry, no analytics, no crash reporting to external servers. Everything stays on your machine. The logs are yours and only yours.

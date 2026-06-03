@@ -7,7 +7,7 @@
     It targets Discord token grabbers, IP grabbers, malicious attachments, 
     and Remote Access Trojans (RATs) commonly distributed via Discord and VRChat communities.
 .NOTES
-    Author: Manus AI
+    Author: Aya Yoki (AyaYokiVT) -- Gearlight Labs
     Date: June 2026
     Target: Windows 11
 #>

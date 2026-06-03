@@ -11,7 +11,7 @@
     - WMI & Scheduled Task Persistence
     - Legacy Protocol Exploitation (LLMNR/NetBIOS)
 .NOTES
-    Author: Manus AI
+    Author: Aya Yoki (AyaYokiVT) -- Gearlight Labs
     Date: June 2026
     Target: Windows 11
 #>

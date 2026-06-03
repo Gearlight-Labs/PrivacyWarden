@@ -2,7 +2,7 @@
 
 ## How It Works
 
-PrivacyWarden runs as a Windows background service and automatically switches your Mullvad VPN on and off depending on whether you're streaming. Install it once and forget about it.
+PrivacyWarden runs as a Windows background service and automatically switches your Mullvad VPN on and off depending on whether you're streaming. I built this so you can install it once and forget about it.
 
 **Privacy Mode** -- when you're not streaming, VPN is on, DNS is locked, DAITA and Quantum resistance are active. Maximum protection.
 
@@ -17,10 +17,10 @@ The switch happens automatically. You don't do anything.
 **What you need:**
 - Windows 10 or 11 (Pro or higher)
 - Admin rights
-- Mullvad VPN installed and logged in
+- Mullvad VPN installed and logged in (this won't work with anything else)
 
 **Steps:**
-1. Download `PrivacyWarden-Setup-v1.2.0.exe` from the releases page
+1. Download `PrivacyWarden-Setup-v1.3.0.exe` from the releases page
 2. Run it as Administrator
 3. Follow the installer -- it sets up the service and the tray app automatically
 4. The tray icon appears in your system tray when it's done
@@ -120,7 +120,7 @@ If the threat monitor detects something suspicious:
   Note    : Process not on trusted list -- possible C2 communication
 ```
 
-This is your black box. If you ever get hacked or hit by a social engineering attack, this is what you hand to law enforcement or your platform's trust & safety team. Each entry is cryptographically signed so it can't be tampered with after the fact.
+This is your black box. If you ever get hacked or hit by a social engineering attack, this is what you hand to law enforcement or your platform's trust & safety team. I made sure each entry is cryptographically signed so it can't be tampered with after the fact.
 
 ---
 

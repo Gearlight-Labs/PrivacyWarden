@@ -30,7 +30,7 @@ You go live -> it switches to Streaming Mode. You go offline -> it switches back
 |---|---|
 | `PrivacyWarden.exe` | The background service -- runs 24/7, does the actual work |
 | `PrivacyWardenTray.exe` | Tray icon -- shows you what mode you're in right now |
-| `PrivacyWarden-Setup-v1.2.0.exe` | Installer -- sets everything up for you |
+| `PrivacyWarden-Setup-v1.3.0.exe` | Installer -- sets everything up for you |
 
 ---
 
@@ -44,7 +44,7 @@ You go live -> it switches to Streaming Mode. You go offline -> it switches back
 
 ## Install
 
-Grab `PrivacyWarden-Setup-v1.2.0.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
+Grab `PrivacyWarden-Setup-v1.3.0.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
 
 The installer handles everything -- registers the service to start on boot, adds the tray app to your startup, done.
 
@@ -115,6 +115,6 @@ gearlightlabs@gmail.com or open a [GitHub issue](https://github.com/Gearlight-La
 
 ---
 
-**Version:** 1.2.0 * **Creator:** Aya Yoki (AyaYokiVT) * **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Version:** 1.3.0 * **Creator:** Aya Yoki (AyaYokiVT) * **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
 
 [License](LICENSE) -- free to use, credit required if you distribute it.

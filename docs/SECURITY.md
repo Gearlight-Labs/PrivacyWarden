@@ -2,7 +2,7 @@
 
 ## What This Tool Protects Against
 
-PrivacyWarden is built for VTubers and streamers who need real privacy protection. The threat model is:
+I built PrivacyWarden for VTubers and streamers who need real privacy protection. The threat model is:
 
 - ISP traffic analysis and DNS snooping
 - Social engineering attacks (fake brand deals, malicious files)
@@ -127,3 +127,5 @@ Include:
 - What you found
 - How to reproduce it
 - What impact it could have
+
+I will acknowledge all reports within 48 hours.

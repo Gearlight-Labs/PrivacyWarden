@@ -14,10 +14,10 @@
   - Disabled Location Tracking to stop physical location profiling.
   - Disabled Wi-Fi Sense to stop credential exposure.
   - Disabled 8 Telemetry Scheduled Tasks that collect and upload diagnostics.
-- **Interactive Uninstaller**: `Remove-PrivacyWarden.ps1` now prompts the user before reverting privacy settings. Users can choose to uninstall the app while keeping all Windows privacy hardening intact.
+- **Interactive Uninstaller**: `Remove-PrivacyWarden.ps1` now prompts you before reverting privacy settings. You can choose to uninstall the app while keeping all Windows privacy hardening intact.
 
 ### Changed
-- **Safe DNS Handling**: Removed the static DNS assignment from `Setup-MullvadNetwork.ps1`. Mullvad's public DNS IPs only accept encrypted DoH/DoT, causing plain UDP/53 queries to fail when the VPN is disconnected. The script now safely relies on the Mullvad app's internal tunnel DNS, ensuring internet connectivity never breaks when the VPN is off.
+- **Safe DNS Handling**: Removed the static DNS assignment from the hardening script. Mullvad's public DNS IPs only accept encrypted DoH/DoT, causing plain UDP/53 queries to fail when the VPN is disconnected. The script now safely relies on the Mullvad app's internal tunnel DNS, ensuring your internet connectivity never breaks when the VPN is off.
 - Updated all version references across the repository to `1.2.0`.
 
 ---
@@ -25,11 +25,11 @@
 ## [1.1.1] -- 2026-05-31 -- Security Patch
 
 ### Security fixes
-- **CRITICAL** -- Unquoted service binary path in NSIS installer. If installed to a path with spaces (e.g. `C:\Program Files\PrivacyWarden`), Windows would search for `C:\Program.exe` before the real binary. An attacker with write access to `C:\` could drop a malicious `Program.exe` and achieve SYSTEM execution. Fixed by quoting the `binPath=` value in `sc create`.
-- **HIGH** -- `status.json` IPC was unauthenticated. A low-privileged attacker who could write to `C:\ProgramData` could inject a fake status file to hide a privacy breach from the tray. Fixed by signing `status.json` with HMAC-SHA256 (same DPAPI-protected key as the audit log chain) and verifying the signature in the tray before trusting the file.
-- **HIGH** -- `netsh` command injection via adapter name. Adapter names were passed unsanitized into a subprocess call running as SYSTEM. Fixed by using the absolute path `%SystemRoot%\System32\netsh.exe` and stripping all characters outside `[A-Za-z0-9 _\-]` from adapter names before use.
-- **MEDIUM** -- HMAC key was derived from `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`, which any standard user can read from the registry. A local attacker could derive the key and forge log entries. Fixed by generating a cryptographically random 32-byte key on first run and protecting it with DPAPI (`LocalMachine` scope) so only SYSTEM and Administrators can decrypt it.
-- **MEDIUM** -- `explorer.exe` was launched without an absolute path in the tray app. If the system PATH was poisoned, a malicious `explorer.exe` in a writable directory could execute in the user session. Fixed by using `%SystemRoot%\explorer.exe`.
+- **CRITICAL** -- Unquoted service binary path in NSIS installer. If installed to a path with spaces (e.g. `C:\Program Files\PrivacyWarden`), Windows would search for `C:\Program.exe` before the real binary. An attacker with write access to `C:\` could drop a malicious `Program.exe` and achieve SYSTEM execution. I fixed this by quoting the `binPath=` value in `sc create`.
+- **HIGH** -- `status.json` IPC was unauthenticated. A low-privileged attacker who could write to `C:\ProgramData` could inject a fake status file to hide a privacy breach from the tray. I fixed this by signing `status.json` with HMAC-SHA256 (same DPAPI-protected key as the audit log chain) and verifying the signature in the tray before trusting the file.
+- **HIGH** -- `netsh` command injection via adapter name. Adapter names were passed unsanitized into a subprocess call running as SYSTEM. I fixed this by using the absolute path `%SystemRoot%\System32\netsh.exe` and stripping all characters outside `[A-Za-z0-9 _\-]` from adapter names before use.
+- **MEDIUM** -- HMAC key was derived from `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`, which any standard user can read from the registry. A local attacker could derive the key and forge log entries. I fixed this by generating a cryptographically random 32-byte key on first run and protecting it with DPAPI (`LocalMachine` scope) so only SYSTEM and Administrators can decrypt it.
+- **MEDIUM** -- `explorer.exe` was launched without an absolute path in the tray app. If the system PATH was poisoned, a malicious `explorer.exe` in a writable directory could execute in the user session. I fixed this by using `%SystemRoot%\explorer.exe`.
 - **LOW** -- Uninstaller failed to remove `C:\ProgramData\PrivacyWarden` because the service applies deny ACEs to protect the data directory. The uninstaller now strips those deny ACEs before attempting deletion, so it cleans up correctly every time.
 
 ---
