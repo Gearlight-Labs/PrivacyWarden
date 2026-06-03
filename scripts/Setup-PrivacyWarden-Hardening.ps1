@@ -593,9 +593,20 @@ $BlockedDomains = @(
     "checkip.dyndns.org", "myexternalip.com", "api.ipify.org", "ipv4.icanhazip.com",
     "ipv6.icanhazip.com", "ident.me", "api4.my-ip.io", "ip4.seeip.org",
     
-    # Doxxing Infrastructure
-    "doxbin.com", "doxbin.org", "leakbase.io", "cracked.io", "nulled.to",
-    "hackforums.net", "raidforums.com", "breached.vc", "exposed.vc",
+    # Doxxing / Credential Leak Forums
+    "doxbin.com", "doxbin.org", "doxbin.net", "doxbin.to",
+    "leakbase.io", "leakbase.cc", "leakbase.cx",
+    "cracked.io", "cracked.to",
+    "nulled.to", "nulled.io",
+    "hackforums.net", "hackforums.org",
+    "raidforums.com", "raidforums.net",
+    "breached.vc", "breached.to", "breached.co",
+    "exposed.vc", "exposed.is",
+    "leakforums.net", "leakforums.org",
+    "sinister.ly", "sinisterly.com",
+    "ogusers.com", "ogflip.com",
+    "swapd.co",
+
     # KiwiFarms -- all known domains, mirrors, and aliases
     # (doxxing/harassment forum responsible for multiple suicides)
     "kiwifarms.net", "kiwifarms.org", "kiwifarms.ru", "kiwifarms.st",
@@ -604,6 +615,40 @@ $BlockedDomains = @(
     "kiwifarms.biz", "kiwifarms.info", "kiwifarms.online", "kiwifarms.site",
     "kiwifarms.xyz", "kiwifarms.lol", "kiwifarms.cx", "kiwifarms.se",
     "cwcki.com", "lolcow.farm", "lolcow.net",
+
+    # Encyclopedia Dramatica -- harassment wiki, all known domains
+    "encyclopediadramatica.rs", "encyclopediadramatica.se",
+    "encyclopediadramatica.es", "encyclopediadramatica.online",
+    "encyclopediadramatica.top", "dramatica.wtf", "edramatica.com",
+
+    # 8chan / 8kun -- known domains
+    "8chan.moe", "8chan.se", "8chan.net", "8chan.co",
+    "8kun.top", "8kun.net",
+    "infinitechan.org",
+
+    # Other harassment / stalking forums
+    "foxdickfarms.net", "foxdickfarms.com",
+    "soyjak.party", "soyjak.st",
+    "desuarchive.org",
+    "kohl.chan", "kohlchan.net",
+    "endchan.net", "endchan.org",
+    "anonib.al", "anonib.com",
+    "thedirty.com",
+    "thecoli.com",
+    "looksmax.org", "looksmax.net",
+    "incels.is", "incels.net", "incels.co",
+    "braincels.net",
+    "mgtow.com", "mgtow.tv",
+
+    # People-search / Data broker sites used for doxxing
+    "spokeo.com", "whitepages.com", "peoplefinders.com",
+    "beenverified.com", "intelius.com", "instantcheckmate.com",
+    "truthfinder.com", "radaris.com", "fastpeoplesearch.com",
+    "usphonebook.com", "411.com", "addresses.com",
+    "zabasearch.com", "peekyou.com", "pipl.com",
+    "publicrecordsnow.com", "publicrecords360.com",
+    "checkpeople.com", "findpeoplefast.net",
+    "clustrmaps.com",
     
     # Stalkerware C2
     "mspy.com", "flexispy.com", "hoverwatch.com", "spyic.com", "spyzie.com",
