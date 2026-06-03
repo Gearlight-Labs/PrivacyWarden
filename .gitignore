@@ -22,3 +22,11 @@ Thumbs.db
 *.log
 *.sealed.log
 *.hmac
+
+# .NET build artifacts
+src/*/bin/
+src/*/obj/
+*.dll
+*.pdb
+*.exe
+!installer/*.exe

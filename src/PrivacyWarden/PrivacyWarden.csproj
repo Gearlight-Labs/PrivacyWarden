@@ -1,50 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-
-    <!--
-      Framework-dependent build: requires .NET 8 runtime.
-      Windows 10/11 ships .NET 8 via Windows Update, so users already have it.
-      This keeps PrivacyWarden.exe at ~5-8 MB instead of ~80-120 MB (self-contained).
-      If a user doesn't have .NET 8, Windows will prompt them to install it automatically.
-    -->
-    <SelfContained>false</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
-
-    <OutputType>WinExe</OutputType>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>tray_icon.ico</ApplicationIcon>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-
-    <AssemblyName>PrivacyWarden</AssemblyName>
-    <RootNamespace>PrivacyWarden</RootNamespace>
-    <Description>PrivacyWarden — auto-toggles Mullvad VPN and enforces DNS lock for VTubers. Created by Aya Yoki (AyaYokiVT) — Gearlight Labs.</Description>
     <Version>1.3.0</Version>
-    <Authors>Aya Yoki</Authors>
+    <Authors>Aya Yoki (AyaYokiVT) -- Gearlight Labs</Authors>
     <Company>Gearlight Labs</Company>
-    <Copyright>© 2026 Aya Yoki (AyaYokiVT) — Gearlight Labs. All rights reserved.</Copyright>
-    <PackageProjectUrl>https://github.com/Gearlight-Labs/PrivacyWarden</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/Gearlight-Labs/PrivacyWarden</RepositoryUrl>
+    <Product>PrivacyWarden</Product>
+    <Description>Automated Mullvad VPN manager for VTubers and streamers.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.EventLog" Version="8.0.0" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.8" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.4" />
   </ItemGroup>
 
   <ItemGroup>
-    <!--
-      tray_icon.ico is intentionally present in both project folders.
-      MSBuild requires ApplicationIcon to be in the same directory as the .csproj.
-      Both copies are identical. Do not delete either one.
-    -->
     <Content Include="tray_icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

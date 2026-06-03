@@ -1,4 +1,4 @@
-; PrivacyWarden - Setup Wizard
+; PrivacyWarden Installer — Single Unified Executable
 ; Built with NSIS (Nullsoft Scriptable Install System)
 ; Author: Aya Yoki (AyaYokiVT) -- Gearlight Labs
 
@@ -16,20 +16,21 @@
 !define INSTALL_DIR       "$PROGRAMFILES64\PrivacyWarden"
 
 ; RELEASE_DIR is the folder containing all built assets.
-; The CI workflow creates it at the repo root, so we reference it
-; relative to the repo root using /NOCD in the makensis call.
 !define RELEASE_DIR "..\PrivacyWarden_Release"
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "PrivacyWarden-Setup-v1.3.0.exe"
+OutFile "PrivacyWarden-Setup-v${PRODUCT_VERSION}.exe"
 InstallDir "${INSTALL_DIR}"
 InstallDirRegKey HKLM "Software\GearLightLabs\PrivacyWarden" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
-; Unicode True ensures all text (including special characters) renders correctly
-; in the installer window. Without this, some characters show as boxes or question marks.
 Unicode True
+
+;--------------------------------
+; Variables
+
+Var IS_UPGRADE
 
 ;--------------------------------
 ; Interface
@@ -91,27 +92,50 @@ VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion"     "1.3.0.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "Comments"        "Created by Aya Yoki (AyaYokiVT) - gearlightlabs@gmail.com"
 
 ;--------------------------------
+; Installer Init — Detect upgrade vs fresh install
+
+Function .onInit
+  ; Check if PrivacyWarden is already installed by reading the registry
+  ReadRegStr $0 HKLM "Software\GearLightLabs\PrivacyWarden" "Version"
+  ${If} $0 != ""
+    StrCpy $IS_UPGRADE "1"
+    MessageBox MB_OKCANCEL|MB_ICONINFORMATION "PrivacyWarden v$0 is already installed.$\r$\n$\r$\nThis will upgrade it to v${PRODUCT_VERSION}.$\r$\nYour settings and logs will be preserved.$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK +2
+    Abort
+  ${Else}
+    StrCpy $IS_UPGRADE "0"
+  ${EndIf}
+FunctionEnd
+
+;--------------------------------
 ; Sections
 
 Section "PrivacyWarden (required)" SecMain
   SectionIn RO
 
+  ; Kill the tray app if running (handles both old PrivacyWardenTray.exe and new unified exe --tray)
+  nsExec::ExecToLog 'taskkill /IM PrivacyWardenTray.exe /F'
+  nsExec::ExecToLog 'taskkill /IM PrivacyWarden.exe /F'
+  Sleep 1000
+
   ; Stop existing service if running
   nsExec::ExecToLog 'sc stop "${SERVICE_NAME}"'
   Sleep 2000
+
+  ; Delete old service registration (will be re-created with correct path)
   nsExec::ExecToLog 'sc delete "${SERVICE_NAME}"'
   Sleep 1000
 
-  ; Install core files
+  ; Install core files — ONE executable, ONE icon, ONE license
   SetOutPath "$INSTDIR"
   File "${RELEASE_DIR}\${PRODUCT_EXE}"
-  File "${RELEASE_DIR}\PrivacyWardenTray.exe"
   File "${RELEASE_DIR}\tray_icon.ico"
   File "${RELEASE_DIR}\LICENSE"
   File "${RELEASE_DIR}\CHANGELOG.md"
-  File "${RELEASE_DIR}\FAQ.md"
-  File "${RELEASE_DIR}\USER_GUIDE.md"
-  File "${RELEASE_DIR}\SECURITY.md"
+
+  ; Clean up old separate tray exe if upgrading from older version
+  ${If} $IS_UPGRADE == "1"
+    Delete "$INSTDIR\PrivacyWardenTray.exe"
+  ${EndIf}
 
   ; Register Windows Service
   ; SECURITY: binPath value is double-quoted to prevent unquoted service path privilege escalation
@@ -119,19 +143,22 @@ Section "PrivacyWarden (required)" SecMain
   nsExec::ExecToLog 'sc description "${SERVICE_NAME}" "Automates Mullvad VPN toggling, DNS leak protection, and security monitoring for VTubers. Created by Aya Yoki (AyaYokiVT)."'
   nsExec::ExecToLog 'sc start "${SERVICE_NAME}"'
 
-  ; Create desktop shortcut
-  CreateShortcut "$DESKTOP\PrivacyWarden.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\tray_icon.ico" 0
+  ; Create desktop shortcut (launches tray mode)
+  CreateShortcut "$DESKTOP\PrivacyWarden.lnk" "$INSTDIR\${PRODUCT_EXE}" "--tray" "$INSTDIR\tray_icon.ico" 0
 
   ; Create Start Menu shortcuts
   CreateDirectory "$SMPROGRAMS\PrivacyWarden"
-  CreateShortcut "$SMPROGRAMS\PrivacyWarden\PrivacyWarden.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\tray_icon.ico" 0
+  CreateShortcut "$SMPROGRAMS\PrivacyWarden\PrivacyWarden.lnk" "$INSTDIR\${PRODUCT_EXE}" "--tray" "$INSTDIR\tray_icon.ico" 0
   CreateShortcut "$SMPROGRAMS\PrivacyWarden\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
-  ; Register tray app to auto-start on user login
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "PrivacyWardenTray" '"$INSTDIR\PrivacyWardenTray.exe"'
+  ; Register tray app to auto-start on user login (same exe, --tray flag)
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "PrivacyWardenTray" '"$INSTDIR\${PRODUCT_EXE}" --tray'
+
+  ; Remove old tray auto-start entry if it pointed to the separate exe
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "PrivacyWardenTray_old"
 
   ; Launch tray app immediately after install
-  Exec '"$INSTDIR\PrivacyWardenTray.exe"'
+  Exec '"$INSTDIR\${PRODUCT_EXE}" --tray'
 
   ; Write registry keys
   WriteRegStr HKLM "Software\GearLightLabs\PrivacyWarden" "InstallDir" "$INSTDIR"
@@ -166,7 +193,6 @@ Section /o "Security Hardening (recommended)" SecHarden
   File "${RELEASE_DIR}\Setup-PrivacyWarden-Hardening.ps1"
 
   ; Run the hardening script silently via PowerShell
-  ; -NonInteractive and -WindowStyle Hidden prevent any window from appearing
   nsExec::ExecToLog 'powershell.exe -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\Setup-PrivacyWarden-Hardening.ps1"'
 
 SectionEnd
@@ -175,7 +201,7 @@ SectionEnd
 ; Section descriptions (shown when hovering over each option)
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecMain}   "The PrivacyWarden core service and system tray app. Automatically manages Mullvad VPN and DNS protection while you stream. Required."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecMain}   "The PrivacyWarden unified service and system tray app — one single program that handles everything. Automatically manages Mullvad VPN and DNS protection while you stream. Required."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDocs}   "Documentation files: User Guide, FAQ, and Security Policy."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecHarden} "Applies 25 security hardening steps in one pass: disables LLMNR, NetBIOS, WPAD, Windows telemetry, Recall AI, and protects against Discord token grabbers, IP loggers, RATs, and credential dumpers. Recommended for all users. Can be re-run manually at any time."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
@@ -217,6 +243,10 @@ FunctionEnd
 
 Section "Uninstall"
 
+  ; Kill the tray app
+  nsExec::ExecToLog 'taskkill /IM PrivacyWarden.exe /F'
+  Sleep 1000
+
   ; Stop the service and wait until fully stopped
   nsExec::ExecToLog 'sc stop "${SERVICE_NAME}"'
 
@@ -248,8 +278,6 @@ Section "Uninstall"
   Sleep 1000
 
   ; SECURITY: Strip deny ACEs from ProgramData folder before deletion.
-  ; The service applies restrictive ACLs to protect hmac_seed.bin and status.json.
-  ; Without stripping these, the uninstaller cannot delete the folder.
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /remove:d *S-1-1-0 /t /c'
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /remove:d *S-1-5-11 /t /c'
   nsExec::ExecToLog 'icacls "$APPDATA\..\..\ProgramData\PrivacyWarden" /remove:d *S-1-5-32-545 /t /c'
@@ -261,29 +289,29 @@ Section "Uninstall"
   Delete "$APPDATA\..\..\ProgramData\PrivacyWarden\status.json.sig"
   Delete "$APPDATA\..\..\ProgramData\PrivacyWarden\hmac_seed.bin"
 
-  ; Delete installed files
+  ; Delete installed files — only ONE exe now
   Delete "$INSTDIR\Setup-PrivacyWarden-Hardening.ps1"
   Delete /REBOOTOK "$INSTDIR\${PRODUCT_EXE}"
-  Delete /REBOOTOK "$INSTDIR\PrivacyWardenTray.exe"
   Delete "$INSTDIR\tray_icon.ico"
   Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\CHANGELOG.md"
-  Delete "$INSTDIR\FAQ.md"
-  Delete "$INSTDIR\USER_GUIDE.md"
-  Delete "$INSTDIR\SECURITY.md"
   Delete "$INSTDIR\docs\USER_GUIDE.md"
   Delete "$INSTDIR\docs\FAQ.md"
   Delete "$INSTDIR\docs\SECURITY.md"
   Delete "$INSTDIR\Uninstall.exe"
 
+  ; Clean up legacy files from older versions
+  Delete "$INSTDIR\PrivacyWardenTray.exe"
+  Delete "$INSTDIR\FAQ.md"
+  Delete "$INSTDIR\USER_GUIDE.md"
+  Delete "$INSTDIR\SECURITY.md"
+
   ; Remove directories
   RMDir "$INSTDIR\docs"
   RMDir /r "$INSTDIR"
 
-  ; Remove tray auto-start registry entry and kill tray process
+  ; Remove tray auto-start registry entry
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "PrivacyWardenTray"
-  nsExec::ExecToLog 'taskkill /IM PrivacyWardenTray.exe /F'
-  Sleep 500
 
   ; Remove shortcuts
   Delete "$DESKTOP\PrivacyWarden.lnk"
