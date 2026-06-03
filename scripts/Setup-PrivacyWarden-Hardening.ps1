@@ -167,10 +167,15 @@ Set-ItemProperty -Path $doPath -Name "DODownloadMode" -Value 0 -Type DWord -Forc
 Write-Host "  [OK] Delivery Optimization P2P disabled" -ForegroundColor Green
 
 # [8] Disable Chrome and Edge built-in DoH
+# NOTE: Chrome will still work normally. If you want DoH in Chrome, set it manually
+# in Chrome Settings > Privacy > Security > Use secure DNS.
 $chromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome"
 if (-not (Test-Path $chromePolicyPath)) { New-Item -Path $chromePolicyPath -Force | Out-Null }
 Set-ItemProperty -Path $chromePolicyPath -Name "DnsOverHttpsMode" -Value "off" -Type String -Force
-Write-Host "  [OK] Chrome and Edge DoH disabled" -ForegroundColor Green
+$edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+if (-not (Test-Path $edgePolicyPath)) { New-Item -Path $edgePolicyPath -Force | Out-Null }
+Set-ItemProperty -Path $edgePolicyPath -Name "DnsOverHttpsMode" -Value "off" -Type String -Force
+Write-Host "  [OK] Chrome and Edge DoH disabled (set manually in browser if needed)" -ForegroundColor Green
 
 Write-Host ""
 
@@ -248,9 +253,10 @@ Set-ItemProperty -Path $autorunPath -Name "NoDriveTypeAutoRun" -Value 255 -Type 
 Write-Host "  [OK] AutoRun/AutoPlay disabled" -ForegroundColor Green
 
 # [18] Disable SMBv1
-# The protocol behind WannaCry and many RATs
+# The protocol behind WannaCry and many RATs.
+# SAFE for all modern hardware. Only affects NAS devices made before 2012.
 Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -ErrorAction SilentlyContinue | Out-Null
-Write-Host "  [OK] SMBv1 disabled" -ForegroundColor Green
+Write-Host "  [OK] SMBv1 disabled (safe for all modern devices)" -ForegroundColor Green
 
 # [19] Enable LSA Protection (Blocks Mimikatz)
 $lsaPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"
@@ -263,6 +269,9 @@ Set-Service -Name "RemoteRegistry" -StartupType Disabled -ErrorAction SilentlyCo
 Stop-Service -Name "WinRM" -ErrorAction SilentlyContinue
 Set-Service -Name "WinRM" -StartupType Disabled -ErrorAction SilentlyContinue
 if (-not $IsVirtualMachine) {
+    # NOTE: This disables Windows Remote Desktop (RDP).
+    # If you use Remote Desktop to connect to THIS PC from another device, skip this.
+    # To re-enable: Services > Remote Desktop Services > set to Manual, then start it.
     Stop-Service -Name "TermService" -ErrorAction SilentlyContinue
     Set-Service -Name "TermService" -StartupType Disabled -ErrorAction SilentlyContinue
     Write-Host "  [OK] Remote Registry, WinRM, and Terminal Services disabled" -ForegroundColor Green
@@ -328,59 +337,69 @@ $BlockedDomains = @(
     "webhook.site", "requestbin.com", "pipedream.com", "hookbin.com", "interact.sh"
 )
 
-# Add 2000+ domains from StevenBlack malware list
+# Add 2000+ domains from StevenBlack malware list (malware + adware only, no social)
+Write-Host "  [INFO] Fetching extended block list from StevenBlack..." -ForegroundColor DarkCyan
 try {
-    $malwareList = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn-social/hosts" -UseBasicParsing
+    $malwareList = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts" -UseBasicParsing -TimeoutSec 30
     $lines = $malwareList -split "`n"
+    $count = 0
     foreach ($line in $lines) {
-        if ($line -match "^0\.0\.0\.0\s+(.+)$") {
+        if ($line -match "^0\.0\.0\.0\s+([^\s#]+)") {
             $domain = $matches[1].Trim()
-            if ($domain -ne "0.0.0.0") {
+            if ($domain -ne "0.0.0.0" -and $domain -ne "") {
                 $BlockedDomains += $domain
+                $count++
             }
         }
     }
+    Write-Host "  [INFO] Fetched $count domains from StevenBlack" -ForegroundColor DarkCyan
 } catch {
-    Write-Host "  [WARN] Could not fetch extended block list. Using core list." -ForegroundColor DarkYellow
+    Write-Host "  [WARN] Could not fetch extended block list. Using core list only." -ForegroundColor DarkYellow
 }
 
-# Remove duplicates
-$BlockedDomains = $BlockedDomains | Select-Object -Unique
+# Use a HashSet for O(1) deduplication -- fast even with 100,000+ domains
+$domainSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($d in $BlockedDomains) {
+    if (-not [string]::IsNullOrWhiteSpace($d)) {
+        $domainSet.Add($d) | Out-Null
+    }
+}
 
 # Backup existing hosts file
 Copy-Item -Path $HostsPath -Destination "$HostsPath.bak" -Force
 
-# Read existing hosts file
+# Read existing hosts file and build a fast lookup set of already-blocked domains
 $CurrentHosts = Get-Content -Path $HostsPath -ErrorAction SilentlyContinue
 if ($null -eq $CurrentHosts) { $CurrentHosts = @() }
 
-# Filter out existing blocked domains to avoid duplicates
-$FilteredHosts = @()
-foreach ($Line in $CurrentHosts) {
-    $IsBlocked = $false
-    foreach ($Domain in $BlockedDomains) {
-        if ($Line -match "0\.0\.0\.0\s+$Domain") {
-            $IsBlocked = $true
-            break
-        }
+$existingBlocked = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($line in $CurrentHosts) {
+    if ($line -match "^0\.0\.0\.0\s+([^\s#]+)") {
+        $existingBlocked.Add($matches[1].Trim()) | Out-Null
     }
-    if (-not $IsBlocked) {
-        $FilteredHosts += $Line
+}
+
+# Keep only lines that are NOT in our new block list (removes old PW entries for clean re-run)
+$FilteredHosts = $CurrentHosts | Where-Object {
+    if ($_ -match "^0\.0\.0\.0\s+([^\s#]+)") {
+        return -not $domainSet.Contains($matches[1].Trim())
     }
+    if ($_ -match "^#\s*PrivacyWarden") { return $false }
+    return $true
 }
 
 # Write back filtered hosts
 Set-Content -Path $HostsPath -Value $FilteredHosts -Force
 
-# Append new blocked domains
-Add-Content -Path $HostsPath -Value "`n# PrivacyWarden Threat Block List"
+# Append all new blocked domains in one write (much faster than Add-Content in a loop)
+$newLines = [System.Collections.Generic.List[string]]::new()
+$newLines.Add("`n# PrivacyWarden Threat Block List v9.0")
 $Added = 0
-foreach ($Domain in $BlockedDomains) {
-    if (-not [string]::IsNullOrWhiteSpace($Domain)) {
-        Add-Content -Path $HostsPath -Value "0.0.0.0 $Domain"
-        $Added++
-    }
+foreach ($domain in $domainSet) {
+    $newLines.Add("0.0.0.0 $domain")
+    $Added++
 }
+[System.IO.File]::AppendAllLines($HostsPath, $newLines)
 
 Write-Host "  [OK] IP grabber and C2 domains blocked ($Added entries added to hosts file)" -ForegroundColor Green
 
