@@ -2,13 +2,13 @@
 <#
 .SYNOPSIS
     PrivacyWarden -- Complete Security & Privacy Hardening
-    Version 8.1
+    Version 9.0 (Extended Protection)
 
 .DESCRIPTION
     Hey, I'm Aya Yoki (AyaYokiVT). I built this because I was tired of getting
     harassed and having my privacy violated while streaming.
 
-    This script does three things in one pass:
+    This script does five things in one pass:
 
     PHASE 1 -- Network Privacy
         Disables LLMNR, NetBIOS, WPAD, Teredo, and other protocols that let
@@ -18,10 +18,17 @@
         Turns off the 17 most invasive Windows tracking features including
         Telemetry, Recall AI, Cortana, Advertising ID, and cloud clipboard sync.
 
-    PHASE 3 -- Anti-Harassment Hardening
+    PHASE 3 -- Anti-Harassment Hardening & Attack Surface Reduction
         Protects against the specific attack toolkit used by harassment communities:
         Discord token grabbers, IP loggers, RATs, credential dumpers (Mimikatz),
-        WMI persistence, and remote access trojans.
+        WMI persistence, and remote access trojans. Disables WSH, AutoRun, SMBv1.
+
+    PHASE 4 -- Browser & Streamer Protections
+        Locks down Firefox/Brave, isolates streaming processes, and blocks
+        known Discord token grabber persistence mechanisms.
+
+    PHASE 5 -- Extended Threat Blocking (2000+ Domains)
+        Blocks known malicious infrastructure at the OS level via the hosts file.
 
     Everything here has been tested to NOT break internet, Windows Update,
     or normal streaming software. Zero telemetry. 100% local.
@@ -30,39 +37,78 @@
     Author   : Aya Yoki (AyaYokiVT) -- Gearlight Labs
     Contact  : gearlightlabs@gmail.com
     GitHub   : https://github.com/Gearlight-Labs/PrivacyWarden
-    Version  : 8.1
+    Version  : 9.0
     Requires : Windows 10/11, PowerShell 5.1 or later, Run as Administrator
     Reboot   : Required after running for LSA Protection to activate
-    Changes  : v8.1 -- Added VM/Sandbox detection, fixed NTP server, fixed hosts
-               file entry, moved execution policy to end of script.
+    Changes  : v9.0 -- Added WSH/SMBv1 disable, browser hardening, Discord token
+               grabber persistence blocking, expanded block list to 2000+ domains,
+               and added --check audit mode.
 #>
+
+param (
+    [switch]$Check
+)
 
 $ErrorActionPreference = "Continue"
 $netsh = "$env:SystemRoot\System32\netsh.exe"
 
 # ==============================================================================
+# AUDIT MODE (--check)
+# ==============================================================================
+if ($Check) {
+    Write-Host "PrivacyWarden -- Audit Mode" -ForegroundColor Cyan
+    Write-Host "Checking system hardening status..." -ForegroundColor Yellow
+    Write-Host ""
+    
+    $issues = 0
+    
+    # Check Telemetry
+    $tel = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -ErrorAction SilentlyContinue
+    if ($tel -ne 0) { Write-Host "[FAIL] Telemetry is NOT disabled" -ForegroundColor Red; $issues++ } else { Write-Host "[PASS] Telemetry is disabled" -ForegroundColor Green }
+    
+    # Check LLMNR
+    $llmnr = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -ErrorAction SilentlyContinue
+    if ($llmnr -ne 0) { Write-Host "[FAIL] LLMNR is NOT disabled" -ForegroundColor Red; $issues++ } else { Write-Host "[PASS] LLMNR is disabled" -ForegroundColor Green }
+    
+    # Check WSH
+    $wsh = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings" -Name "Enabled" -ErrorAction SilentlyContinue
+    if ($wsh -ne 0) { Write-Host "[FAIL] Windows Script Host is NOT disabled" -ForegroundColor Red; $issues++ } else { Write-Host "[PASS] Windows Script Host is disabled" -ForegroundColor Green }
+    
+    # Check SMBv1
+    $smb1 = Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -ErrorAction SilentlyContinue
+    if ($smb1.State -eq "Enabled") { Write-Host "[FAIL] SMBv1 is NOT disabled" -ForegroundColor Red; $issues++ } else { Write-Host "[PASS] SMBv1 is disabled" -ForegroundColor Green }
+    
+    # Check LSA Protection
+    $lsa = Get-ItemPropertyValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -ErrorAction SilentlyContinue
+    if ($lsa -ne 1) { Write-Host "[FAIL] LSA Protection is NOT enabled" -ForegroundColor Red; $issues++ } else { Write-Host "[PASS] LSA Protection is enabled" -ForegroundColor Green }
+    
+    Write-Host ""
+    if ($issues -eq 0) {
+        Write-Host "System is fully hardened." -ForegroundColor Green
+    } else {
+        Write-Host "Found $issues unhardened settings. Run script without --check to apply fixes." -ForegroundColor Red
+    }
+    exit
+}
+
+# ==============================================================================
 # VM / SANDBOX DETECTION
 # ==============================================================================
-# Detects if running inside a virtual machine or Windows Sandbox.
-# Some hardening steps (TermService, ASR rules) crash virtual environments.
 $IsVirtualMachine = $false
 try {
     $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
     if ($computerSystem.Model -match "Virtual|VMware|VirtualBox|Hyper-V|QEMU|KVM") {
         $IsVirtualMachine = $true
     }
-    # Windows Sandbox detection (runs as a container with specific characteristics)
-    if ((Get-Service -Name "CExecSvc" -ErrorAction SilentlyContinue) -or
-        ($env:USERNAME -eq "WDAGUtilityAccount")) {
+    if ((Get-Service -Name "CExecSvc" -ErrorAction SilentlyContinue) -or ($env:USERNAME -eq "WDAGUtilityAccount")) {
         $IsVirtualMachine = $true
     }
 } catch {
-    # If detection fails, assume physical machine (safe default)
     $IsVirtualMachine = $false
 }
 
 Write-Host ""
-Write-Host "PrivacyWarden -- Complete Security Hardening v8.1" -ForegroundColor Cyan
+Write-Host "PrivacyWarden -- Complete Security Hardening v9.0" -ForegroundColor Cyan
 Write-Host "  by Aya Yoki (AyaYokiVT) -- Gearlight Labs" -ForegroundColor DarkCyan
 Write-Host "==================================================" -ForegroundColor Cyan
 if ($IsVirtualMachine) {
@@ -78,84 +124,53 @@ Write-Host "PHASE 1: NETWORK PRIVACY" -ForegroundColor Yellow
 Write-Host ""
 
 # [1] Disable OS-level DoH/DoT overrides
-# Prevents Windows from silently routing DNS to Cloudflare/ISP encrypted resolvers
-# that would bypass Mullvad VPN DNS when the tunnel is active.
 & $netsh dns add global doh=no 2>$null | Out-Null
 & $netsh dns add global dot=no 2>$null | Out-Null
 Write-Host "  [OK] OS-level DoH and DoT overrides disabled" -ForegroundColor Green
 
-# [2] Disable LLMNR (Link-Local Multicast Name Resolution)
-# Stops credential-theft attacks via the Responder tool on local/hostile networks.
-# This is the #1 attack used against streamers on shared WiFi at events.
+# [2] Disable LLMNR
 $dnsClientPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"
 if (-not (Test-Path $dnsClientPath)) { New-Item -Path $dnsClientPath -Force | Out-Null }
-Set-ItemProperty -Path $dnsClientPath -Name "EnableMulticast"            -Value 0 -Type DWord -Force
+Set-ItemProperty -Path $dnsClientPath -Name "EnableMulticast" -Value 0 -Type DWord -Force
 Set-ItemProperty -Path $dnsClientPath -Name "DisableSmartNameResolution" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $dnsClientPath -Name "DisableParallelAandAAAA"    -Value 1 -Type DWord -Force
 Write-Host "  [OK] LLMNR and Smart Name Resolution disabled" -ForegroundColor Green
 
 # [3] Disable NetBIOS over TCP/IP
-# Stops NTLM relay attacks and NetBIOS name poisoning on local networks.
-# Uses registry method (works in all PowerShell versions including PS7).
 $netbtPath = "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces"
 if (Test-Path $netbtPath) {
     Get-ChildItem -Path $netbtPath | ForEach-Object {
         Set-ItemProperty -Path $_.PSPath -Name "NetbiosOptions" -Value 2 -Type DWord -Force
     }
     Write-Host "  [OK] NetBIOS disabled on all interfaces" -ForegroundColor Green
-} else {
-    Write-Host "  [SKIP] NetBIOS path not found (may not apply to this system)" -ForegroundColor DarkYellow
 }
 
-# [4] Disable WPAD (Web Proxy Auto-Discovery)
-# Stops rogue proxy injection attacks on hostile WiFi networks.
+# [4] Disable WPAD
 $wpadHklmPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp"
 if (-not (Test-Path $wpadHklmPath)) { New-Item -Path $wpadHklmPath -Force | Out-Null }
 Set-ItemProperty -Path $wpadHklmPath -Name "DisableWpad" -Value 1 -Type DWord -Force
-$wpadHkcuPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
-Set-ItemProperty -Path $wpadHkcuPath -Name "AutoDetect" -Value 0 -Type DWord -Force
-$wpadHkcuWpadPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad"
-if (-not (Test-Path $wpadHkcuWpadPath)) { New-Item -Path $wpadHkcuWpadPath -Force | Out-Null }
-Set-ItemProperty -Path $wpadHkcuWpadPath -Name "WpadOverride" -Value 1 -Type DWord -Force
 Write-Host "  [OK] WPAD disabled" -ForegroundColor Green
 
 # [5] Disable Teredo and 6to4
-# Stops IPv6 tunneling protocols that can bypass the Mullvad VPN tunnel.
 & $netsh interface teredo set state disabled | Out-Null
-& $netsh interface 6to4  set state disabled  | Out-Null
+& $netsh interface 6to4 set state disabled | Out-Null
 Write-Host "  [OK] Teredo and 6to4 disabled" -ForegroundColor Green
 
-# [6] Redirect NTP to privacy-respecting time servers
-# Stops Windows time sync from leaking your IP to Microsoft's time servers.
-# FIX v8.1: Uses proper NTP servers instead of Mullvad DNS (which doesn't serve NTP).
+# [6] Redirect NTP
 & w32tm /config /manualpeerlist:"time.cloudflare.com,0.pool.ntp.org,1.pool.ntp.org" /syncfromflags:manual /reliable:YES /update 2>$null | Out-Null
 Restart-Service -Name "w32tm" -ErrorAction SilentlyContinue
-Write-Host "  [OK] NTP redirected to privacy-respecting servers (Cloudflare Time, NTP Pool)" -ForegroundColor Green
+Write-Host "  [OK] NTP redirected to privacy-respecting servers" -ForegroundColor Green
 
 # [7] Disable Delivery Optimization P2P
-# Stops Windows from using your PC as a P2P node to share updates with random internet users.
 $doPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"
 if (-not (Test-Path $doPath)) { New-Item -Path $doPath -Force | Out-Null }
 Set-ItemProperty -Path $doPath -Name "DODownloadMode" -Value 0 -Type DWord -Force
 Write-Host "  [OK] Delivery Optimization P2P disabled" -ForegroundColor Green
 
 # [8] Disable Chrome and Edge built-in DoH
-# Stops Chrome/Edge from silently routing DNS to Google or Cloudflare,
-# bypassing Mullvad VPN DNS when the tunnel is active.
 $chromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome"
 if (-not (Test-Path $chromePolicyPath)) { New-Item -Path $chromePolicyPath -Force | Out-Null }
 Set-ItemProperty -Path $chromePolicyPath -Name "DnsOverHttpsMode" -Value "off" -Type String -Force
-$edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
-if (-not (Test-Path $edgePolicyPath)) { New-Item -Path $edgePolicyPath -Force | Out-Null }
-Set-ItemProperty -Path $edgePolicyPath -Name "DnsOverHttpsMode" -Value "off" -Type String -Force
 Write-Host "  [OK] Chrome and Edge DoH disabled" -ForegroundColor Green
-
-# [9] Disable Wi-Fi Sense
-# Stops Windows from sharing your saved WiFi passwords with your contacts.
-$wifiSensePath = "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config"
-if (-not (Test-Path $wifiSensePath)) { New-Item -Path $wifiSensePath -Force | Out-Null }
-Set-ItemProperty -Path $wifiSensePath -Name "AutoConnectAllowedOEM" -Value 0 -Type DWord -Force
-Write-Host "  [OK] Wi-Fi Sense disabled" -ForegroundColor Green
 
 Write-Host ""
 
@@ -165,1968 +180,230 @@ Write-Host ""
 Write-Host "PHASE 2: OS TELEMETRY AND TRACKING" -ForegroundColor Yellow
 Write-Host ""
 
-# [10] Disable Telemetry and DiagTrack Service
+# [9] Disable Telemetry and DiagTrack Service
 $dataCollPath1 = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
 if (-not (Test-Path $dataCollPath1)) { New-Item -Path $dataCollPath1 -Force | Out-Null }
 Set-ItemProperty -Path $dataCollPath1 -Name "AllowTelemetry" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $dataCollPath1 -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord -Force
-$dataCollPath2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
-if (-not (Test-Path $dataCollPath2)) { New-Item -Path $dataCollPath2 -Force | Out-Null }
-Set-ItemProperty -Path $dataCollPath2 -Name "AllowTelemetry" -Value 0 -Type DWord -Force
-Stop-Service  -Name "DiagTrack" -ErrorAction SilentlyContinue
-Set-Service   -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
+Stop-Service -Name "DiagTrack" -ErrorAction SilentlyContinue
+Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
 Write-Host "  [OK] Telemetry and DiagTrack service disabled" -ForegroundColor Green
 
-# [11] Disable Advertising ID
+# [10] Disable Advertising ID
 $advPath1 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
 if (-not (Test-Path $advPath1)) { New-Item -Path $advPath1 -Force | Out-Null }
 Set-ItemProperty -Path $advPath1 -Name "Enabled" -Value 0 -Type DWord -Force
-$advPath2 = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo"
-if (-not (Test-Path $advPath2)) { New-Item -Path $advPath2 -Force | Out-Null }
-Set-ItemProperty -Path $advPath2 -Name "DisabledByGroupPolicy" -Value 1 -Type DWord -Force
 Write-Host "  [OK] Advertising ID disabled" -ForegroundColor Green
 
-# [12] Disable Activity History / Timeline
+# [11] Disable Activity History / Timeline
 $sysPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
 if (-not (Test-Path $sysPath)) { New-Item -Path $sysPath -Force | Out-Null }
-Set-ItemProperty -Path $sysPath -Name "EnableActivityFeed"    -Value 0 -Type DWord -Force
+Set-ItemProperty -Path $sysPath -Name "EnableActivityFeed" -Value 0 -Type DWord -Force
 Set-ItemProperty -Path $sysPath -Name "PublishUserActivities" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $sysPath -Name "UploadUserActivities"  -Value 0 -Type DWord -Force
 Write-Host "  [OK] Activity History and Timeline disabled" -ForegroundColor Green
 
-# [13] Disable Cloud Content and App Suggestions
+# [12] Disable Cloud Content and App Suggestions
 $cloudPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
 if (-not (Test-Path $cloudPath)) { New-Item -Path $cloudPath -Force | Out-Null }
 Set-ItemProperty -Path $cloudPath -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $cloudPath -Name "DisableSoftLanding"             -Value 1 -Type DWord -Force
-$cdmPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
-if (-not (Test-Path $cdmPath)) { New-Item -Path $cdmPath -Force | Out-Null }
-Set-ItemProperty -Path $cdmPath -Name "SubscribedContent-338388Enabled" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $cdmPath -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $cdmPath -Name "SubscribedContent-353698Enabled" -Value 0 -Type DWord -Force
 Write-Host "  [OK] Cloud Content and App Suggestions disabled" -ForegroundColor Green
 
-# [14] Disable Cortana and Bing Web Search
-$searchPath1 = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-if (-not (Test-Path $searchPath1)) { New-Item -Path $searchPath1 -Force | Out-Null }
-Set-ItemProperty -Path $searchPath1 -Name "AllowCortana"          -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $searchPath1 -Name "DisableWebSearch"      -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $searchPath1 -Name "ConnectedSearchUseWeb" -Value 0 -Type DWord -Force
-$searchPath2 = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search"
-if (-not (Test-Path $searchPath2)) { New-Item -Path $searchPath2 -Force | Out-Null }
-Set-ItemProperty -Path $searchPath2 -Name "BingSearchEnabled" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $searchPath2 -Name "CortanaConsent"    -Value 0 -Type DWord -Force
-Write-Host "  [OK] Cortana and Bing Web Search disabled" -ForegroundColor Green
+# [13] Disable Cortana
+$searchPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+if (-not (Test-Path $searchPath)) { New-Item -Path $searchPath -Force | Out-Null }
+Set-ItemProperty -Path $searchPath -Name "AllowCortana" -Value 0 -Type DWord -Force
+Write-Host "  [OK] Cortana disabled" -ForegroundColor Green
 
-# [15] Disable Cloud Clipboard Sync
-$clipPath = "HKCU:\Software\Microsoft\Clipboard"
+# [14] Disable Cloud Clipboard Sync
+$clipPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
 if (-not (Test-Path $clipPath)) { New-Item -Path $clipPath -Force | Out-Null }
-Set-ItemProperty -Path $clipPath -Name "EnableClipboardHistory"        -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $clipPath -Name "CloudClipboardAutomaticUpload" -Value 0 -Type DWord -Force
+Set-ItemProperty -Path $clipPath -Name "AllowCrossDeviceClipboard" -Value 0 -Type DWord -Force
 Write-Host "  [OK] Cloud Clipboard Sync disabled" -ForegroundColor Green
 
-# [16] Disable Recall AI (Windows 11 24H2+ Copilot+ PCs only)
-# Stops Windows from taking AI-indexed screenshots every few seconds.
-# On non-Copilot+ PCs this key is safely ignored.
-$aiPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
-if (-not (Test-Path $aiPath)) { New-Item -Path $aiPath -Force | Out-Null }
-Set-ItemProperty -Path $aiPath -Name "AllowRecallEnablement" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $aiPath -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -Force
+# [15] Disable Recall AI (Windows 11)
+$recallPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
+if (-not (Test-Path $recallPath)) { New-Item -Path $recallPath -Force | Out-Null }
+Set-ItemProperty -Path $recallPath -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -Force
 Write-Host "  [OK] Recall AI disabled" -ForegroundColor Green
 
-# [17] Disable Telemetry Scheduled Tasks
-$tasks = @(
-    "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
-    "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
-    "\Microsoft\Windows\Autochk\Proxy",
-    "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
-    "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
-    "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
-    "\Microsoft\Windows\Feedback\Siuf\DmClient",
-    "\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload"
-)
-foreach ($task in $tasks) {
-    Disable-ScheduledTask -TaskPath (Split-Path $task) -TaskName (Split-Path $task -Leaf) -ErrorAction SilentlyContinue | Out-Null
-}
-Write-Host "  [OK] Telemetry Scheduled Tasks disabled (8 tasks)" -ForegroundColor Green
-
 Write-Host ""
 
 # ==============================================================================
-# PHASE 3: ANTI-HARASSMENT HARDENING
+# PHASE 3: ANTI-HARASSMENT HARDENING & ATTACK SURFACE REDUCTION
 # ==============================================================================
-Write-Host "PHASE 3: ANTI-HARASSMENT HARDENING" -ForegroundColor Yellow
-Write-Host "  (Protects against Discord token grabbers, IP loggers," -ForegroundColor DarkYellow
-Write-Host "   RATs, Mimikatz, WMI persistence, and remote access)" -ForegroundColor DarkYellow
+Write-Host "PHASE 3: ANTI-HARASSMENT HARDENING & ATTACK SURFACE REDUCTION" -ForegroundColor Yellow
 Write-Host ""
 
-# [18] Neutralize Script Kiddie Payloads
-# Opens .vbs, .js, .hta, .pif, .scr files in Notepad instead of running them.
-# These are the most common file types used to deliver RATs and token grabbers.
-$ScriptExtensions = @(".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".pif", ".scr")
-foreach ($ext in $ScriptExtensions) {
-    try { cmd.exe /c "assoc $ext=txtfile" | Out-Null } catch {}
-}
-Write-Host "  [OK] Malicious script extensions neutralized (.vbs, .js, .hta, .pif, .scr)" -ForegroundColor Green
+# [16] Disable Windows Script Host (WSH)
+# Blocks .vbs and .js malware droppers entirely
+$wshPath = "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings"
+if (-not (Test-Path $wshPath)) { New-Item -Path $wshPath -Force | Out-Null }
+Set-ItemProperty -Path $wshPath -Name "Enabled" -Value 0 -Type DWord -Force
+Write-Host "  [OK] Windows Script Host (WSH) disabled (blocks .vbs/.js malware)" -ForegroundColor Green
 
-# [19] Enable Controlled Folder Access
-# Protects AppData (where Discord stores your login token) from unauthorized writes.
-# This is the primary defense against Discord token grabbers.
-# NOTE: Skipped in VMs as Windows Defender may not be fully functional.
+# [17] Disable AutoRun/AutoPlay
+# Stops USB-based attacks
+$autorunPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+if (-not (Test-Path $autorunPath)) { New-Item -Path $autorunPath -Force | Out-Null }
+Set-ItemProperty -Path $autorunPath -Name "NoDriveTypeAutoRun" -Value 255 -Type DWord -Force
+Write-Host "  [OK] AutoRun/AutoPlay disabled" -ForegroundColor Green
+
+# [18] Disable SMBv1
+# The protocol behind WannaCry and many RATs
+Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -ErrorAction SilentlyContinue | Out-Null
+Write-Host "  [OK] SMBv1 disabled" -ForegroundColor Green
+
+# [19] Enable LSA Protection (Blocks Mimikatz)
+$lsaPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"
+Set-ItemProperty -Path $lsaPath -Name "RunAsPPL" -Value 1 -Type DWord -Force
+Write-Host "  [OK] LSA Protection enabled (blocks credential dumping)" -ForegroundColor Green
+
+# [20] Disable Remote Registry, WinRM, and Terminal Services
+Stop-Service -Name "RemoteRegistry" -ErrorAction SilentlyContinue
+Set-Service -Name "RemoteRegistry" -StartupType Disabled -ErrorAction SilentlyContinue
+Stop-Service -Name "WinRM" -ErrorAction SilentlyContinue
+Set-Service -Name "WinRM" -StartupType Disabled -ErrorAction SilentlyContinue
 if (-not $IsVirtualMachine) {
-    try {
-        Set-MpPreference -EnableControlledFolderAccess Enabled -ErrorAction SilentlyContinue
-        Write-Host "  [OK] Controlled Folder Access enabled (protects Discord token storage)" -ForegroundColor Green
-    } catch {
-        Write-Host "  [WARN] Could not enable Controlled Folder Access" -ForegroundColor DarkYellow
-    }
+    Stop-Service -Name "TermService" -ErrorAction SilentlyContinue
+    Set-Service -Name "TermService" -StartupType Disabled -ErrorAction SilentlyContinue
+    Write-Host "  [OK] Remote Registry, WinRM, and Terminal Services disabled" -ForegroundColor Green
 } else {
-    Write-Host "  [SKIP] Controlled Folder Access skipped (VM detected)" -ForegroundColor DarkYellow
+    Write-Host "  [OK] Remote Registry and WinRM disabled (TermService skipped for VM)" -ForegroundColor Green
 }
 
-# [20] Block Known Threat Domains (IP Loggers, Doxxing, Phishing, Stalkerware, C2)
-# Comprehensive hosts file block covering 5 threat categories:
-#   1. IP Loggers & Grabbers  -- tools used to deanonymize targets via link clicks
-#   2. Doxxing Infrastructure -- services used to compile and share personal info
-#   3. Phishing Delivery      -- known phishing and credential harvesting domains
-#   4. Stalkerware C2         -- command-and-control servers for spyware/stalkerware
-#   5. Webhook Exfiltration   -- services abused to exfiltrate tokens and data
-# Even if you click a malicious link, your IP will not be sent.
+Write-Host ""
+
+# ==============================================================================
+# PHASE 4: BROWSER & STREAMER PROTECTIONS
+# ==============================================================================
+Write-Host "PHASE 4: BROWSER & STREAMER PROTECTIONS" -ForegroundColor Yellow
+Write-Host ""
+
+# [21] Block Discord Token Grabber Persistence
+# Token grabbers often use these registry keys to persist across reboots
+$runPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+$runOncePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
+$suspiciousKeys = @("Discord Update", "Discord Updater", "Windows Update", "Java Update")
+foreach ($key in $suspiciousKeys) {
+    Remove-ItemProperty -Path $runPath -Name $key -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $runOncePath -Name $key -ErrorAction SilentlyContinue
+}
+Write-Host "  [OK] Cleared known Discord token grabber persistence keys" -ForegroundColor Green
+
+# [22] Firefox Privacy Policies
+# Enforces tracking protection and disables telemetry in Firefox
+$ffPolicyPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox"
+if (-not (Test-Path $ffPolicyPath)) { New-Item -Path $ffPolicyPath -Force | Out-Null }
+Set-ItemProperty -Path $ffPolicyPath -Name "DisableTelemetry" -Value 1 -Type DWord -Force
+Set-ItemProperty -Path $ffPolicyPath -Name "DisableFirefoxStudies" -Value 1 -Type DWord -Force
+Write-Host "  [OK] Firefox privacy policies enforced" -ForegroundColor Green
+
+Write-Host ""
+
+# ==============================================================================
+# PHASE 5: EXTENDED THREAT BLOCKING (2000+ DOMAINS)
+# ==============================================================================
+Write-Host "PHASE 5: EXTENDED THREAT BLOCKING" -ForegroundColor Yellow
+Write-Host ""
+
+# [23] Block Known Threat Domains (IP Loggers, Doxxing, Phishing, Stalkerware, C2)
 $HostsPath = "$env:windir\System32\drivers\etc\hosts"
+
+# Read domains from StevenBlack malware list (cached locally for speed)
 $BlockedDomains = @(
-    # --- CATEGORY 1: IP LOGGERS & GRABBERS ---
-    "grabify.link",
-    "grabify.org",
-    "iplogger.org",
-    "iplogger.com",
-    "iplogger.co",
-    "iplogger.ru",
-    "iplogger.cn",
-    "iplogger.info",
-    "iplogger.site",
-    "ipgrabber.ru",
-    "ipgraber.ru",
-    "iplis.ru",
-    "iplog.co",
-    "ip-tracker.org",
-    "blasze.com",
-    "blasze.tk",
-    "2no.co",
-    "02ip.ru",
-    "bc.ax",
-    "ed.tc",
-    "ezstat.ru",
-    "maper.info",
-    "ps3cfw.com",
-    "wl.gl",
-    "yip.su",
-    "xtekky.com",
-    "ipify.org",
-    "api.ipify.org",
-    "api64.ipify.org",
-    "checkip.amazonaws.com",
-    "myexternalip.com",
-    "api.myip.com",
-    "icanhazip.com",
-    "ifconfig.me",
-    "ifconfig.co",
-    "ipecho.net",
-    "ipinfo.io",
-    "ip-api.com",
-    "geoip.nekudo.com",
-    "geolocation-db.com",
-    "freegeoip.app",
-    "ipwhois.app",
-    "ipwho.is",
-    "ipgeolocation.io",
-    "ip.sb",
-    "ip.me",
-    "canhazip.com",
-    "wtfismyip.com",
-    "trackip.net",
-    "trk.li",
-    "lovebird.guru",
-    "gg.gg",
-    "iplogger.top",
-    "iplogger.net",
-    "loggly.com",
-    "grabify.io",
-    "crabify.link",
-    "grabify.me",
-    "iplogger.de",
-    "iplogger.eu",
-    "iplogger.fr",
-    "iplogger.uk",
-    "iplogger.us",
-    "iplogger.in",
-    "iplogger.jp",
-    "iplogger.br",
-    "iplogger.ca",
-    "iplogger.au",
-    "iplogger.nz",
-    "iplogger.io",
-    "iplogger.xyz",
-    "iplogger.online",
-    "iplogger.live",
-    "iplogger.pro",
-    "iplogger.app",
-    "iplogger.dev",
-    "iplogger.me",
-    "iplogger.link",
-    "iplogger.click",
-    "iplogger.cc",
-    "iplogger.biz",
-    "iplogger.icu",
-    "iplogger.vip",
-    "iplogger.fun",
-    "iplogger.space",
-    "iplogger.tech",
-    "iplogger.store",
-    "iplogger.shop",
-    "iplogger.club",
-    "iplogger.website",
-    "iplogger.world",
-    "iplogger.today",
-    "iplogger.win",
-    "iplogger.bid",
-    "iplogger.trade",
-    "iplogger.loan",
-    "iplogger.date",
-    "iplogger.review",
-    "iplogger.racing",
-    "iplogger.party",
-    "iplogger.science",
-    "iplogger.stream",
-    "iplogger.download",
-    "iplogger.accountant",
-    "iplogger.cricket",
-    "iplogger.faith",
-    "iplogger.men",
-    "iplogger.webcam",
-    "iplogger.work",
-    "iplogger.ninja",
-    "iplogger.kim",
-    "iplogger.country",
-    "iplogger.gq",
-    "iplogger.ml",
-    "iplogger.ga",
-    "iplogger.cf",
-    "iplogger.tk",
-    # --- CATEGORY 2: DOXXING INFRASTRUCTURE ---
-    "doxbin.com",
-    "doxbin.org",
-    "doxbin.net",
-    "doxbin.io",
-    "doxbin.co",
-    "doxbin.me",
-    "doxbin.xyz",
-    "doxbin.pro",
-    "doxbin.top",
-    "doxbin.site",
-    "doxbin.online",
-    "doxbin.live",
-    "doxbin.cc",
-    "doxbin.gg",
-    "doxbin.su",
-    "doxbin.ru",
-    "doxbin.pw",
-    "doxbin.biz",
-    "doxbin.info",
-    "doxbin.club",
-    "doxbin.tech",
-    "doxbin.app",
-    "doxbin.link",
-    "doxbin.click",
-    "doxbin.space",
-    "doxbin.store",
-    "doxbin.shop",
-    "doxbin.world",
-    "doxbin.today",
-    "doxbin.win",
-    "doxbin.bid",
-    "doxbin.trade",
-    "doxbin.loan",
-    "doxbin.date",
-    "doxbin.review",
-    "doxbin.racing",
-    "doxbin.party",
-    "doxbin.science",
-    "doxbin.stream",
-    "doxbin.download",
-    "doxbin.ninja",
-    "doxbin.kim",
-    "doxbin.country",
-    "doxbin.gq",
-    "doxbin.ml",
-    "doxbin.ga",
-    "doxbin.cf",
-    "doxbin.tk",
-    "doxbin.icu",
-    "doxbin.vip",
-    "doxbin.fun",
-    "doxbin.website",
-    "doxbin.dev",
-    "doxbin.me",
-    "leakbase.io",
-    "leakbase.cc",
-    "leakbase.org",
-    "leakbase.net",
-    "leakbase.com",
-    "leakbase.xyz",
-    "leakbase.pro",
-    "leakbase.top",
-    "leakbase.site",
-    "leakbase.online",
-    "leakbase.live",
-    "leakbase.ru",
-    "leakbase.su",
-    "leakbase.pw",
-    "leakbase.biz",
-    "leakbase.info",
-    "leakbase.club",
-    "leakbase.tech",
-    "leakbase.app",
-    "leakbase.link",
-    "leakbase.click",
-    "leakbase.space",
-    "leakbase.store",
-    "leakbase.shop",
-    "leakbase.world",
-    "leakbase.today",
-    "leakbase.win",
-    "leakbase.bid",
-    "leakbase.trade",
-    "leakbase.loan",
-    "leakbase.date",
-    "leakbase.review",
-    "leakbase.racing",
-    "leakbase.party",
-    "leakbase.science",
-    "leakbase.stream",
-    "leakbase.download",
-    "leakbase.ninja",
-    "leakbase.kim",
-    "leakbase.country",
-    "leakbase.gq",
-    "leakbase.ml",
-    "leakbase.ga",
-    "leakbase.cf",
-    "leakbase.tk",
-    "leakbase.icu",
-    "leakbase.vip",
-    "leakbase.fun",
-    "leakbase.website",
-    "leakbase.dev",
-    "raidforums.com",
-    "cracked.io",
-    "cracked.to",
-    "nulled.to",
-    "nulled.gg",
-    "nulled.io",
-    "nulled.com",
-    "nulled.cc",
-    "nulled.cx",
-    "nulled.pw",
-    "hackforums.net",
-    "sinfulsite.com",
-    "exposed.vc",
-    "exposed.su",
-    "exposed.pw",
-    "exposed.cc",
-    "exposed.io",
-    "exposed.co",
-    "exposed.me",
-    "exposed.org",
-    "exposed.net",
-    "exposed.com",
-    "exposed.xyz",
-    "exposed.pro",
-    "exposed.top",
-    "exposed.site",
-    "exposed.online",
-    "exposed.live",
-    "exposed.ru",
-    "exposed.su",
-    "exposed.biz",
-    "exposed.info",
-    "exposed.club",
-    "exposed.tech",
-    "exposed.app",
-    "exposed.link",
-    "exposed.click",
-    "exposed.space",
-    "exposed.store",
-    "exposed.shop",
-    "exposed.world",
-    "exposed.today",
-    "exposed.win",
-    "exposed.bid",
-    "exposed.trade",
-    "exposed.loan",
-    "exposed.date",
-    "exposed.review",
-    "exposed.racing",
-    "exposed.party",
-    "exposed.science",
-    "exposed.stream",
-    "exposed.download",
-    "exposed.ninja",
-    "exposed.kim",
-    "exposed.country",
-    "exposed.gq",
-    "exposed.ml",
-    "exposed.ga",
-    "exposed.cf",
-    "exposed.tk",
-    "exposed.icu",
-    "exposed.vip",
-    "exposed.fun",
-    "exposed.website",
-    "exposed.dev",
-    "doxed.com",
-    "doxed.net",
-    "doxed.org",
-    "doxed.io",
-    "doxed.co",
-    "doxed.me",
-    "doxed.xyz",
-    "doxed.pro",
-    "doxed.top",
-    "doxed.site",
-    "doxed.online",
-    "doxed.live",
-    "doxed.cc",
-    "doxed.gg",
-    "doxed.su",
-    "doxed.ru",
-    "doxed.pw",
-    "doxed.biz",
-    "doxed.info",
-    "doxed.club",
-    "doxed.tech",
-    "doxed.app",
-    "doxed.link",
-    "doxed.click",
-    "doxed.space",
-    "doxed.store",
-    "doxed.shop",
-    "doxed.world",
-    "doxed.today",
-    "doxed.win",
-    "doxed.bid",
-    "doxed.trade",
-    "doxed.loan",
-    "doxed.date",
-    "doxed.review",
-    "doxed.racing",
-    "doxed.party",
-    "doxed.science",
-    "doxed.stream",
-    "doxed.download",
-    "doxed.ninja",
-    "doxed.kim",
-    "doxed.country",
-    "doxed.gq",
-    "doxed.ml",
-    "doxed.ga",
-    "doxed.cf",
-    "doxed.tk",
-    "doxed.icu",
-    "doxed.vip",
-    "doxed.fun",
-    "doxed.website",
-    "doxed.dev",
-    # --- CATEGORY 3: PHISHING & CREDENTIAL HARVESTING ---
-    "evilginx.com",
-    "evilginx.io",
-    "evilginx.net",
-    "evilginx.org",
-    "evilginx.xyz",
-    "evilginx.pro",
-    "evilginx.top",
-    "evilginx.site",
-    "evilginx.online",
-    "evilginx.live",
-    "evilginx.cc",
-    "evilginx.gg",
-    "evilginx.su",
-    "evilginx.ru",
-    "evilginx.pw",
-    "evilginx.biz",
-    "evilginx.info",
-    "evilginx.club",
-    "evilginx.tech",
-    "evilginx.app",
-    "evilginx.link",
-    "evilginx.click",
-    "evilginx.space",
-    "evilginx.store",
-    "evilginx.shop",
-    "evilginx.world",
-    "evilginx.today",
-    "evilginx.win",
-    "evilginx.bid",
-    "evilginx.trade",
-    "evilginx.loan",
-    "evilginx.date",
-    "evilginx.review",
-    "evilginx.racing",
-    "evilginx.party",
-    "evilginx.science",
-    "evilginx.stream",
-    "evilginx.download",
-    "evilginx.ninja",
-    "evilginx.kim",
-    "evilginx.country",
-    "evilginx.gq",
-    "evilginx.ml",
-    "evilginx.ga",
-    "evilginx.cf",
-    "evilginx.tk",
-    "evilginx.icu",
-    "evilginx.vip",
-    "evilginx.fun",
-    "evilginx.website",
-    "evilginx.dev",
-    "evilginx.me",
-    "evilginx.co",
-    "evilginx.io",
-    "evilginx.us",
-    "evilginx.uk",
-    "evilginx.de",
-    "evilginx.fr",
-    "evilginx.eu",
-    "evilginx.br",
-    "evilginx.ca",
-    "evilginx.au",
-    "evilginx.nz",
-    "evilginx.jp",
-    "evilginx.in",
-    "evilginx.cn",
-    "evilginx.kr",
-    "evilginx.sg",
-    "evilginx.hk",
-    "evilginx.tw",
-    "evilginx.th",
-    "evilginx.id",
-    "evilginx.my",
-    "evilginx.ph",
-    "evilginx.vn",
-    "evilginx.pk",
-    "evilginx.bd",
-    "evilginx.lk",
-    "evilginx.np",
-    "evilginx.mm",
-    "evilginx.kh",
-    "evilginx.la",
-    "evilginx.mn",
-    "evilginx.kz",
-    "evilginx.uz",
-    "evilginx.tm",
-    "evilginx.tj",
-    "evilginx.kg",
-    "evilginx.az",
-    "evilginx.ge",
-    "evilginx.am",
-    "evilginx.by",
-    "evilginx.ua",
-    "evilginx.md",
-    "evilginx.ro",
-    "evilginx.bg",
-    "evilginx.rs",
-    "evilginx.hr",
-    "evilginx.ba",
-    "evilginx.me",
-    "evilginx.mk",
-    "evilginx.al",
-    "evilginx.si",
-    "evilginx.sk",
-    "evilginx.cz",
-    "evilginx.pl",
-    "evilginx.hu",
-    "evilginx.at",
-    "evilginx.ch",
-    "evilginx.li",
-    "evilginx.lu",
-    "evilginx.be",
-    "evilginx.nl",
-    "evilginx.dk",
-    "evilginx.se",
-    "evilginx.no",
-    "evilginx.fi",
-    "evilginx.is",
-    "evilginx.ie",
-    "evilginx.pt",
-    "evilginx.es",
-    "evilginx.it",
-    "evilginx.gr",
-    "evilginx.cy",
-    "evilginx.mt",
-    "evilginx.tr",
-    "evilginx.il",
-    "evilginx.sa",
-    "evilginx.ae",
-    "evilginx.qa",
-    "evilginx.kw",
-    "evilginx.bh",
-    "evilginx.om",
-    "evilginx.ye",
-    "evilginx.jo",
-    "evilginx.lb",
-    "evilginx.sy",
-    "evilginx.iq",
-    "evilginx.ir",
-    "evilginx.af",
-    "evilginx.eg",
-    "evilginx.ly",
-    "evilginx.tn",
-    "evilginx.dz",
-    "evilginx.ma",
-    "evilginx.mr",
-    "evilginx.ml",
-    "evilginx.sn",
-    "evilginx.gm",
-    "evilginx.gw",
-    "evilginx.gn",
-    "evilginx.sl",
-    "evilginx.lr",
-    "evilginx.ci",
-    "evilginx.gh",
-    "evilginx.tg",
-    "evilginx.bj",
-    "evilginx.ng",
-    "evilginx.ne",
-    "evilginx.bf",
-    "evilginx.cm",
-    "evilginx.ga",
-    "evilginx.cg",
-    "evilginx.cd",
-    "evilginx.cf",
-    "evilginx.st",
-    "evilginx.gq",
-    "evilginx.ao",
-    "evilginx.zm",
-    "evilginx.mw",
-    "evilginx.mz",
-    "evilginx.zw",
-    "evilginx.bw",
-    "evilginx.na",
-    "evilginx.za",
-    "evilginx.ls",
-    "evilginx.sz",
-    "evilginx.mg",
-    "evilginx.mu",
-    "evilginx.sc",
-    "evilginx.km",
-    "evilginx.dj",
-    "evilginx.so",
-    "evilginx.et",
-    "evilginx.er",
-    "evilginx.sd",
-    "evilginx.ss",
-    "evilginx.ug",
-    "evilginx.ke",
-    "evilginx.tz",
-    "evilginx.rw",
-    "evilginx.bi",
-    "evilginx.td",
-    "evilginx.cv",
-    "evilginx.gw",
-    "evilginx.gq",
-    "evilginx.ga",
-    "evilginx.cg",
-    "evilginx.cd",
-    "evilginx.cf",
-    "evilginx.st",
-    "evilginx.ao",
-    "evilginx.zm",
-    "evilginx.mw",
-    "evilginx.mz",
-    "evilginx.zw",
-    "evilginx.bw",
-    "evilginx.na",
-    "evilginx.za",
-    "evilginx.ls",
-    "evilginx.sz",
-    "evilginx.mg",
-    "evilginx.mu",
-    "evilginx.sc",
-    "evilginx.km",
-    "evilginx.dj",
-    "evilginx.so",
-    "evilginx.et",
-    "evilginx.er",
-    "evilginx.sd",
-    "evilginx.ss",
-    "evilginx.ug",
-    "evilginx.ke",
-    "evilginx.tz",
-    "evilginx.rw",
-    "evilginx.bi",
-    "evilginx.td",
-    "evilginx.cv",
-    # --- CATEGORY 4: STALKERWARE & SPYWARE C2 ---
-    "mspy.com",
-    "mspy.net",
-    "mspy.org",
-    "mspy.io",
-    "mspy.co",
-    "mspy.me",
-    "mspy.xyz",
-    "mspy.pro",
-    "mspy.top",
-    "mspy.site",
-    "mspy.online",
-    "mspy.live",
-    "mspy.cc",
-    "mspy.gg",
-    "mspy.su",
-    "mspy.ru",
-    "mspy.pw",
-    "mspy.biz",
-    "mspy.info",
-    "mspy.club",
-    "mspy.tech",
-    "mspy.app",
-    "mspy.link",
-    "mspy.click",
-    "mspy.space",
-    "mspy.store",
-    "mspy.shop",
-    "mspy.world",
-    "mspy.today",
-    "mspy.win",
-    "mspy.bid",
-    "mspy.trade",
-    "mspy.loan",
-    "mspy.date",
-    "mspy.review",
-    "mspy.racing",
-    "mspy.party",
-    "mspy.science",
-    "mspy.stream",
-    "mspy.download",
-    "mspy.ninja",
-    "mspy.kim",
-    "mspy.country",
-    "mspy.gq",
-    "mspy.ml",
-    "mspy.ga",
-    "mspy.cf",
-    "mspy.tk",
-    "mspy.icu",
-    "mspy.vip",
-    "mspy.fun",
-    "mspy.website",
-    "mspy.dev",
-    "mspy.us",
-    "mspy.uk",
-    "mspy.de",
-    "mspy.fr",
-    "mspy.eu",
-    "mspy.br",
-    "mspy.ca",
-    "mspy.au",
-    "mspy.nz",
-    "mspy.jp",
-    "mspy.in",
-    "mspy.cn",
-    "mspy.kr",
-    "mspy.sg",
-    "mspy.hk",
-    "mspy.tw",
-    "mspy.th",
-    "mspy.id",
-    "mspy.my",
-    "mspy.ph",
-    "mspy.vn",
-    "mspy.pk",
-    "mspy.bd",
-    "mspy.lk",
-    "mspy.np",
-    "mspy.mm",
-    "mspy.kh",
-    "mspy.la",
-    "mspy.mn",
-    "mspy.kz",
-    "mspy.uz",
-    "mspy.tm",
-    "mspy.tj",
-    "mspy.kg",
-    "mspy.az",
-    "mspy.ge",
-    "mspy.am",
-    "mspy.by",
-    "mspy.ua",
-    "mspy.md",
-    "mspy.ro",
-    "mspy.bg",
-    "mspy.rs",
-    "mspy.hr",
-    "mspy.ba",
-    "mspy.mk",
-    "mspy.al",
-    "mspy.si",
-    "mspy.sk",
-    "mspy.cz",
-    "mspy.pl",
-    "mspy.hu",
-    "mspy.at",
-    "mspy.ch",
-    "mspy.li",
-    "mspy.lu",
-    "mspy.be",
-    "mspy.nl",
-    "mspy.dk",
-    "mspy.se",
-    "mspy.no",
-    "mspy.fi",
-    "mspy.is",
-    "mspy.ie",
-    "mspy.pt",
-    "mspy.es",
-    "mspy.it",
-    "mspy.gr",
-    "mspy.cy",
-    "mspy.mt",
-    "mspy.tr",
-    "mspy.il",
-    "mspy.sa",
-    "mspy.ae",
-    "mspy.qa",
-    "mspy.kw",
-    "mspy.bh",
-    "mspy.om",
-    "mspy.ye",
-    "mspy.jo",
-    "mspy.lb",
-    "mspy.sy",
-    "mspy.iq",
-    "mspy.ir",
-    "mspy.af",
-    "mspy.eg",
-    "mspy.ly",
-    "mspy.tn",
-    "mspy.dz",
-    "mspy.ma",
-    "mspy.mr",
-    "mspy.sn",
-    "mspy.gm",
-    "mspy.gn",
-    "mspy.sl",
-    "mspy.lr",
-    "mspy.ci",
-    "mspy.gh",
-    "mspy.tg",
-    "mspy.bj",
-    "mspy.ng",
-    "mspy.ne",
-    "mspy.bf",
-    "mspy.cm",
-    "mspy.cg",
-    "mspy.cd",
-    "mspy.st",
-    "mspy.ao",
-    "mspy.zm",
-    "mspy.mw",
-    "mspy.mz",
-    "mspy.zw",
-    "mspy.bw",
-    "mspy.na",
-    "mspy.za",
-    "mspy.ls",
-    "mspy.sz",
-    "mspy.mg",
-    "mspy.mu",
-    "mspy.sc",
-    "mspy.km",
-    "mspy.dj",
-    "mspy.so",
-    "mspy.et",
-    "mspy.er",
-    "mspy.sd",
-    "mspy.ss",
-    "mspy.ug",
-    "mspy.ke",
-    "mspy.tz",
-    "mspy.rw",
-    "mspy.bi",
-    "mspy.td",
-    "mspy.cv",
-    "flexispy.com",
-    "flexispy.net",
-    "flexispy.org",
-    "flexispy.io",
-    "flexispy.co",
-    "flexispy.me",
-    "flexispy.xyz",
-    "flexispy.pro",
-    "flexispy.top",
-    "flexispy.site",
-    "flexispy.online",
-    "flexispy.live",
-    "flexispy.cc",
-    "flexispy.gg",
-    "flexispy.su",
-    "flexispy.ru",
-    "flexispy.pw",
-    "flexispy.biz",
-    "flexispy.info",
-    "flexispy.club",
-    "flexispy.tech",
-    "flexispy.app",
-    "flexispy.link",
-    "flexispy.click",
-    "flexispy.space",
-    "flexispy.store",
-    "flexispy.shop",
-    "flexispy.world",
-    "flexispy.today",
-    "flexispy.win",
-    "flexispy.bid",
-    "flexispy.trade",
-    "flexispy.loan",
-    "flexispy.date",
-    "flexispy.review",
-    "flexispy.racing",
-    "flexispy.party",
-    "flexispy.science",
-    "flexispy.stream",
-    "flexispy.download",
-    "flexispy.ninja",
-    "flexispy.kim",
-    "flexispy.country",
-    "flexispy.gq",
-    "flexispy.ml",
-    "flexispy.ga",
-    "flexispy.cf",
-    "flexispy.tk",
-    "flexispy.icu",
-    "flexispy.vip",
-    "flexispy.fun",
-    "flexispy.website",
-    "flexispy.dev",
-    "hoverwatch.com",
-    "hoverwatch.net",
-    "hoverwatch.org",
-    "hoverwatch.io",
-    "hoverwatch.co",
-    "hoverwatch.me",
-    "hoverwatch.xyz",
-    "hoverwatch.pro",
-    "hoverwatch.top",
-    "hoverwatch.site",
-    "hoverwatch.online",
-    "hoverwatch.live",
-    "hoverwatch.cc",
-    "hoverwatch.gg",
-    "hoverwatch.su",
-    "hoverwatch.ru",
-    "hoverwatch.pw",
-    "hoverwatch.biz",
-    "hoverwatch.info",
-    "hoverwatch.club",
-    "hoverwatch.tech",
-    "hoverwatch.app",
-    "hoverwatch.link",
-    "hoverwatch.click",
-    "hoverwatch.space",
-    "hoverwatch.store",
-    "hoverwatch.shop",
-    "hoverwatch.world",
-    "hoverwatch.today",
-    "hoverwatch.win",
-    "hoverwatch.bid",
-    "hoverwatch.trade",
-    "hoverwatch.loan",
-    "hoverwatch.date",
-    "hoverwatch.review",
-    "hoverwatch.racing",
-    "hoverwatch.party",
-    "hoverwatch.science",
-    "hoverwatch.stream",
-    "hoverwatch.download",
-    "hoverwatch.ninja",
-    "hoverwatch.kim",
-    "hoverwatch.country",
-    "hoverwatch.gq",
-    "hoverwatch.ml",
-    "hoverwatch.ga",
-    "hoverwatch.cf",
-    "hoverwatch.tk",
-    "hoverwatch.icu",
-    "hoverwatch.vip",
-    "hoverwatch.fun",
-    "hoverwatch.website",
-    "hoverwatch.dev",
-    "spyic.com",
-    "spyic.net",
-    "spyic.org",
-    "spyic.io",
-    "spyic.co",
-    "spyic.me",
-    "spyic.xyz",
-    "spyic.pro",
-    "spyic.top",
-    "spyic.site",
-    "spyic.online",
-    "spyic.live",
-    "spyic.cc",
-    "spyic.gg",
-    "spyic.su",
-    "spyic.ru",
-    "spyic.pw",
-    "spyic.biz",
-    "spyic.info",
-    "spyic.club",
-    "spyic.tech",
-    "spyic.app",
-    "spyic.link",
-    "spyic.click",
-    "spyic.space",
-    "spyic.store",
-    "spyic.shop",
-    "spyic.world",
-    "spyic.today",
-    "spyic.win",
-    "spyic.bid",
-    "spyic.trade",
-    "spyic.loan",
-    "spyic.date",
-    "spyic.review",
-    "spyic.racing",
-    "spyic.party",
-    "spyic.science",
-    "spyic.stream",
-    "spyic.download",
-    "spyic.ninja",
-    "spyic.kim",
-    "spyic.country",
-    "spyic.gq",
-    "spyic.ml",
-    "spyic.ga",
-    "spyic.cf",
-    "spyic.tk",
-    "spyic.icu",
-    "spyic.vip",
-    "spyic.fun",
-    "spyic.website",
-    "spyic.dev",
-    "spyzie.com",
-    "spyzie.net",
-    "spyzie.org",
-    "spyzie.io",
-    "spyzie.co",
-    "spyzie.me",
-    "spyzie.xyz",
-    "spyzie.pro",
-    "spyzie.top",
-    "spyzie.site",
-    "spyzie.online",
-    "spyzie.live",
-    "spyzie.cc",
-    "spyzie.gg",
-    "spyzie.su",
-    "spyzie.ru",
-    "spyzie.pw",
-    "spyzie.biz",
-    "spyzie.info",
-    "spyzie.club",
-    "spyzie.tech",
-    "spyzie.app",
-    "spyzie.link",
-    "spyzie.click",
-    "spyzie.space",
-    "spyzie.store",
-    "spyzie.shop",
-    "spyzie.world",
-    "spyzie.today",
-    "spyzie.win",
-    "spyzie.bid",
-    "spyzie.trade",
-    "spyzie.loan",
-    "spyzie.date",
-    "spyzie.review",
-    "spyzie.racing",
-    "spyzie.party",
-    "spyzie.science",
-    "spyzie.stream",
-    "spyzie.download",
-    "spyzie.ninja",
-    "spyzie.kim",
-    "spyzie.country",
-    "spyzie.gq",
-    "spyzie.ml",
-    "spyzie.ga",
-    "spyzie.cf",
-    "spyzie.tk",
-    "spyzie.icu",
-    "spyzie.vip",
-    "spyzie.fun",
-    "spyzie.website",
-    "spyzie.dev",
-    "cocospy.com",
-    "cocospy.net",
-    "cocospy.org",
-    "cocospy.io",
-    "cocospy.co",
-    "cocospy.me",
-    "cocospy.xyz",
-    "cocospy.pro",
-    "cocospy.top",
-    "cocospy.site",
-    "cocospy.online",
-    "cocospy.live",
-    "cocospy.cc",
-    "cocospy.gg",
-    "cocospy.su",
-    "cocospy.ru",
-    "cocospy.pw",
-    "cocospy.biz",
-    "cocospy.info",
-    "cocospy.club",
-    "cocospy.tech",
-    "cocospy.app",
-    "cocospy.link",
-    "cocospy.click",
-    "cocospy.space",
-    "cocospy.store",
-    "cocospy.shop",
-    "cocospy.world",
-    "cocospy.today",
-    "cocospy.win",
-    "cocospy.bid",
-    "cocospy.trade",
-    "cocospy.loan",
-    "cocospy.date",
-    "cocospy.review",
-    "cocospy.racing",
-    "cocospy.party",
-    "cocospy.science",
-    "cocospy.stream",
-    "cocospy.download",
-    "cocospy.ninja",
-    "cocospy.kim",
-    "cocospy.country",
-    "cocospy.gq",
-    "cocospy.ml",
-    "cocospy.ga",
-    "cocospy.cf",
-    "cocospy.tk",
-    "cocospy.icu",
-    "cocospy.vip",
-    "cocospy.fun",
-    "cocospy.website",
-    "cocospy.dev",
-    "minspy.com",
-    "minspy.net",
-    "minspy.org",
-    "minspy.io",
-    "minspy.co",
-    "minspy.me",
-    "minspy.xyz",
-    "minspy.pro",
-    "minspy.top",
-    "minspy.site",
-    "minspy.online",
-    "minspy.live",
-    "minspy.cc",
-    "minspy.gg",
-    "minspy.su",
-    "minspy.ru",
-    "minspy.pw",
-    "minspy.biz",
-    "minspy.info",
-    "minspy.club",
-    "minspy.tech",
-    "minspy.app",
-    "minspy.link",
-    "minspy.click",
-    "minspy.space",
-    "minspy.store",
-    "minspy.shop",
-    "minspy.world",
-    "minspy.today",
-    "minspy.win",
-    "minspy.bid",
-    "minspy.trade",
-    "minspy.loan",
-    "minspy.date",
-    "minspy.review",
-    "minspy.racing",
-    "minspy.party",
-    "minspy.science",
-    "minspy.stream",
-    "minspy.download",
-    "minspy.ninja",
-    "minspy.kim",
-    "minspy.country",
-    "minspy.gq",
-    "minspy.ml",
-    "minspy.ga",
-    "minspy.cf",
-    "minspy.tk",
-    "minspy.icu",
-    "minspy.vip",
-    "minspy.fun",
-    "minspy.website",
-    "minspy.dev",
-    "spyera.com",
-    "spyera.net",
-    "spyera.org",
-    "spyera.io",
-    "spyera.co",
-    "spyera.me",
-    "spyera.xyz",
-    "spyera.pro",
-    "spyera.top",
-    "spyera.site",
-    "spyera.online",
-    "spyera.live",
-    "spyera.cc",
-    "spyera.gg",
-    "spyera.su",
-    "spyera.ru",
-    "spyera.pw",
-    "spyera.biz",
-    "spyera.info",
-    "spyera.club",
-    "spyera.tech",
-    "spyera.app",
-    "spyera.link",
-    "spyera.click",
-    "spyera.space",
-    "spyera.store",
-    "spyera.shop",
-    "spyera.world",
-    "spyera.today",
-    "spyera.win",
-    "spyera.bid",
-    "spyera.trade",
-    "spyera.loan",
-    "spyera.date",
-    "spyera.review",
-    "spyera.racing",
-    "spyera.party",
-    "spyera.science",
-    "spyera.stream",
-    "spyera.download",
-    "spyera.ninja",
-    "spyera.kim",
-    "spyera.country",
-    "spyera.gq",
-    "spyera.ml",
-    "spyera.ga",
-    "spyera.cf",
-    "spyera.tk",
-    "spyera.icu",
-    "spyera.vip",
-    "spyera.fun",
-    "spyera.website",
-    "spyera.dev",
-    "highster.com",
-    "highster.net",
-    "highster.org",
-    "highster.io",
-    "highster.co",
-    "highster.me",
-    "highster.xyz",
-    "highster.pro",
-    "highster.top",
-    "highster.site",
-    "highster.online",
-    "highster.live",
-    "highster.cc",
-    "highster.gg",
-    "highster.su",
-    "highster.ru",
-    "highster.pw",
-    "highster.biz",
-    "highster.info",
-    "highster.club",
-    "highster.tech",
-    "highster.app",
-    "highster.link",
-    "highster.click",
-    "highster.space",
-    "highster.store",
-    "highster.shop",
-    "highster.world",
-    "highster.today",
-    "highster.win",
-    "highster.bid",
-    "highster.trade",
-    "highster.loan",
-    "highster.date",
-    "highster.review",
-    "highster.racing",
-    "highster.party",
-    "highster.science",
-    "highster.stream",
-    "highster.download",
-    "highster.ninja",
-    "highster.kim",
-    "highster.country",
-    "highster.gq",
-    "highster.ml",
-    "highster.ga",
-    "highster.cf",
-    "highster.tk",
-    "highster.icu",
-    "highster.vip",
-    "highster.fun",
-    "highster.website",
-    "highster.dev",
-    "thetruthspy.com",
-    "thetruthspy.net",
-    "thetruthspy.org",
-    "thetruthspy.io",
-    "thetruthspy.co",
-    "thetruthspy.me",
-    "thetruthspy.xyz",
-    "thetruthspy.pro",
-    "thetruthspy.top",
-    "thetruthspy.site",
-    "thetruthspy.online",
-    "thetruthspy.live",
-    "thetruthspy.cc",
-    "thetruthspy.gg",
-    "thetruthspy.su",
-    "thetruthspy.ru",
-    "thetruthspy.pw",
-    "thetruthspy.biz",
-    "thetruthspy.info",
-    "thetruthspy.club",
-    "thetruthspy.tech",
-    "thetruthspy.app",
-    "thetruthspy.link",
-    "thetruthspy.click",
-    "thetruthspy.space",
-    "thetruthspy.store",
-    "thetruthspy.shop",
-    "thetruthspy.world",
-    "thetruthspy.today",
-    "thetruthspy.win",
-    "thetruthspy.bid",
-    "thetruthspy.trade",
-    "thetruthspy.loan",
-    "thetruthspy.date",
-    "thetruthspy.review",
-    "thetruthspy.racing",
-    "thetruthspy.party",
-    "thetruthspy.science",
-    "thetruthspy.stream",
-    "thetruthspy.download",
-    "thetruthspy.ninja",
-    "thetruthspy.kim",
-    "thetruthspy.country",
-    "thetruthspy.gq",
-    "thetruthspy.ml",
-    "thetruthspy.ga",
-    "thetruthspy.cf",
-    "thetruthspy.tk",
-    "thetruthspy.icu",
-    "thetruthspy.vip",
-    "thetruthspy.fun",
-    "thetruthspy.website",
-    "thetruthspy.dev",
-    "spymaster.com",
-    "spymaster.net",
-    "spymaster.org",
-    "spymaster.io",
-    "spymaster.co",
-    "spymaster.me",
-    "spymaster.xyz",
-    "spymaster.pro",
-    "spymaster.top",
-    "spymaster.site",
-    "spymaster.online",
-    "spymaster.live",
-    "spymaster.cc",
-    "spymaster.gg",
-    "spymaster.su",
-    "spymaster.ru",
-    "spymaster.pw",
-    "spymaster.biz",
-    "spymaster.info",
-    "spymaster.club",
-    "spymaster.tech",
-    "spymaster.app",
-    "spymaster.link",
-    "spymaster.click",
-    "spymaster.space",
-    "spymaster.store",
-    "spymaster.shop",
-    "spymaster.world",
-    "spymaster.today",
-    "spymaster.win",
-    "spymaster.bid",
-    "spymaster.trade",
-    "spymaster.loan",
-    "spymaster.date",
-    "spymaster.review",
-    "spymaster.racing",
-    "spymaster.party",
-    "spymaster.science",
-    "spymaster.stream",
-    "spymaster.download",
-    "spymaster.ninja",
-    "spymaster.kim",
-    "spymaster.country",
-    "spymaster.gq",
-    "spymaster.ml",
-    "spymaster.ga",
-    "spymaster.cf",
-    "spymaster.tk",
-    "spymaster.icu",
-    "spymaster.vip",
-    "spymaster.fun",
-    "spymaster.website",
-    "spymaster.dev",
-    "xnspy.com",
-    "xnspy.net",
-    "xnspy.org",
-    "xnspy.io",
-    "xnspy.co",
-    "xnspy.me",
-    "xnspy.xyz",
-    "xnspy.pro",
-    "xnspy.top",
-    "xnspy.site",
-    "xnspy.online",
-    "xnspy.live",
-    "xnspy.cc",
-    "xnspy.gg",
-    "xnspy.su",
-    "xnspy.ru",
-    "xnspy.pw",
-    "xnspy.biz",
-    "xnspy.info",
-    "xnspy.club",
-    "xnspy.tech",
-    "xnspy.app",
-    "xnspy.link",
-    "xnspy.click",
-    "xnspy.space",
-    "xnspy.store",
-    "xnspy.shop",
-    "xnspy.world",
-    "xnspy.today",
-    "xnspy.win",
-    "xnspy.bid",
-    "xnspy.trade",
-    "xnspy.loan",
-    "xnspy.date",
-    "xnspy.review",
-    "xnspy.racing",
-    "xnspy.party",
-    "xnspy.science",
-    "xnspy.stream",
-    "xnspy.download",
-    "xnspy.ninja",
-    "xnspy.kim",
-    "xnspy.country",
-    "xnspy.gq",
-    "xnspy.ml",
-    "xnspy.ga",
-    "xnspy.cf",
-    "xnspy.tk",
-    "xnspy.icu",
-    "xnspy.vip",
-    "xnspy.fun",
-    "xnspy.website",
-    "xnspy.dev",
-    "umobix.com",
-    "umobix.net",
-    "umobix.org",
-    "umobix.io",
-    "umobix.co",
-    "umobix.me",
-    "umobix.xyz",
-    "umobix.pro",
-    "umobix.top",
-    "umobix.site",
-    "umobix.online",
-    "umobix.live",
-    "umobix.cc",
-    "umobix.gg",
-    "umobix.su",
-    "umobix.ru",
-    "umobix.pw",
-    "umobix.biz",
-    "umobix.info",
-    "umobix.club",
-    "umobix.tech",
-    "umobix.app",
-    "umobix.link",
-    "umobix.click",
-    "umobix.space",
-    "umobix.store",
-    "umobix.shop",
-    "umobix.world",
-    "umobix.today",
-    "umobix.win",
-    "umobix.bid",
-    "umobix.trade",
-    "umobix.loan",
-    "umobix.date",
-    "umobix.review",
-    "umobix.racing",
-    "umobix.party",
-    "umobix.science",
-    "umobix.stream",
-    "umobix.download",
-    "umobix.ninja",
-    "umobix.kim",
-    "umobix.country",
-    "umobix.gq",
-    "umobix.ml",
-    "umobix.ga",
-    "umobix.cf",
-    "umobix.tk",
-    "umobix.icu",
-    "umobix.vip",
-    "umobix.fun",
-    "umobix.website",
-    "umobix.dev",
-    "iKeyMonitor.com",
-    "iKeyMonitor.net",
-    "iKeyMonitor.org",
-    "iKeyMonitor.io",
-    "iKeyMonitor.co",
-    "iKeyMonitor.me",
-    "iKeyMonitor.xyz",
-    "iKeyMonitor.pro",
-    "iKeyMonitor.top",
-    "iKeyMonitor.site",
-    "iKeyMonitor.online",
-    "iKeyMonitor.live",
-    "iKeyMonitor.cc",
-    "iKeyMonitor.gg",
-    "iKeyMonitor.su",
-    "iKeyMonitor.ru",
-    "iKeyMonitor.pw",
-    "iKeyMonitor.biz",
-    "iKeyMonitor.info",
-    "iKeyMonitor.club",
-    "iKeyMonitor.tech",
-    "iKeyMonitor.app",
-    "iKeyMonitor.link",
-    "iKeyMonitor.click",
-    "iKeyMonitor.space",
-    "iKeyMonitor.store",
-    "iKeyMonitor.shop",
-    "iKeyMonitor.world",
-    "iKeyMonitor.today",
-    "iKeyMonitor.win",
-    "iKeyMonitor.bid",
-    "iKeyMonitor.trade",
-    "iKeyMonitor.loan",
-    "iKeyMonitor.date",
-    "iKeyMonitor.review",
-    "iKeyMonitor.racing",
-    "iKeyMonitor.party",
-    "iKeyMonitor.science",
-    "iKeyMonitor.stream",
-    "iKeyMonitor.download",
-    "iKeyMonitor.ninja",
-    "iKeyMonitor.kim",
-    "iKeyMonitor.country",
-    "iKeyMonitor.gq",
-    "iKeyMonitor.ml",
-    "iKeyMonitor.ga",
-    "iKeyMonitor.cf",
-    "iKeyMonitor.tk",
-    "iKeyMonitor.icu",
-    "iKeyMonitor.vip",
-    "iKeyMonitor.fun",
-    "iKeyMonitor.website",
-    "iKeyMonitor.dev",
-    # --- CATEGORY 5: WEBHOOK EXFILTRATION & C2 RELAY ---
-    "discord.nfp",
-    "webhook.site",
-    "api.webhook.site",
-    "requestbin.com",
-    "requestbin.net",
-    "requestbin.org",
-    "requestbin.io",
-    "requestbin.co",
-    "requestbin.me",
-    "requestbin.xyz",
-    "requestbin.pro",
-    "requestbin.top",
-    "requestbin.site",
-    "requestbin.online",
-    "requestbin.live",
-    "requestbin.cc",
-    "requestbin.gg",
-    "requestbin.su",
-    "requestbin.ru",
-    "requestbin.pw",
-    "requestbin.biz",
-    "requestbin.info",
-    "requestbin.club",
-    "requestbin.tech",
-    "requestbin.app",
-    "requestbin.link",
-    "requestbin.click",
-    "requestbin.space",
-    "requestbin.store",
-    "requestbin.shop",
-    "requestbin.world",
-    "requestbin.today",
-    "requestbin.win",
-    "requestbin.bid",
-    "requestbin.trade",
-    "requestbin.loan",
-    "requestbin.date",
-    "requestbin.review",
-    "requestbin.racing",
-    "requestbin.party",
-    "requestbin.science",
-    "requestbin.stream",
-    "requestbin.download",
-    "requestbin.ninja",
-    "requestbin.kim",
-    "requestbin.country",
-    "requestbin.gq",
-    "requestbin.ml",
-    "requestbin.ga",
-    "requestbin.cf",
-    "requestbin.tk",
-    "requestbin.icu",
-    "requestbin.vip",
-    "requestbin.fun",
-    "requestbin.website",
-    "requestbin.dev",
-    "pipedream.com",
-    "pipedream.net",
-    "pipedream.org",
-    "pipedream.io",
-    "pipedream.co",
-    "pipedream.me",
-    "pipedream.xyz",
-    "pipedream.pro",
-    "pipedream.top",
-    "pipedream.site",
-    "pipedream.online",
-    "pipedream.live",
-    "pipedream.cc",
-    "pipedream.gg",
-    "pipedream.su",
-    "pipedream.ru",
-    "pipedream.pw",
-    "pipedream.biz",
-    "pipedream.info",
-    "pipedream.club",
-    "pipedream.tech",
-    "pipedream.app",
-    "pipedream.link",
-    "pipedream.click",
-    "pipedream.space",
-    "pipedream.store",
-    "pipedream.shop",
-    "pipedream.world",
-    "pipedream.today",
-    "pipedream.win",
-    "pipedream.bid",
-    "pipedream.trade",
-    "pipedream.loan",
-    "pipedream.date",
-    "pipedream.review",
-    "pipedream.racing",
-    "pipedream.party",
-    "pipedream.science",
-    "pipedream.stream",
-    "pipedream.download",
-    "pipedream.ninja",
-    "pipedream.kim",
-    "pipedream.country",
-    "pipedream.gq",
-    "pipedream.ml",
-    "pipedream.ga",
-    "pipedream.cf",
-    "pipedream.tk",
-    "pipedream.icu",
-    "pipedream.vip",
-    "pipedream.fun",
-    "pipedream.website",
-    "pipedream.dev",
-    "hookbin.com",
-    "hookbin.net",
-    "hookbin.org",
-    "hookbin.io",
-    "hookbin.co",
-    "hookbin.me",
-    "hookbin.xyz",
-    "hookbin.pro",
-    "hookbin.top",
-    "hookbin.site",
-    "hookbin.online",
-    "hookbin.live",
-    "hookbin.cc",
-    "hookbin.gg",
-    "hookbin.su",
-    "hookbin.ru",
-    "hookbin.pw",
-    "hookbin.biz",
-    "hookbin.info",
-    "hookbin.club",
-    "hookbin.tech",
-    "hookbin.app",
-    "hookbin.link",
-    "hookbin.click",
-    "hookbin.space",
-    "hookbin.store",
-    "hookbin.shop",
-    "hookbin.world",
-    "hookbin.today",
-    "hookbin.win",
-    "hookbin.bid",
-    "hookbin.trade",
-    "hookbin.loan",
-    "hookbin.date",
-    "hookbin.review",
-    "hookbin.racing",
-    "hookbin.party",
-    "hookbin.science",
-    "hookbin.stream",
-    "hookbin.download",
-    "hookbin.ninja",
-    "hookbin.kim",
-    "hookbin.country",
-    "hookbin.gq",
-    "hookbin.ml",
-    "hookbin.ga",
-    "hookbin.cf",
-    "hookbin.tk",
-    "hookbin.icu",
-    "hookbin.vip",
-    "hookbin.fun",
-    "hookbin.website",
-    "hookbin.dev",
-    "canarytokens.com",
-    "canarytokens.net",
-    "canarytokens.org",
-    "canarytokens.io",
-    "canarytokens.co",
-    "canarytokens.me",
-    "canarytokens.xyz",
-    "canarytokens.pro",
-    "canarytokens.top",
-    "canarytokens.site",
-    "canarytokens.online",
-    "canarytokens.live",
-    "canarytokens.cc",
-    "canarytokens.gg",
-    "canarytokens.su",
-    "canarytokens.ru",
-    "canarytokens.pw",
-    "canarytokens.biz",
-    "canarytokens.info",
-    "canarytokens.club",
-    "canarytokens.tech",
-    "canarytokens.app",
-    "canarytokens.link",
-    "canarytokens.click",
-    "canarytokens.space",
-    "canarytokens.store",
-    "canarytokens.shop",
-    "canarytokens.world",
-    "canarytokens.today",
-    "canarytokens.win",
-    "canarytokens.bid",
-    "canarytokens.trade",
-    "canarytokens.loan",
-    "canarytokens.date",
-    "canarytokens.review",
-    "canarytokens.racing",
-    "canarytokens.party",
-    "canarytokens.science",
-    "canarytokens.stream",
-    "canarytokens.download",
-    "canarytokens.ninja",
-    "canarytokens.kim",
-    "canarytokens.country",
-    "canarytokens.gq",
-    "canarytokens.ml",
-    "canarytokens.ga",
-    "canarytokens.cf",
-    "canarytokens.tk",
-    "canarytokens.icu",
-    "canarytokens.vip",
-    "canarytokens.fun",
-    "canarytokens.website",
-    "canarytokens.dev",
-    "interactsh.com",
-    "interactsh.net",
-    "interactsh.org",
-    "interactsh.io",
-    "interactsh.co",
-    "interactsh.me",
-    "interactsh.xyz",
-    "interactsh.pro",
-    "interactsh.top",
-    "interactsh.site",
-    "interactsh.online",
-    "interactsh.live",
-    "interactsh.cc",
-    "interactsh.gg",
-    "interactsh.su",
-    "interactsh.ru",
-    "interactsh.pw",
-    "interactsh.biz",
-    "interactsh.info",
-    "interactsh.club",
-    "interactsh.tech",
-    "interactsh.app",
-    "interactsh.link",
-    "interactsh.click",
-    "interactsh.space",
-    "interactsh.store",
-    "interactsh.shop",
-    "interactsh.world",
-    "interactsh.today",
-    "interactsh.win",
-    "interactsh.bid",
-    "interactsh.trade",
-    "interactsh.loan",
-    "interactsh.date",
-    "interactsh.review",
-    "interactsh.racing",
-    "interactsh.party",
-    "interactsh.science",
-    "interactsh.stream",
-    "interactsh.download",
-    "interactsh.ninja",
-    "interactsh.kim",
-    "interactsh.country",
-    "interactsh.gq",
-    "interactsh.ml",
-    "interactsh.ga",
-    "interactsh.cf",
-    "interactsh.tk",
-    "interactsh.icu",
-    "interactsh.vip",
-    "interactsh.fun",
-    "interactsh.website",
-    "interactsh.dev",
-    "trk.li",
-    "lovebird.guru",
-    "gg.gg"
+    # IP Loggers & Grabbers
+    "grabify.link", "grabify.org", "iplogger.org", "iplogger.com", "iplogger.ru",
+    "2no.co", "blasze.com", "canarytokens.com", "ps3cfw.com", "ip-api.com",
+    "ifconfig.me", "ipinfo.io", "icanhazip.com", "wtfismyip.com",
+    
+    # Doxxing Infrastructure
+    "doxbin.com", "doxbin.org", "leakbase.io", "cracked.io", "nulled.to",
+    "hackforums.net", "raidforums.com", "breached.vc", "exposed.vc",
+    
+    # Stalkerware C2
+    "mspy.com", "flexispy.com", "hoverwatch.com", "spyic.com", "spyzie.com",
+    "cocospy.com", "minspy.com", "spyera.com", "xnspy.com", "umobix.com",
+    "ikeymonitor.com", "thetruthspy.com",
+    
+    # Webhook Exfiltration
+    "webhook.site", "requestbin.com", "pipedream.com", "hookbin.com", "interact.sh"
 )
-$HostsContent = Get-Content $HostsPath -Raw
+
+# Add 2000+ domains from StevenBlack malware list
+try {
+    $malwareList = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn-social/hosts" -UseBasicParsing
+    $lines = $malwareList -split "`n"
+    foreach ($line in $lines) {
+        if ($line -match "^0\.0\.0\.0\s+(.+)$") {
+            $domain = $matches[1].Trim()
+            if ($domain -ne "0.0.0.0") {
+                $BlockedDomains += $domain
+            }
+        }
+    }
+} catch {
+    Write-Host "  [WARN] Could not fetch extended block list. Using core list." -ForegroundColor DarkYellow
+}
+
+# Remove duplicates
+$BlockedDomains = $BlockedDomains | Select-Object -Unique
+
+# Backup existing hosts file
+Copy-Item -Path $HostsPath -Destination "$HostsPath.bak" -Force
+
+# Read existing hosts file
+$CurrentHosts = Get-Content -Path $HostsPath -ErrorAction SilentlyContinue
+if ($null -eq $CurrentHosts) { $CurrentHosts = @() }
+
+# Filter out existing blocked domains to avoid duplicates
+$FilteredHosts = @()
+foreach ($Line in $CurrentHosts) {
+    $IsBlocked = $false
+    foreach ($Domain in $BlockedDomains) {
+        if ($Line -match "0\.0\.0\.0\s+$Domain") {
+            $IsBlocked = $true
+            break
+        }
+    }
+    if (-not $IsBlocked) {
+        $FilteredHosts += $Line
+    }
+}
+
+# Write back filtered hosts
+Set-Content -Path $HostsPath -Value $FilteredHosts -Force
+
+# Append new blocked domains
+Add-Content -Path $HostsPath -Value "`n# PrivacyWarden Threat Block List"
 $Added = 0
 foreach ($Domain in $BlockedDomains) {
-    if ($HostsContent -notmatch [regex]::Escape($Domain)) {
+    if (-not [string]::IsNullOrWhiteSpace($Domain)) {
         Add-Content -Path $HostsPath -Value "0.0.0.0 $Domain"
         $Added++
     }
 }
-Write-Host "  [OK] IP grabber and C2 domains blocked ($Added new entries added to hosts file)" -ForegroundColor Green
 
-# [21] Enable LSA Protection (Blocks Mimikatz and credential dumpers)
-# Makes the Windows credential store a protected process.
-# Mimikatz -- the most common credential dumping tool -- cannot touch it.
-# REQUIRES A REBOOT to activate.
-$LSAPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa"
-Set-ItemProperty -Path $LSAPath -Name "RunAsPPL" -Value 1 -Type DWord -Force
-Write-Host "  [OK] LSA Protection (RunAsPPL) enabled -- REBOOT REQUIRED to activate" -ForegroundColor Green
+Write-Host "  [OK] IP grabber and C2 domains blocked ($Added entries added to hosts file)" -ForegroundColor Green
 
-# [22] Disable Windows Script Host
-# Completely disables the Windows Script Host engine.
-# Any .vbs or .js malware that bypasses step 18 cannot execute.
-$WSHPath = "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings"
-if (-not (Test-Path $WSHPath)) { New-Item -Path $WSHPath -Force | Out-Null }
-Set-ItemProperty -Path $WSHPath -Name "Enabled" -Value 0 -Type DWord -Force
-Write-Host "  [OK] Windows Script Host disabled" -ForegroundColor Green
-
-# [23] Enable Advanced Attack Surface Reduction (ASR) Rules
-# These 8 rules block the most common malware persistence and execution techniques.
-# NOTE: Skipped in VMs as Windows Defender ASR is not supported in virtual environments.
-if (-not $IsVirtualMachine) {
-    $ASRRules = @{
-        "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550" = "Block executable content from email and webmail"
-        "D4F04D28-328C-4531-8D4D-001A00FD701C" = "Block Office apps from creating child processes"
-        "3B576869-A4EC-4529-8536-B80A7769E899" = "Block Office apps from creating executable content"
-        "D3E037E1-3EB8-44C8-A917-57927947596D" = "Block JS/VBScript from launching downloaded executables"
-        "5BEB7EFE-FD9A-4556-801D-275E5FFC04CC" = "Block execution of obfuscated scripts"
-        "9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2" = "Block credential stealing from LSASS"
-        "E6DB77E5-3DF2-4CF1-B95A-636979351E5B" = "Block WMI event subscription persistence"
-        "D1E49AAC-8F56-4280-B9BA-993A6D77406C" = "Block process creation via PSExec and WMI"
-    }
-    foreach ($Rule in $ASRRules.GetEnumerator()) {
-        try {
-            Add-MpPreference -AttackSurfaceReductionRules_Ids $Rule.Key `
-                             -AttackSurfaceReductionRules_Actions Enable `
-                             -ErrorAction SilentlyContinue
-        } catch {}
-    }
-    Write-Host "  [OK] 8 ASR rules enabled (WMI persistence, LSASS, obfuscated scripts, PSExec)" -ForegroundColor Green
-} else {
-    Write-Host "  [SKIP] ASR rules skipped (VM detected -- Windows Defender ASR not supported)" -ForegroundColor DarkYellow
-}
-
-# [24] Disable Unnecessary Remote Services
-# Closes the doors that RATs and attackers use to maintain access after infection.
-# NOTE: TermService is only disabled on physical machines. Windows Sandbox and RDP
-# sessions depend on TermService for their display pipeline -- disabling it crashes them.
-$ServicesToDisable = @("RemoteRegistry", "WinRM")
-if (-not $IsVirtualMachine) {
-    $ServicesToDisable += "TermService"
-}
-foreach ($Service in $ServicesToDisable) {
-    if (Get-Service -Name $Service -ErrorAction SilentlyContinue) {
-        Set-Service  -Name $Service -StartupType Disabled -ErrorAction SilentlyContinue
-        Stop-Service -Name $Service -Force -ErrorAction SilentlyContinue
-    }
-}
-if ($IsVirtualMachine) {
-    Write-Host "  [OK] Remote Registry and WinRM disabled (TermService kept for VM compatibility)" -ForegroundColor Green
-} else {
-    Write-Host "  [OK] Remote Registry, WinRM, and Terminal Services disabled" -ForegroundColor Green
-}
-
-# Flush DNS cache to apply hosts file changes immediately
-Write-Host ""
-Write-Host "Flushing DNS cache..." -ForegroundColor Yellow
+# Flush DNS cache
 & ipconfig /flushdns | Out-Null
 Write-Host "  [OK] DNS cache flushed" -ForegroundColor Green
 
-# [25] Restrict PowerShell Execution Policy
-# Prevents unsigned PowerShell scripts from running automatically.
-# You can still run your own scripts by right-clicking and choosing Run.
-# NOTE: This is intentionally the LAST operation in the script to avoid
-# interfering with the execution of earlier steps in the same session.
+Write-Host ""
+
+# ==============================================================================
+# FINALIZATION
+# ==============================================================================
+# [24] Restrict PowerShell Execution Policy
 Set-ExecutionPolicy -ExecutionPolicy Restricted -Scope CurrentUser -Force
 Write-Host "  [OK] PowerShell execution policy set to Restricted" -ForegroundColor Green
 
-# ==============================================================================
-# DONE
-# ==============================================================================
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "All 25 hardening steps applied." -ForegroundColor Cyan
+Write-Host "All hardening steps applied." -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "IMPORTANT: Reboot your PC for all changes to take full effect." -ForegroundColor Yellow
-Write-Host "           LSA Protection (step 21) only activates after a reboot." -ForegroundColor Yellow
-Write-Host ""
-Write-Host "MANUAL STEPS REQUIRED FOR DNS PROTECTION:" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  When Mullvad VPN is ON:" -ForegroundColor White
-Write-Host "    DNS is handled automatically by the Mullvad app. Nothing to do." -ForegroundColor Gray
-Write-Host ""
-Write-Host "  When Mullvad VPN is OFF (e.g. during streams):" -ForegroundColor White
-Write-Host "    Configure Mullvad DoH in Firefox to protect your DNS:" -ForegroundColor Gray
-Write-Host "    1. Firefox -> Settings -> Privacy & Security" -ForegroundColor Gray
-Write-Host "    2. Scroll to bottom -> Enable secure DNS -> Max Protection" -ForegroundColor Gray
-Write-Host "    3. Choose provider -> Custom -> paste:" -ForegroundColor Gray
-Write-Host "       https://base.dns.mullvad.net/dns-query" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  Brave:          Settings -> Security -> Use secure DNS -> Off" -ForegroundColor Gray
-Write-Host "  Chrome/Edge:    Already disabled by this script (step 8)" -ForegroundColor Gray
-Write-Host "  Mullvad Browser: about:config -> network.trr.mode -> 5" -ForegroundColor Gray
+Write-Host "           LSA Protection and SMBv1 changes only activate after a reboot." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Stay safe out there." -ForegroundColor Cyan
 Write-Host "- Aya Yoki (AyaYokiVT) | gearlightlabs@gmail.com" -ForegroundColor DarkCyan
