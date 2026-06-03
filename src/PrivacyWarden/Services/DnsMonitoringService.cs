@@ -373,7 +373,20 @@ namespace PrivacyWarden.Services
             using var process = Process.Start(psi)
                 ?? throw new InvalidOperationException("Failed to start netsh.");
 
-            await process.WaitForExitAsync();
+            // FIX v8.1: Add 10-second timeout to prevent indefinite hang if netsh freezes.
+            // On systems with broken network stacks, netsh can hang forever, blocking the
+            // entire Worker loop and making the service unresponsive.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new InvalidOperationException(
+                    $"netsh timed out after 10 seconds (args: {arguments}). Process was killed.");
+            }
 
             if (process.ExitCode != 0)
             {

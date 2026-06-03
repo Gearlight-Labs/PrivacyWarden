@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     PrivacyWarden -- Complete Security & Privacy Hardening
-    Version 8.0
+    Version 8.1
 
 .DESCRIPTION
     Hey, I'm Aya Yoki (AyaYokiVT). I built this because I was tired of getting
@@ -30,18 +30,45 @@
     Author   : Aya Yoki (AyaYokiVT) -- Gearlight Labs
     Contact  : gearlightlabs@gmail.com
     GitHub   : https://github.com/Gearlight-Labs/PrivacyWarden
-    Version  : 8.0
+    Version  : 8.1
     Requires : Windows 10/11, PowerShell 5.1 or later, Run as Administrator
     Reboot   : Required after running for LSA Protection to activate
+    Changes  : v8.1 -- Added VM/Sandbox detection, fixed NTP server, fixed hosts
+               file entry, moved execution policy to end of script.
 #>
 
 $ErrorActionPreference = "Continue"
 $netsh = "$env:SystemRoot\System32\netsh.exe"
 
+# ==============================================================================
+# VM / SANDBOX DETECTION
+# ==============================================================================
+# Detects if running inside a virtual machine or Windows Sandbox.
+# Some hardening steps (TermService, ASR rules) crash virtual environments.
+$IsVirtualMachine = $false
+try {
+    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    if ($computerSystem.Model -match "Virtual|VMware|VirtualBox|Hyper-V|QEMU|KVM") {
+        $IsVirtualMachine = $true
+    }
+    # Windows Sandbox detection (runs as a container with specific characteristics)
+    if ((Get-Service -Name "CExecSvc" -ErrorAction SilentlyContinue) -or
+        ($env:USERNAME -eq "WDAGUtilityAccount")) {
+        $IsVirtualMachine = $true
+    }
+} catch {
+    # If detection fails, assume physical machine (safe default)
+    $IsVirtualMachine = $false
+}
+
 Write-Host ""
-Write-Host "PrivacyWarden -- Complete Security Hardening v8.0" -ForegroundColor Cyan
+Write-Host "PrivacyWarden -- Complete Security Hardening v8.1" -ForegroundColor Cyan
 Write-Host "  by Aya Yoki (AyaYokiVT) -- Gearlight Labs" -ForegroundColor DarkCyan
 Write-Host "==================================================" -ForegroundColor Cyan
+if ($IsVirtualMachine) {
+    Write-Host "  [INFO] Virtual machine or Sandbox detected" -ForegroundColor DarkYellow
+    Write-Host "  [INFO] VM-incompatible steps will be skipped" -ForegroundColor DarkYellow
+}
 Write-Host ""
 
 # ==============================================================================
@@ -98,11 +125,12 @@ Write-Host "  [OK] WPAD disabled" -ForegroundColor Green
 & $netsh interface 6to4  set state disabled  | Out-Null
 Write-Host "  [OK] Teredo and 6to4 disabled" -ForegroundColor Green
 
-# [6] Redirect NTP to Mullvad
+# [6] Redirect NTP to privacy-respecting time servers
 # Stops Windows time sync from leaking your IP to Microsoft's time servers.
-& w32tm /config /manualpeerlist:"194.242.2.3" /syncfromflags:manual /reliable:YES /update 2>$null | Out-Null
+# FIX v8.1: Uses proper NTP servers instead of Mullvad DNS (which doesn't serve NTP).
+& w32tm /config /manualpeerlist:"time.cloudflare.com,0.pool.ntp.org,1.pool.ntp.org" /syncfromflags:manual /reliable:YES /update 2>$null | Out-Null
 Restart-Service -Name "w32tm" -ErrorAction SilentlyContinue
-Write-Host "  [OK] NTP redirected to Mullvad (194.242.2.3)" -ForegroundColor Green
+Write-Host "  [OK] NTP redirected to privacy-respecting servers (Cloudflare Time, NTP Pool)" -ForegroundColor Green
 
 # [7] Disable Delivery Optimization P2P
 # Stops Windows from using your PC as a P2P node to share updates with random internet users.
@@ -244,11 +272,16 @@ Write-Host "  [OK] Malicious script extensions neutralized (.vbs, .js, .hta, .pi
 # [19] Enable Controlled Folder Access
 # Protects AppData (where Discord stores your login token) from unauthorized writes.
 # This is the primary defense against Discord token grabbers.
-try {
-    Set-MpPreference -EnableControlledFolderAccess Enabled -ErrorAction SilentlyContinue
-    Write-Host "  [OK] Controlled Folder Access enabled (protects Discord token storage)" -ForegroundColor Green
-} catch {
-    Write-Host "  [WARN] Could not enable Controlled Folder Access" -ForegroundColor DarkYellow
+# NOTE: Skipped in VMs as Windows Defender may not be fully functional.
+if (-not $IsVirtualMachine) {
+    try {
+        Set-MpPreference -EnableControlledFolderAccess Enabled -ErrorAction SilentlyContinue
+        Write-Host "  [OK] Controlled Folder Access enabled (protects Discord token storage)" -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] Could not enable Controlled Folder Access" -ForegroundColor DarkYellow
+    }
+} else {
+    Write-Host "  [SKIP] Controlled Folder Access skipped (VM detected)" -ForegroundColor DarkYellow
 }
 
 # [20] Block Known IP Grabber and Malware Domains
@@ -270,8 +303,7 @@ $BlockedDomains = @(
     "ps3cfw.com",
     "lovebird.guru",
     "trk.li",
-    "gg.gg",
-    "gyazo.com.grabify.link"
+    "gg.gg"
 )
 $HostsContent = Get-Content $HostsPath -Raw
 $Added = 0
@@ -299,49 +331,65 @@ if (-not (Test-Path $WSHPath)) { New-Item -Path $WSHPath -Force | Out-Null }
 Set-ItemProperty -Path $WSHPath -Name "Enabled" -Value 0 -Type DWord -Force
 Write-Host "  [OK] Windows Script Host disabled" -ForegroundColor Green
 
-# [23] Restrict PowerShell Execution Policy
-# Prevents unsigned PowerShell scripts from running automatically.
-# You can still run your own scripts by right-clicking and choosing Run.
-Set-ExecutionPolicy -ExecutionPolicy Restricted -Scope CurrentUser -Force
-Write-Host "  [OK] PowerShell execution policy set to Restricted" -ForegroundColor Green
-
-# [24] Enable Advanced Attack Surface Reduction (ASR) Rules
+# [23] Enable Advanced Attack Surface Reduction (ASR) Rules
 # These 8 rules block the most common malware persistence and execution techniques.
-$ASRRules = @{
-    "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550" = "Block executable content from email and webmail"
-    "D4F04D28-328C-4531-8D4D-001A00FD701C" = "Block Office apps from creating child processes"
-    "3B576869-A4EC-4529-8536-B80A7769E899" = "Block Office apps from creating executable content"
-    "D3E037E1-3EB8-44C8-A917-57927947596D" = "Block JS/VBScript from launching downloaded executables"
-    "5BEB7EFE-FD9A-4556-801D-275E5FFC04CC" = "Block execution of obfuscated scripts"
-    "9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2" = "Block credential stealing from LSASS"
-    "E6DB77E5-3DF2-4CF1-B95A-636979351E5B" = "Block WMI event subscription persistence"
-    "D1E49AAC-8F56-4280-B9BA-993A6D77406C" = "Block process creation via PSExec and WMI"
+# NOTE: Skipped in VMs as Windows Defender ASR is not supported in virtual environments.
+if (-not $IsVirtualMachine) {
+    $ASRRules = @{
+        "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550" = "Block executable content from email and webmail"
+        "D4F04D28-328C-4531-8D4D-001A00FD701C" = "Block Office apps from creating child processes"
+        "3B576869-A4EC-4529-8536-B80A7769E899" = "Block Office apps from creating executable content"
+        "D3E037E1-3EB8-44C8-A917-57927947596D" = "Block JS/VBScript from launching downloaded executables"
+        "5BEB7EFE-FD9A-4556-801D-275E5FFC04CC" = "Block execution of obfuscated scripts"
+        "9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2" = "Block credential stealing from LSASS"
+        "E6DB77E5-3DF2-4CF1-B95A-636979351E5B" = "Block WMI event subscription persistence"
+        "D1E49AAC-8F56-4280-B9BA-993A6D77406C" = "Block process creation via PSExec and WMI"
+    }
+    foreach ($Rule in $ASRRules.GetEnumerator()) {
+        try {
+            Add-MpPreference -AttackSurfaceReductionRules_Ids $Rule.Key `
+                             -AttackSurfaceReductionRules_Actions Enable `
+                             -ErrorAction SilentlyContinue
+        } catch {}
+    }
+    Write-Host "  [OK] 8 ASR rules enabled (WMI persistence, LSASS, obfuscated scripts, PSExec)" -ForegroundColor Green
+} else {
+    Write-Host "  [SKIP] ASR rules skipped (VM detected -- Windows Defender ASR not supported)" -ForegroundColor DarkYellow
 }
-foreach ($Rule in $ASRRules.GetEnumerator()) {
-    try {
-        Add-MpPreference -AttackSurfaceReductionRules_Ids $Rule.Key `
-                         -AttackSurfaceReductionRules_Actions Enable `
-                         -ErrorAction SilentlyContinue
-    } catch {}
-}
-Write-Host "  [OK] 8 ASR rules enabled (WMI persistence, LSASS, obfuscated scripts, PSExec)" -ForegroundColor Green
 
-# [25] Disable Unnecessary Remote Services
+# [24] Disable Unnecessary Remote Services
 # Closes the doors that RATs and attackers use to maintain access after infection.
-$ServicesToDisable = @("RemoteRegistry", "TermService", "WinRM")
+# NOTE: TermService is only disabled on physical machines. Windows Sandbox and RDP
+# sessions depend on TermService for their display pipeline -- disabling it crashes them.
+$ServicesToDisable = @("RemoteRegistry", "WinRM")
+if (-not $IsVirtualMachine) {
+    $ServicesToDisable += "TermService"
+}
 foreach ($Service in $ServicesToDisable) {
     if (Get-Service -Name $Service -ErrorAction SilentlyContinue) {
         Set-Service  -Name $Service -StartupType Disabled -ErrorAction SilentlyContinue
         Stop-Service -Name $Service -Force -ErrorAction SilentlyContinue
     }
 }
-Write-Host "  [OK] Remote Registry, WinRM, and Terminal Services disabled" -ForegroundColor Green
+if ($IsVirtualMachine) {
+    Write-Host "  [OK] Remote Registry and WinRM disabled (TermService kept for VM compatibility)" -ForegroundColor Green
+} else {
+    Write-Host "  [OK] Remote Registry, WinRM, and Terminal Services disabled" -ForegroundColor Green
+}
 
 # Flush DNS cache to apply hosts file changes immediately
 Write-Host ""
 Write-Host "Flushing DNS cache..." -ForegroundColor Yellow
 & ipconfig /flushdns | Out-Null
 Write-Host "  [OK] DNS cache flushed" -ForegroundColor Green
+
+# [25] Restrict PowerShell Execution Policy
+# Prevents unsigned PowerShell scripts from running automatically.
+# You can still run your own scripts by right-clicking and choosing Run.
+# NOTE: This is intentionally the LAST operation in the script to avoid
+# interfering with the execution of earlier steps in the same session.
+Set-ExecutionPolicy -ExecutionPolicy Restricted -Scope CurrentUser -Force
+Write-Host "  [OK] PowerShell execution policy set to Restricted" -ForegroundColor Green
 
 # ==============================================================================
 # DONE
