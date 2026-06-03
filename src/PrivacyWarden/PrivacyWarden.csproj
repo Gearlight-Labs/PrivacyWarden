@@ -28,4 +28,18 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Embed the hardening script directly inside the exe -->
+    <EmbeddedResource Include="..\..\scripts\Setup-PrivacyWarden-Hardening.ps1">
+      <LogicalName>PrivacyWarden.Scripts.Setup-PrivacyWarden-Hardening.ps1</LogicalName>
+    </EmbeddedResource>
+    <!-- Embed Gearlight Labs branding assets -->
+    <EmbeddedResource Include="..\..\site\assets\logo.png">
+      <LogicalName>PrivacyWarden.Assets.logo.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\site\assets\banner.png">
+      <LogicalName>PrivacyWarden.Assets.banner.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text.Json;
@@ -96,6 +97,46 @@ namespace PrivacyWarden
 
             Application.Run(new TrayApp());
         }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // ExtractAndRunHardeningScript — extracts the embedded PS1 to a temp
+        // file and launches it elevated via PowerShell.
+        // ─────────────────────────────────────────────────────────────────────
+        internal static void ExtractAndRunHardeningScript()
+        {
+            const string resourceName = "PrivacyWarden.Scripts.Setup-PrivacyWarden-Hardening.ps1";
+
+            try
+            {
+                var asm = Assembly.GetExecutingAssembly();
+                using var stream = asm.GetManifestResourceStream(resourceName)
+                    ?? throw new InvalidOperationException("Hardening script resource not found.");
+
+                // Write to a temp file so PowerShell can execute it
+                var tempPath = Path.Combine(Path.GetTempPath(), "PrivacyWarden_Hardening.ps1");
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+                    stream.CopyTo(fs);
+
+                // Launch elevated PowerShell to run the script
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{tempPath}\"",
+                    Verb = "runas",          // Request UAC elevation
+                    UseShellExecute = true,  // Required for runas
+                };
+
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Could not launch the hardening script:\n\n{ex.Message}\n\nMake sure you allow the UAC prompt.",
+                    "PrivacyWarden — Hardening",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -131,10 +172,13 @@ namespace PrivacyWarden
             var sep1 = new ToolStripSeparator();
 
             _itemMode = new ToolStripMenuItem("Mode: —") { Enabled = false };
-            _itemVpn = new ToolStripMenuItem("VPN: —") { Enabled = false };
-            _itemDns = new ToolStripMenuItem("DNS: —") { Enabled = false };
+            _itemVpn  = new ToolStripMenuItem("VPN: —")  { Enabled = false };
+            _itemDns  = new ToolStripMenuItem("DNS: —")  { Enabled = false };
 
             var sep2 = new ToolStripSeparator();
+
+            var itemHarden = new ToolStripMenuItem("Run System Hardening...");
+            itemHarden.Click += (_, _) => OnRunHardening();
 
             var itemLogs = new ToolStripMenuItem("Open Log Folder");
             itemLogs.Click += (_, _) => OpenLogFolder();
@@ -153,6 +197,7 @@ namespace PrivacyWarden
                 _itemVpn,
                 _itemDns,
                 sep2,
+                itemHarden,
                 itemLogs,
                 sep3,
                 itemExit
@@ -175,6 +220,21 @@ namespace PrivacyWarden
             RefreshStatus();
         }
 
+        private static void OnRunHardening()
+        {
+            var result = MessageBox.Show(
+                "This will apply system hardening to protect your device.\n\n" +
+                "It requires Administrator privileges and will take a few minutes.\n\n" +
+                "A UAC prompt will appear — click Yes to continue.\n\n" +
+                "Do you want to run it now?",
+                "PrivacyWarden — System Hardening",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+                Program.ExtractAndRunHardeningScript();
+        }
+
         private void RefreshStatus()
         {
             var s = ReadStatus();
@@ -186,11 +246,11 @@ namespace PrivacyWarden
         {
             string modeName = s.Mode switch
             {
-                "PRIVACY_MODE" => "● Privacy Mode",
+                "PRIVACY_MODE"   => "● Privacy Mode",
                 "STREAMING_MODE" => "● Streaming Mode",
-                "STARTING" => "● Starting...",
-                "STOPPED" => "● Service Stopped",
-                _ => "● Service Stopped"
+                "STARTING"       => "● Starting...",
+                "STOPPED"        => "● Service Stopped",
+                _                => "● Service Stopped"
             };
 
             string vpnText = s.VpnActive ? "VPN: Connected" : "VPN: Disconnected";
@@ -214,16 +274,16 @@ namespace PrivacyWarden
         private void ApplyMenuText(string modeName, string vpnText, string dnsText, string mode)
         {
             _itemMode.Text = modeName;
-            _itemVpn.Text = vpnText;
-            _itemDns.Text = dnsText;
+            _itemVpn.Text  = vpnText;
+            _itemDns.Text  = dnsText;
 
             _trayIcon.Text = mode switch
             {
-                "PRIVACY_MODE" => "PrivacyWarden — Privacy Mode",
+                "PRIVACY_MODE"   => "PrivacyWarden — Privacy Mode",
                 "STREAMING_MODE" => "PrivacyWarden — Streaming Mode",
-                "STARTING" => "PrivacyWarden — Starting...",
-                "STOPPED" => "PrivacyWarden — Service Stopped",
-                _ => "PrivacyWarden — Service Stopped"
+                "STARTING"       => "PrivacyWarden — Starting...",
+                "STOPPED"        => "PrivacyWarden — Service Stopped",
+                _                => "PrivacyWarden — Service Stopped"
             };
         }
 
@@ -231,11 +291,11 @@ namespace PrivacyWarden
         {
             string tip = s.Mode switch
             {
-                "PRIVACY_MODE" => "PrivacyWarden — Privacy Mode",
+                "PRIVACY_MODE"   => "PrivacyWarden — Privacy Mode",
                 "STREAMING_MODE" => "PrivacyWarden — Streaming Mode",
-                "STARTING" => "PrivacyWarden — Starting...",
-                "STOPPED" => "PrivacyWarden — Service Stopped",
-                _ => "PrivacyWarden — Service Stopped"
+                "STARTING"       => "PrivacyWarden — Starting...",
+                "STOPPED"        => "PrivacyWarden — Service Stopped",
+                _                => "PrivacyWarden — Service Stopped"
             };
             if (tip.Length > 63) tip = tip[..63];
             _trayIcon.Text = tip;
@@ -362,10 +422,10 @@ namespace PrivacyWarden
 
     internal class ServiceStatus
     {
-        public string Mode { get; set; } = "Unknown";
-        public bool VpnActive { get; set; } = false;
-        public bool DnsLocked { get; set; } = false;
-        public string DnsIp { get; set; } = "";
+        public string Mode      { get; set; } = "Unknown";
+        public bool   VpnActive { get; set; } = false;
+        public bool   DnsLocked { get; set; } = false;
+        public string DnsIp     { get; set; } = "";
         public string LastEvent { get; set; } = "";
         public string UpdatedAt { get; set; } = "";
     }

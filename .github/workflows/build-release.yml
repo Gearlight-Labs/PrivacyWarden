@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (e.g. 1.1.1)'
+        description: 'Version to build (e.g. 1.3.1)'
         required: true
-        default: '1.1.1'
+        default: '1.3.1'
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       # Determine version string early so every subsequent step can use it.
-      # On a tag push: strip the leading 'v' from the tag name (v1.2.0 → 1.2.0).
+      # On a tag push: strip the leading 'v' from the tag name (v1.3.1 → 1.3.1).
       # On workflow_dispatch: use the manually supplied input.
       - name: Determine version string
         id: version
@@ -41,30 +41,20 @@ jobs:
           echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
           Write-Host "Building version: $ver"
 
+      # Single project since v1.3.0 — tray is merged into PrivacyWarden.exe
       - name: Restore dependencies
-        run: |
-          dotnet restore src/PrivacyWarden/PrivacyWarden.csproj
-          dotnet restore src/PrivacyWardenTray/PrivacyWardenTray.csproj
+        run: dotnet restore src/PrivacyWarden/PrivacyWarden.csproj
 
-      # Framework-dependent builds: SelfContained=false keeps exe small (~5-8 MB).
+      # Framework-dependent single-file build: small (~5-8 MB), requires .NET 8 runtime.
       # .NET 8 ships with Windows 10/11 via Windows Update, so users already have it.
-      - name: Build PrivacyWarden service
+      - name: Build PrivacyWarden (unified service + tray)
         run: |
           dotnet publish src/PrivacyWarden/PrivacyWarden.csproj `
             -c Release `
             -r win-x64 `
             --self-contained false `
             -p:PublishSingleFile=true `
-            -o build/service
-
-      - name: Build PrivacyWardenTray
-        run: |
-          dotnet publish src/PrivacyWardenTray/PrivacyWardenTray.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained false `
-            -p:PublishSingleFile=true `
-            -o build/tray
+            -o build/release
 
       - name: Decode and import code signing certificate
         env:
@@ -75,7 +65,7 @@ jobs:
           [System.IO.File]::WriteAllBytes("$env:TEMP\codesign.pfx", $certBytes)
           Write-Host "Certificate decoded successfully"
 
-      - name: Sign executables
+      - name: Sign executable
         env:
           CODE_SIGN_PASSWORD: ${{ secrets.CODE_SIGN_PASSWORD }}
         run: |
@@ -95,32 +85,28 @@ jobs:
             /p $env:CODE_SIGN_PASSWORD `
             /fd SHA256 `
             /d "PrivacyWarden — VPN Privacy Manager" `
-            /du "https://gearlight-labs.github.io/PrivacyWarden/" `
+            /du "https://github.com/Gearlight-Labs/PrivacyWarden" `
             /t "http://timestamp.digicert.com" `
             /v `
-            "build/service/PrivacyWarden.exe" `
-            "build/tray/PrivacyWardenTray.exe"
+            "build/release/PrivacyWarden.exe"
 
       # Install NSIS via Chocolatey — avoids SourceForge SSL errors on GitHub-hosted runners.
       - name: Install NSIS
         run: |
           choco install nsis --version 3.11 -y --no-progress
-          # Chocolatey does not refresh the PATH in the current shell session.
-          # Add the NSIS bin directory explicitly so makensis is available.
           echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          Write-Host "NSIS installed. makensis should be available in next steps."
+          Write-Host "NSIS installed."
 
       - name: Copy assets for installer
         run: |
           New-Item -ItemType Directory -Force -Path PrivacyWarden_Release
-          Copy-Item "build/service/PrivacyWarden.exe"     "PrivacyWarden_Release/"
-          Copy-Item "build/tray/PrivacyWardenTray.exe"    "PrivacyWarden_Release/"
-          Copy-Item "src/PrivacyWardenTray/tray_icon.ico" "PrivacyWarden_Release/"
-          Copy-Item "docs/USER_GUIDE.md"                "PrivacyWarden_Release/"
-          Copy-Item "docs/FAQ.md"                       "PrivacyWarden_Release/"
-          Copy-Item "docs/SECURITY.md"                  "PrivacyWarden_Release/"
-          Copy-Item "LICENSE"                           "PrivacyWarden_Release/"
-          Copy-Item "CHANGELOG.md"                      "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
+          Copy-Item "build/release/PrivacyWarden.exe"          "PrivacyWarden_Release/"
+          Copy-Item "src/PrivacyWarden/tray_icon.ico"          "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
+          Copy-Item "docs/USER_GUIDE.md"                       "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
+          Copy-Item "docs/FAQ.md"                              "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
+          Copy-Item "docs/SECURITY.md"                         "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE"                                  "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
+          Copy-Item "CHANGELOG.md"                             "PrivacyWarden_Release/" -ErrorAction SilentlyContinue
           Write-Host "Release folder contents:"
           Get-ChildItem PrivacyWarden_Release
 
@@ -133,10 +119,18 @@ jobs:
       - name: Rename installer to versioned filename
         run: |
           $ver = "${{ steps.version.outputs.VERSION }}"
-          $src = "installer\PrivacyWarden-Setup-v1.1.1.exe"
+          $src = "installer\PrivacyWarden-Setup-v1.3.1.exe"
           $dst = "installer\PrivacyWarden-Setup-v${ver}.exe"
-          if ($src -ne $dst) {
-            Rename-Item -Path $src -NewName "PrivacyWarden-Setup-v${ver}.exe"
+          if (Test-Path $src) {
+            if ($src -ne $dst) {
+              Rename-Item -Path $src -NewName "PrivacyWarden-Setup-v${ver}.exe"
+            }
+          } else {
+            # NSIS names the output using PRODUCT_VERSION from the .nsi file
+            $existing = Get-ChildItem "installer\PrivacyWarden-Setup-*.exe" | Select-Object -First 1
+            if ($existing -and $existing.FullName -ne $dst) {
+              Rename-Item -Path $existing.FullName -NewName "PrivacyWarden-Setup-v${ver}.exe"
+            }
           }
           Write-Host "Installer: $dst"
 
@@ -154,7 +148,7 @@ jobs:
             /p $env:CODE_SIGN_PASSWORD `
             /fd SHA256 `
             /d "PrivacyWarden Installer" `
-            /du "https://gearlight-labs.github.io/PrivacyWarden/" `
+            /du "https://github.com/Gearlight-Labs/PrivacyWarden" `
             /t "http://timestamp.digicert.com" `
             /v `
             "installer\PrivacyWarden-Setup-v${ver}.exe"
@@ -169,8 +163,6 @@ jobs:
           $ver       = "${{ steps.version.outputs.VERSION }}"
           $installer = (Get-FileHash "installer\PrivacyWarden-Setup-v${ver}.exe" -Algorithm SHA256).Hash
           $zip       = (Get-FileHash "PrivacyWarden-v${ver}-release.zip" -Algorithm SHA256).Hash
-          # Build the file as an array of lines then join with Unix LF.
-          # Avoids PowerShell here-string leading-whitespace and CRLF issues.
           $lines = @(
             "PrivacyWarden v${ver} - SHA256 Checksums",
             "=======================================",
