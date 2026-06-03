@@ -61,10 +61,10 @@
     Author   : Aya Yoki (AyaYokiVT) -- Gearlight Labs
     Contact  : gearlightlabs@gmail.com
     GitHub   : https://github.com/Gearlight-Labs/PrivacyWarden
-    Version  : 11.0
+    Version  : 0.11.0
     Requires : Windows 10/11, PowerShell 5.1 or later, Run as Administrator
     Reboot   : Required after running for LSA Protection and ASLR to activate
-    Changes  : v11.0 -- Added Phase 6 (service hardening + debloat), Windows Defender
+    Changes  : v0.11.0 -- Added Phase 6 (service hardening + debloat), Windows Defender
                ASR rules, Controlled Folder Access, UAC hardening, dangerous file
                extension blocking, Acrobat Reader hardening, OLE/ActiveX/DDE blocking,
                telemetry scheduled task removal, OBS/streaming app telemetry disable,
@@ -80,7 +80,7 @@ param (
 
 $ErrorActionPreference = "Continue"
 $netsh = "$env:SystemRoot\System32\netsh.exe"
-$ScriptVersion = "11.0"
+$ScriptVersion = "0.11.0"
 
 # ==============================================================================
 # HELPER: PROGRESS TRACKING
