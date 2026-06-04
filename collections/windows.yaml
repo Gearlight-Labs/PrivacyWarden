@@ -1940,8 +1940,7 @@ actions:
               }
             revertCode: |
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-              $__lines = [System.IO.File]::Read
-AllLines($__hostsPath)
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
               $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Malware" }
               [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
               Write-Host "    [OK] Malware distribution blocking removed" -ForegroundColor Green
