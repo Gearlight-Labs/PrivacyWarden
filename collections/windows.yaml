@@ -1,4 +1,4 @@
-version: "3.0.0"
+version: "3.1.0"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -1761,15 +1761,20 @@ actions:
               Write-Host "    [OK] IP grabber blocking removed" -ForegroundColor Green
 
       - id: THR02
-        name: "Block KiwiFarms + associated harassment domains"
-        description: "Blocks KiwiFarms and related harassment coordination sites."
+        name: "Block KiwiFarms, stalkerware, and harassment coordination domains"
+        description: "Blocks KiwiFarms and all known mirrors/variants, plus associated stalkerware and harassment coordination platforms that target streamers and VTubers."
         recommend: standard
         docs: |
-          KiwiFarms is a known harassment coordination platform targeting streamers, VTubers,
-          and content creators [1]. Blocking these domains prevents access to harassment coordination
-          and reduces the risk of targeted attacks.
+          KiwiFarms is a known stalkerware and harassment coordination platform that has
+          targeted streamers, VTubers, and content creators with doxxing, swatting, and
+          sustained harassment campaigns [1]. The site has migrated across many TLDs and
+          operates mirror domains. This step blocks all known variants.
+
+          Also blocks lolcow.farm, lolcow.net, and other associated harassment boards
+          that coordinate similar campaigns.
 
           [1]: https://en.wikipedia.org/wiki/Kiwi_Farms "Kiwi Farms | Wikipedia"
+          [2]: https://www.cloudflare.com/press-releases/2022/cloudflare-blocks-kiwifarms/ "Cloudflare Blocks Kiwifarms"
         call:
           function: RunPowerShell
           parameters:
@@ -1777,32 +1782,112 @@ actions:
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
               $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
               $__domains = @(
-                "kiwifarms.net", "kiwifarms.is", "kiwifarms.cc", "kiwifarms.tw",
-                "kiwifarms.ru", "kiwifarms.top", "kiwifarms.st",
-                "lolcow.farm", "lolcow.net"
+                # KiwiFarms — primary and all known TLD variants/mirrors
+                "kiwifarms.net",
+                "kiwifarms.is",
+                "kiwifarms.cc",
+                "kiwifarms.tw",
+                "kiwifarms.ru",
+                "kiwifarms.top",
+                "kiwifarms.st",
+                "kiwifarms.org",
+                "kiwifarms.com",
+                "kiwifarms.io",
+                "kiwifarms.co",
+                "kiwifarms.xyz",
+                "kiwifarms.club",
+                "kiwifarms.online",
+                "kiwifarms.site",
+                "kiwifarms.info",
+                "kiwifarms.biz",
+                "kiwifarms.pro",
+                "kiwifarms.live",
+                "kiwifarms.world",
+                "kiwifarms.today",
+                "kiwifarms.space",
+                "kiwifarms.gg",
+                "kiwifarms.cx",
+                "kiwifarms.pl",
+                "kiwifarms.de",
+                "kiwifarms.ch",
+                "kiwifarms.nl",
+                "kiwifarms.fr",
+                "kiwifarms.se",
+                "kiwifarms.no",
+                "kiwifarms.fi",
+                "kiwifarms.dk",
+                "kiwifarms.at",
+                "kiwifarms.be",
+                "kiwifarms.cz",
+                "kiwifarms.sk",
+                "kiwifarms.hu",
+                "kiwifarms.ro",
+                "kiwifarms.bg",
+                "kiwifarms.hr",
+                "kiwifarms.lt",
+                "kiwifarms.lv",
+                "kiwifarms.ee",
+                "kiwifarms.si",
+                "kiwifarms.pt",
+                "kiwifarms.es",
+                "kiwifarms.it",
+                "kiwifarms.gr",
+                "kiwifarms.tr",
+                "kiwifarms.ua",
+                "kiwifarms.by",
+                "kiwifarms.kz",
+                "kiwifarms.uz",
+                "kiwifarms.ge",
+                "kiwifarms.az",
+                "kiwifarms.am",
+                "kiwifarms.md",
+                "kiwifarms.rs",
+                "kiwifarms.ba",
+                "kiwifarms.mk",
+                "kiwifarms.al",
+                "kiwifarms.me",
+                "kiwifarms.xn--p1ai",
+                # KiwiFarms onion/alternative access domains (clearnet proxies)
+                "kiwifarms.onion.pet",
+                "kiwifarms.onion.ws",
+                "kiwifarms.onion.ly",
+                # Associated lolcow/harassment boards
+                "lolcow.farm",
+                "lolcow.net",
+                "lolcow.org",
+                "lolcow.co",
+                "lolcow.club",
+                "lolcow.wiki",
+                # CWCki (harassment wiki)
+                "cwcki.com",
+                "cwcki.net",
+                # Keffals-era mirrors and related
+                "kiwifarms.fi",
+                "kiwifarms.gg"
               )
               $__added = 0
               foreach ($__domain in $__domains) {
                 if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
                   [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment")
+                  $__hostsContent += "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment"
                   $__added++
                 }
               }
-              Write-Host "    [OK] KiwiFarms/harassment blocking applied ($__added new domains)" -ForegroundColor Green
+              Write-Host "    [OK] KiwiFarms/stalkerware/harassment blocking applied ($__added new domains)" -ForegroundColor Green
             checkCode: |
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
               $__content = [System.IO.File]::ReadAllText($__hostsPath)
               if ($__content -match "kiwifarms" -or $__content -match "PrivacyWarden-Harassment") {
-                Write-Host "    [OK] KiwiFarms/harassment blocking is active" -ForegroundColor Green
+                Write-Host "    [OK] KiwiFarms/stalkerware/harassment blocking is active" -ForegroundColor Green
               } else {
-                Write-Host "    [MISSING] KiwiFarms/harassment blocking not found" -ForegroundColor Yellow
+                Write-Host "    [MISSING] KiwiFarms/stalkerware/harassment blocking not found" -ForegroundColor Yellow
               }
             revertCode: |
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
               $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
               $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Harassment" }
               [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
-              Write-Host "    [OK] KiwiFarms/harassment blocking removed" -ForegroundColor Green
+              Write-Host "    [OK] KiwiFarms/stalkerware/harassment blocking removed" -ForegroundColor Green
 
       - id: THR03
         name: "Block doxxing data broker sites"
@@ -2168,42 +2253,106 @@ actions:
 
       - id: THR11
         name: "Integrate Steven Black's hosts list"
-        description: "Downloads and integrates Steven Black's 83,599-domain hosts file for comprehensive ad/malware blocking."
+        description: "Downloads and integrates Steven Black's consolidated hosts file for ad/malware blocking. Defaults to the safe base variant (ads + malware only). More aggressive variants are available but may break legitimate sites."
         recommend: standard
         caution: |
-          This downloads a large hosts file (~2MB) from GitHub. Requires internet access.
-          May slow DNS resolution slightly on older systems. Backup is created automatically.
+          IMPORTANT: Only the base variant (ads + malware) is applied by default.
+          The fakenews, gambling, and porn variants block entire site categories and WILL
+          break legitimate websites in those categories. Do not enable those variants unless
+          you fully understand the impact. A backup of your original hosts file is created
+          automatically. Requires internet access and may slow DNS slightly on older systems.
         docs: |
-          Steven Black's consolidated hosts file aggregates multiple reputable blocklists
-          covering ads, malware, fake news, gambling, and social media [1].
+          Steven Black's consolidated hosts file aggregates multiple reputable blocklists.
+          Available variants (choose ONE — they are cumulative):
+
+          SAFE (default):
+            Base (ads + malware only) — ~83,000 domains
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+          AGGRESSIVE (may break legitimate sites — use with caution):
+            + Fakenews — adds fake news sites
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+            + Gambling — adds gambling sites (breaks ALL gambling sites incl. legal ones)
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts
+            + Porn — adds adult content (breaks ALL adult sites)
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts
+            + Fakenews + Gambling
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts
+            + Fakenews + Gambling + Porn
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts
+            + Fakenews + Porn
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-porn/hosts
+            + Gambling + Porn
+            https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-porn/hosts
+
+          Each variant also has a jsDelivr CDN mirror as fallback:
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/hosts (base)
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/gambling/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/porn/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews-gambling/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews-gambling-porn/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/fakenews-porn/hosts
+            https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/gambling-porn/hosts
 
           [1]: https://github.com/StevenBlack/hosts "StevenBlack/hosts: Consolidating and extending hosts files from several well-curated sources"
         call:
           function: RunPowerShell
           parameters:
             code: |
+              # ── Steven Black's hosts list ─────────────────────────────────────────────
+              # DEFAULT: Base variant (ads + malware only) — safe for all users.
+              # To use a different variant, comment out the $__variant line below and
+              # uncomment the one you want. WARNING: non-base variants block entire site
+              # categories and WILL break legitimate websites in those categories.
+              #
+              # Available variants:
+              #   ""                         = Base: ads + malware only (~83,000 domains) [DEFAULT - SAFE]
+              #   "fakenews"                 = + Fake news sites [AGGRESSIVE]
+              #   "gambling"                 = + Gambling sites — breaks ALL gambling sites [AGGRESSIVE]
+              #   "porn"                     = + Adult content — breaks ALL adult sites [AGGRESSIVE]
+              #   "fakenews-gambling"        = + Fake news + Gambling [AGGRESSIVE]
+              #   "fakenews-gambling-porn"   = + Fake news + Gambling + Porn [AGGRESSIVE]
+              #   "fakenews-porn"            = + Fake news + Porn [AGGRESSIVE]
+              #   "gambling-porn"            = + Gambling + Porn [AGGRESSIVE]
+              #
+              $__variant = ""  # <-- Change this to use a different variant (see above)
+              #
+              # ─────────────────────────────────────────────────────────────────────────
+
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
               $__backupPath = "$__hostsPath.privacywarden.bak"
               if (-not (Test-Path $__backupPath)) {
                 Copy-Item $__hostsPath $__backupPath -Force
                 Write-Host "    [INFO] Hosts file backed up to $__backupPath" -ForegroundColor Cyan
               }
-              $__urls = @(
-                "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
-                "https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/hosts"
-              )
+
+              # Build URLs: GitHub primary + jsDelivr CDN fallback for the selected variant
+              if ($__variant -eq "") {
+                $__ghUrl  = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+                $__cdnUrl = "https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/hosts"
+                $__label  = "Base (ads + malware)"
+              } else {
+                $__ghUrl  = "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/$__variant/hosts"
+                $__cdnUrl = "https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/alternates/$__variant/hosts"
+                $__label  = "$__variant variant"
+              }
+
+              $__urls = @($__ghUrl, $__cdnUrl)
               $__success = $false
               foreach ($__url in $__urls) {
                 for ($__i = 0; $__i -lt 3; $__i++) {
                   try {
-                    Write-Host "    Downloading Steven Black's hosts list (attempt $($__i+1)/3)..." -ForegroundColor Yellow
+                    Write-Host "    Downloading Steven Black's hosts list [$__label] (attempt $($__i+1)/3)..." -ForegroundColor Yellow
                     $__content = (Invoke-WebRequest -Uri $__url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop).Content
                     $__marker = "# PrivacyWarden-StevenBlack"
                     $__existing = [System.IO.File]::ReadAllText($__hostsPath)
                     if ($__existing -notmatch [regex]::Escape($__marker)) {
                       [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__marker`r`n$__content")
+                    } else {
+                      Write-Host "    [INFO] Steven Black's list already present — skipping duplicate append." -ForegroundColor Cyan
                     }
-                    Write-Host "    [OK] Steven Black's hosts list integrated (83,599+ domains blocked)" -ForegroundColor Green
+                    Write-Host "    [OK] Steven Black's hosts list [$__label] integrated successfully" -ForegroundColor Green
                     $__success = $true
                     break
                   } catch {
