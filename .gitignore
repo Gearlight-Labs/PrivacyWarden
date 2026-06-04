@@ -1,32 +1,19 @@
-# Build output
-src/PrivacyWarden/bin/
-src/PrivacyWarden/obj/
-src/PrivacyWardenTray/bin/
-src/PrivacyWardenTray/obj/
-*.user
-*.suo
-.vs/
-
-# Published output
-publish/
-
-# Release binaries — distributed via GitHub Releases, not committed to git
-release/*.exe
-release/*.zip
+# Build artifacts
+src/*/bin/
+src/*/obj/
+*.exe
+*.dll
+*.pdb
+*.nupkg
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs (keep structure, not content)
-*.log
-*.sealed.log
-*.hmac
+# Editor
+.vscode/
+.idea/
+*.user
 
-# .NET build artifacts
-src/*/bin/
-src/*/obj/
-*.dll
-*.pdb
-*.exe
-!installer/*.exe
+# Logs
+*.log

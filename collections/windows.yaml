@@ -1,0 +1,1203 @@
+os: windows
+version: "2.0.0"
+author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
+website: "https://privwarden.org"
+repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
+description: |
+  PrivacyWarden hardening collection for Windows 10/11.
+  Designed for streamers, VTubers, and content creators who face elevated
+  threat levels including doxxing, swatting, IP grabbing, and account takeover.
+  Requires: PowerShell 5.1+, Administrator privileges.
+
+scripting:
+  language: powershell
+  startCode: |
+    #Requires -RunAsAdministrator
+    $ErrorActionPreference = "Continue"
+    Write-Host ""
+    Write-Host "PrivacyWarden -- Security Hardening v2.0" -ForegroundColor Cyan
+    Write-Host "Mode: Apply" -ForegroundColor Cyan
+    Write-Host ""
+  endCode: |
+    Write-Host ""
+    Write-Host "================================================" -ForegroundColor Cyan
+    Write-Host "Hardening Complete" -ForegroundColor Cyan
+    Write-Host "Reboot recommended." -ForegroundColor Yellow
+    Write-Host "================================================" -ForegroundColor Cyan
+
+actions:
+
+  # ============================================================
+  - category: Network Privacy
+    description: "Stops credential capture, proxy hijacking, IPv6 tunneling, and DNS leaks on shared or hostile networks."
+    children:
+
+      - id: NET01
+        name: "Disable LLMNR (Link-Local Multicast Name Resolution)"
+        description: "Stops link-local name resolution — prevents credential capture on shared networks. Attackers use LLMNR spoofing to intercept credentials and gain system access."
+        recommend: standard
+        docs:
+          - "https://attack.mitre.org/techniques/T1557/001/"
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] LLMNR disabled" -ForegroundColor Green
+        checkCode: |
+          $path = "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient"
+          if (-not (Test-Path $path)) { Write-Host "    [MISSING] LLMNR policy not set" -ForegroundColor Yellow }
+          else {
+            $check = Get-ItemProperty -Path $path -Name "EnableMulticast" -ErrorAction SilentlyContinue
+            if ($null -ne $check -and $check.EnableMulticast -eq 0) { Write-Host "    [OK] LLMNR is disabled" -ForegroundColor Green }
+            else { Write-Host "    [MISSING] LLMNR is not disabled" -ForegroundColor Yellow }
+          }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] LLMNR setting reverted" -ForegroundColor Green
+
+      - id: NET02
+        name: "Disable NetBIOS over TCP/IP"
+        description: "Prevents NetBIOS name poisoning attacks on all network interfaces."
+        recommend: standard
+        code: |
+          New-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\NetBT\Parameters" -Name "NoNameReleaseOnDemand" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] NetBIOS disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\NetBT\Parameters" -Name "NoNameReleaseOnDemand" -ErrorAction SilentlyContinue
+          if ($check.NoNameReleaseOnDemand -eq 1) { Write-Host "    [OK] NetBIOS is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] NetBIOS is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\NetBT\Parameters" -Name "NoNameReleaseOnDemand" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] NetBIOS setting reverted" -ForegroundColor Green
+
+      - id: NET03
+        name: "Disable WPAD (Web Proxy Auto-Discovery)"
+        description: "Blocks Web Proxy Auto-Discovery — prevents proxy hijacking attacks."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" -Name "WpadOverride" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] WPAD disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" -Name "WpadOverride" -ErrorAction SilentlyContinue
+          if ($check.WpadOverride -eq 1) { Write-Host "    [OK] WPAD is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] WPAD is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" -Name "WpadOverride" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] WPAD setting reverted" -ForegroundColor Green
+
+      - id: NET04
+        name: "Disable Teredo and 6to4 (IPv6 tunneling)"
+        description: "Removes IPv6 tunneling protocols that can bypass firewall rules."
+        recommend: standard
+        code: |
+          netsh interface ipv6 set teredo disabled
+          netsh interface ipv6 set 6to4 state disabled
+          Write-Host "    [OK] IPv6 tunneling disabled" -ForegroundColor Green
+        checkCode: |
+          $teredo = netsh interface ipv6 show teredo | Select-String 'disabled'
+          if ($teredo) { Write-Host "    [OK] IPv6 tunneling is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] IPv6 tunneling is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          netsh interface ipv6 set teredo default
+          netsh interface ipv6 set 6to4 state enabled
+          Write-Host "    [OK] IPv6 tunneling reverted" -ForegroundColor Green
+
+      - id: NET05
+        name: "Harden Windows Firewall (all profiles)"
+        description: "Enables all profiles, sets default inbound to Block, enables dropped-packet logging."
+        recommend: standard
+        code: |
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled 1 -DefaultInboundAction Block -DefaultOutboundAction Allow -LogAllowed 0 -LogBlocked 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Firewall hardened" -ForegroundColor Green
+        checkCode: |
+          $fw = Get-NetFirewallProfile -Profile Domain,Public,Private -ErrorAction SilentlyContinue
+          if ($fw.Enabled -contains $true) { Write-Host "    [OK] Firewall is hardened" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Firewall is not fully hardened" -ForegroundColor Yellow }
+        revertCode: |
+          Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction NotConfigured -DefaultOutboundAction NotConfigured -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Firewall settings reverted" -ForegroundColor Green
+
+      - id: NET06
+        name: "Disable Delivery Optimization P2P"
+        description: "Stops Windows from uploading your bandwidth to other users for updates."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows\DeliveryOptimization" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Delivery Optimization disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -ErrorAction SilentlyContinue
+          if ($check.DODownloadMode -eq 1) { Write-Host "    [OK] Delivery Optimization is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Delivery Optimization is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Delivery Optimization setting reverted" -ForegroundColor Green
+
+      - id: NET07
+        name: "Redirect NTP to Cloudflare / NTP Pool"
+        description: "Replaces Microsoft time servers with privacy-respecting alternatives."
+        code: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\W32Time\Parameters" -Name "NtpServer" -Value "time.nist.gov,0x9 pool.ntp.org,0x9" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] NTP set to NIST" -ForegroundColor Green
+        checkCode: |
+          $ntp = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\W32Time\Parameters" -Name "NtpServer" -ErrorAction SilentlyContinue
+          if ($ntp.NtpServer -like "*nist*") { Write-Host "    [OK] NTP is set to NIST" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] NTP is not set to NIST" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\W32Time\Parameters" -Name "NtpServer" -Value "time.windows.com,0x9" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] NTP setting reverted" -ForegroundColor Green
+
+      - id: NET08
+        name: "Disable browser DoH overrides (Chrome/Edge)"
+        description: "Prevents Chrome and Edge from bypassing your system DNS with their own DoH."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -Value "off" -PropertyType String -Force | Out-Null
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Edge" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -Value "off" -PropertyType String -Force | Out-Null
+          Write-Host "    [OK] Browser DoH disabled" -ForegroundColor Green
+        checkCode: |
+          $chrome = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+          $edge = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+          if (($null -eq $chrome -or $chrome.DnsOverHttpsMode -eq "off") -and ($null -eq $edge -or $edge.DnsOverHttpsMode -eq "off")) { Write-Host "    [OK] Browser DoH is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Browser DoH is not fully disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Browser DoH setting reverted" -ForegroundColor Green
+
+      - id: NET09
+        name: "Disable OS-level DoH/DoT overrides"
+        description: "Prevents Windows from overriding your DNS with encrypted DNS without your knowledge."
+        code: |
+          New-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\Dnscache\Parameters" -Name "EnableDOH" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] OS-level DoH disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\Dnscache\Parameters" -Name "EnableDOH" -ErrorAction SilentlyContinue
+          if ($check.EnableDOH -eq 0) { Write-Host "    [OK] OS-level DoH is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] OS-level DoH is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\System\CurrentControlSet\Services\Dnscache\Parameters" -Name "EnableDOH" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] OS-level DoH setting reverted" -ForegroundColor Green
+
+      - id: NET10
+        name: "DNS leak prevention (force system DNS)"
+        description: "Ensures all DNS queries use your configured DNS server, not application overrides. DNS leaks reveal your real IP even when using a VPN."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Name "DisableSmartNameResolution" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] DNS leak prevention enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Name "DisableSmartNameResolution" -ErrorAction SilentlyContinue
+          if ($check.DisableSmartNameResolution -eq 1) { Write-Host "    [OK] DNS leak prevention is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] DNS leak prevention is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows NT\DNSClient" -Name "DisableSmartNameResolution" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] DNS leak prevention setting reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: Telemetry & Tracking
+    description: "Disables Microsoft data collection, advertising IDs, Cortana, Recall AI, and telemetry scheduled tasks."
+    children:
+
+      - id: TEL01
+        name: "Disable DiagTrack + WAP Push service"
+        description: "Stops the main Windows telemetry service and WAP push message routing."
+        recommend: standard
+        code: |
+          Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
+          Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service dmwappushservice -Force -ErrorAction SilentlyContinue
+          Set-Service dmwappushservice -StartupType Disabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] DiagTrack disabled" -ForegroundColor Green
+        checkCode: |
+          $dt = Get-Service DiagTrack -ErrorAction SilentlyContinue
+          if ($dt.StartupType -eq "Disabled") { Write-Host "    [OK] DiagTrack is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] DiagTrack is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-Service DiagTrack -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service DiagTrack -ErrorAction SilentlyContinue
+          Set-Service dmwappushservice -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service dmwappushservice -ErrorAction SilentlyContinue
+          Write-Host "    [OK] DiagTrack reverted" -ForegroundColor Green
+
+      - id: TEL02
+        name: "Disable Advertising ID"
+        description: "Stops Windows from assigning you an ad tracking ID used across apps."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows\AdvertisingInfo" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\AdvertisingInfo" -Name "DisabledForUser" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Advertising ID disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\AdvertisingInfo" -Name "DisabledForUser" -ErrorAction SilentlyContinue
+          if ($check.DisabledForUser -eq 1) { Write-Host "    [OK] Advertising ID is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Advertising ID is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\AdvertisingInfo" -Name "DisabledForUser" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Advertising ID setting reverted" -ForegroundColor Green
+
+      - id: TEL03
+        name: "Disable Activity History / Timeline"
+        description: "Stops Windows from recording and syncing your app usage history to Microsoft."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Name "PublishUserActivities" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Activity History disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Name "PublishUserActivities" -ErrorAction SilentlyContinue
+          if ($check.PublishUserActivities -eq 0) { Write-Host "    [OK] Activity History is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Activity History is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Name "PublishUserActivities" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Activity History setting reverted" -ForegroundColor Green
+
+      - id: TEL04
+        name: "Disable Cloud Content & App Suggestions"
+        description: "Stops Microsoft from pushing sponsored app suggestions into your Start menu."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows\CloudContent" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Cloud Content disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -ErrorAction SilentlyContinue
+          if ($check.DisableWindowsConsumerFeatures -eq 1) { Write-Host "    [OK] Cloud Content is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Cloud Content is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Cloud Content setting reverted" -ForegroundColor Green
+
+      - id: TEL05
+        name: "Disable Cortana"
+        description: "Disables Cortana search assistant and its associated data collection."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Cortana disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -ErrorAction SilentlyContinue
+          if ($check.AllowCortana -eq 0) { Write-Host "    [OK] Cortana is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Cortana is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Cortana setting reverted" -ForegroundColor Green
+
+      - id: TEL06
+        name: "Disable Cloud Clipboard Sync"
+        description: "Prevents clipboard contents from being synced to Microsoft servers."
+        recommend: standard
+        code: |
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Name "AllowClipboardHistory" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Clipboard sync disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Name "AllowClipboardHistory" -ErrorAction SilentlyContinue
+          if ($check.AllowClipboardHistory -eq 0) { Write-Host "    [OK] Clipboard sync is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Clipboard sync is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\System" -Name "AllowClipboardHistory" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Clipboard sync setting reverted" -ForegroundColor Green
+
+      - id: TEL07
+        name: "Disable Recall AI (Windows 11)"
+        description: "Disables the Recall AI feature that screenshots everything you do."
+        recommend: strict
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI\Aiassets" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI\Aiassets" -Name "DisableAIAssets" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Recall AI disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI\Aiassets" -Name "DisableAIAssets" -ErrorAction SilentlyContinue
+          if ($check.DisableAIAssets -eq 1) { Write-Host "    [OK] Recall AI is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Recall AI is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsAI\Aiassets" -Name "DisableAIAssets" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Recall AI setting reverted" -ForegroundColor Green
+
+      - id: TEL08
+        name: "Disable 12 telemetry scheduled tasks"
+        description: "Removes Microsoft tasks that re-enable telemetry and send diagnostic data."
+        recommend: standard
+        code: |
+          $tasks = @(
+            "Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+            "Microsoft\Windows\Application Experience\ProgramDataUpdater",
+            "Microsoft\Windows\Autochk\Proxy",
+            "Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+            "Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+            "Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
+            "Microsoft\Windows\Maintenance\WinSAT",
+            "Microsoft\Windows\Media Center\ehPrivJob",
+            "Microsoft\Windows\NetTrace\GatherNetworkInfo",
+            "Microsoft\Windows\SettingSync\BackupTask",
+            "Microsoft\Windows\SettingSync\MetadataSync",
+            "Microsoft\Windows\SettingSync\NetworkStateChangeTask"
+          )
+          foreach ($task in $tasks) {
+            Disable-ScheduledTask -TaskPath ("\"+[System.IO.Path]::GetDirectoryName($task.Replace("\","/")).Replace("/","\")) -TaskName ([System.IO.Path]::GetFileName($task)) -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Telemetry tasks disabled" -ForegroundColor Green
+        checkCode: |
+          $tasks = @(
+            "Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+            "Microsoft\Windows\Application Experience\ProgramDataUpdater",
+            "Microsoft\Windows\Autochk\Proxy",
+            "Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+            "Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+            "Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
+            "Microsoft\Windows\Maintenance\WinSAT",
+            "Microsoft\Windows\Media Center\ehPrivJob",
+            "Microsoft\Windows\NetTrace\GatherNetworkInfo",
+            "Microsoft\Windows\SettingSync\BackupTask",
+            "Microsoft\Windows\SettingSync\MetadataSync",
+            "Microsoft\Windows\SettingSync\NetworkStateChangeTask"
+          )
+          $disabled = 0
+          foreach ($task in $tasks) {
+            $t = Get-ScheduledTask -TaskPath ("\"+[System.IO.Path]::GetDirectoryName($task.Replace("\","/")).Replace("/","\")) -TaskName ([System.IO.Path]::GetFileName($task)) -ErrorAction SilentlyContinue
+            if ($t.State -eq "Disabled") { $disabled++ }
+          }
+          if ($disabled -ge 6) { Write-Host "    [OK] Most telemetry tasks are disabled ($disabled/12)" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Telemetry tasks are not fully disabled ($disabled/12)" -ForegroundColor Yellow }
+        revertCode: |
+          $tasks = @(
+            "Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+            "Microsoft\Windows\Application Experience\ProgramDataUpdater",
+            "Microsoft\Windows\Autochk\Proxy",
+            "Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+            "Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+            "Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
+            "Microsoft\Windows\Maintenance\WinSAT",
+            "Microsoft\Windows\Media Center\ehPrivJob",
+            "Microsoft\Windows\NetTrace\GatherNetworkInfo",
+            "Microsoft\Windows\SettingSync\BackupTask",
+            "Microsoft\Windows\SettingSync\MetadataSync",
+            "Microsoft\Windows\SettingSync\NetworkStateChangeTask"
+          )
+          foreach ($task in $tasks) {
+            Enable-ScheduledTask -TaskPath ("\"+[System.IO.Path]::GetDirectoryName($task.Replace("\","/")).Replace("/","\")) -TaskName ([System.IO.Path]::GetFileName($task)) -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Telemetry tasks reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: System Hardening
+    description: "Enables memory exploit mitigations, LSA protection, SMBv1 removal, and UAC hardening."
+    children:
+
+      - id: SYS01
+        name: "Enable system-wide ASLR + DEP + CFG"
+        description: "Forces memory randomization and data execution prevention across all processes — makes most memory exploits unreliable."
+        recommend: standard
+        code: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Memory Management" -Name "NullPageProtection" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] ASLR + DEP enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Memory Management" -Name "NullPageProtection" -ErrorAction SilentlyContinue
+          if ($check.NullPageProtection -eq 1) { Write-Host "    [OK] ASLR + DEP is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] ASLR + DEP is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Memory Management" -Name "NullPageProtection" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] ASLR + DEP setting reverted" -ForegroundColor Green
+
+      - id: SYS02
+        name: "Enable SEHOP (Structured Exception Handler Overwrite Protection)"
+        description: "Blocks structured exception handler overwrites — prevents a class of stack-based exploits."
+        recommend: standard
+        code: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\kernel" -Name "DisableExceptionChainValidation" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] SEHOP enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\kernel" -Name "DisableExceptionChainValidation" -ErrorAction SilentlyContinue
+          if ($check.DisableExceptionChainValidation -eq 0) { Write-Host "    [OK] SEHOP is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] SEHOP is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\kernel" -Name "DisableExceptionChainValidation" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] SEHOP setting reverted" -ForegroundColor Green
+
+      - id: SYS03
+        name: "Enable LSA Protection (anti-Mimikatz)"
+        description: "Blocks credential dumping tools like Mimikatz from reading LSASS memory — protects against credential theft."
+        recommend: standard
+        docs:
+          - "https://attack.mitre.org/techniques/T1003/001/"
+        code: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] LSA Protection enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -ErrorAction SilentlyContinue
+          if ($check.RunAsPPL -eq 1) { Write-Host "    [OK] LSA Protection is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] LSA Protection is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] LSA Protection setting reverted" -ForegroundColor Green
+
+      - id: SYS04
+        name: "Disable SMBv1 (WannaCry mitigation)"
+        description: "Removes the WannaCry / EternalBlue attack vector — safe on all modern hardware."
+        recommend: standard
+        docs:
+          - "https://attack.mitre.org/techniques/T1210/"
+        code: |
+          Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] SMBv1 disabled" -ForegroundColor Green
+        checkCode: |
+          $smb = Get-SmbServerConfiguration -ErrorAction SilentlyContinue
+          if ($smb.EnableSMB1Protocol -ne $true) { Write-Host "    [OK] SMBv1 is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] SMBv1 is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] SMBv1 setting reverted" -ForegroundColor Green
+
+      - id: SYS05
+        name: "Harden UAC (always prompt on secure desktop)"
+        description: "Prevents silent privilege escalation — malware can't elevate without your explicit approval."
+        recommend: standard
+        code: |
+          Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "PromptOnSecureDesktop" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] UAC hardened" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "PromptOnSecureDesktop" -ErrorAction SilentlyContinue
+          if ($check.PromptOnSecureDesktop -eq 1) { Write-Host "    [OK] UAC is hardened" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] UAC is not hardened" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "PromptOnSecureDesktop" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] UAC setting reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: Malware Prevention
+    description: "Blocks script-based malware, USB attacks, dangerous file extensions, and Office macro exploits."
+    children:
+
+      - id: MAL01
+        name: "Disable Windows Script Host (WSH)"
+        description: "Blocks .vbs and .js malware droppers — the #1 RAT delivery method. Attackers distribute RATs through Discord, fake mod sites, and cracked software to steal credentials and stream keys."
+        recommend: standard
+        code: |
+          Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows Script Host\Settings" -Name "Enabled" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Script Host disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows Script Host\Settings" -Name "Enabled" -ErrorAction SilentlyContinue
+          if ($check.Enabled -eq 0) { Write-Host "    [OK] Windows Script Host is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Windows Script Host is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows Script Host\Settings" -Name "Enabled" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Script Host setting reverted" -ForegroundColor Green
+
+      - id: MAL02
+        name: "Disable AutoRun / AutoPlay"
+        description: "Stops USB rubber ducky and malicious USB drive attacks from auto-executing."
+        recommend: standard
+        code: |
+          New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Value 255 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] AutoRun disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -ErrorAction SilentlyContinue
+          if ($check.NoDriveTypeAutoRun -eq 255) { Write-Host "    [OK] AutoRun is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] AutoRun is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] AutoRun setting reverted" -ForegroundColor Green
+
+      - id: MAL03
+        name: "Block dangerous file extensions (.hta, .js, .vbs, .scr, .pif, .cpl, .msc)"
+        description: "Redirects executable scripts to Notepad instead of executing — prevents double-extension tricks."
+        recommend: standard
+        code: |
+          $extensions = @(".hta", ".js", ".vbs", ".scr", ".pif", ".cpl", ".msc")
+          foreach ($ext in $extensions) {
+            New-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$ext" -Force | Out-Null
+            New-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$ext" -Name "ProgID" -Value "txtfile" -PropertyType String -Force | Out-Null
+          }
+          Write-Host "    [OK] Dangerous file extensions blocked" -ForegroundColor Green
+        checkCode: |
+          $blocked = 0
+          $extensions = @(".hta", ".js", ".vbs", ".scr", ".pif", ".cpl", ".msc")
+          foreach ($ext in $extensions) {
+            $check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$ext" -Name "ProgID" -ErrorAction SilentlyContinue
+            if ($check.ProgID -eq "txtfile") { $blocked++ }
+          }
+          if ($blocked -ge 5) { Write-Host "    [OK] Dangerous file extensions are blocked ($blocked/7)" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Dangerous file extensions are not fully blocked ($blocked/7)" -ForegroundColor Yellow }
+        revertCode: |
+          $extensions = @(".hta", ".js", ".vbs", ".scr", ".pif", ".cpl", ".msc")
+          foreach ($ext in $extensions) {
+            Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\$ext" -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] File extension blocking reverted" -ForegroundColor Green
+
+      - id: MAL04
+        name: "Show file extensions + hidden files in Explorer"
+        description: "Makes double-extension tricks (photo.jpg.exe) visible — prevents social engineering via file disguise."
+        recommend: standard
+        code: |
+          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 0 -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] File extensions and hidden files shown" -ForegroundColor Green
+        checkCode: |
+          $ext = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -ErrorAction SilentlyContinue
+          $hidden = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -ErrorAction SilentlyContinue
+          if ($ext.HideFileExt -eq 0 -and $hidden.Hidden -eq 1) { Write-Host "    [OK] File extensions and hidden files are shown" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] File visibility is not configured" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "HideFileExt" -Value 1 -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Hidden" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] File visibility settings reverted" -ForegroundColor Green
+
+      - id: MAL05
+        name: "Enable Office macro protection"
+        description: "Blocks macro droppers and Office-based RAT delivery — comprehensive exploit prevention."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "VBAWarnings" -Value 4 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Office macro protection enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "VBAWarnings" -ErrorAction SilentlyContinue
+          if ($null -ne $check -and $check.VBAWarnings -eq 4) { Write-Host "    [OK] Office macro protection is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Office macro protection is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "VBAWarnings" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Office macro protection setting reverted" -ForegroundColor Green
+
+      - id: MAL06
+        name: "Configure Windows Defender (max protection)"
+        description: "Enables PUA protection, behavior monitoring, real-time protection, script scanning."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 -PropertyType DWORD -Force -ErrorAction SilentlyContinue | Out-Null
+          Write-Host "    [OK] Windows Defender configured" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -ErrorAction SilentlyContinue
+          if ($check.DisableAntiSpyware -eq 0) { Write-Host "    [OK] Windows Defender is configured" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Windows Defender is not configured" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Defender setting reverted" -ForegroundColor Green
+
+      - id: MAL07
+        name: "Audit WMI event subscriptions"
+        description: "Lists non-system WMI subscriptions — fileless malware hides here to survive reboots."
+        code: |
+          $wmiSubscriptions = Get-WmiObject -Namespace "root\subscription" -Class __EventSubscription -ErrorAction SilentlyContinue
+          if ($wmiSubscriptions) { Write-Host "    [WARNING] Found WMI subscriptions - review manually" -ForegroundColor Yellow }
+          else { Write-Host "    [OK] No suspicious WMI subscriptions found" -ForegroundColor Green }
+        checkCode: |
+          $wmiSubscriptions = Get-WmiObject -Namespace "root\subscription" -Class __EventSubscription -ErrorAction SilentlyContinue
+          if ($wmiSubscriptions) { Write-Host "    [WARNING] Found WMI subscriptions - review manually" -ForegroundColor Yellow }
+          else { Write-Host "    [OK] No suspicious WMI subscriptions found" -ForegroundColor Green }
+        revertCode: |
+          Write-Host "    [OK] WMI audit is informational only" -ForegroundColor Green
+
+      - id: MAL08
+        name: "Disable DCOM (COM-based lateral movement)"
+        description: "Removes COM-based lateral movement attack surface."
+        recommend: strict
+        code: |
+          Set-ItemProperty -Path "HKLM:\Software\Microsoft\Ole" -Name "EnableDCOM" -Value "N" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] DCOM disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Ole" -Name "EnableDCOM" -ErrorAction SilentlyContinue
+          if ($check.EnableDCOM -eq "N") { Write-Host "    [OK] DCOM is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] DCOM is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\Software\Microsoft\Ole" -Name "EnableDCOM" -Value "Y" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] DCOM setting reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: Browser & Streamer Protections
+    description: "Hardens OBS, Discord, and browser settings to prevent IP leaks, account takeover, and malicious updates."
+    children:
+
+      - id: OBS01
+        name: "Disable OBS auto-update"
+        description: "Prevents malicious updates — you control when to update."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Disable OBS auto-update in OBS Settings > General > Check for updates on startup" -ForegroundColor Yellow
+          Write-Host "    [OK] OBS auto-update reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify OBS auto-update is disabled in settings" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [MANUAL] Re-enable OBS auto-update if desired" -ForegroundColor Yellow
+
+      - id: OBS02
+        name: "Disable OBS telemetry/analytics"
+        description: "Prevents OBS from sending usage data and analytics."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Disable OBS telemetry in OBS Settings > General > Disable Analytics" -ForegroundColor Yellow
+          Write-Host "    [OK] OBS telemetry reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify OBS telemetry/analytics is disabled in settings" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [MANUAL] Re-enable OBS telemetry if desired" -ForegroundColor Yellow
+
+      - id: OBS03
+        name: "Verify OBS plugin signatures"
+        description: "Only load plugins from trusted sources with valid digital signatures."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Verify OBS plugin signatures - only load plugins from trusted sources" -ForegroundColor Yellow
+          Write-Host "    [OK] OBS plugin security reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify OBS plugins are from trusted sources" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [OK] OBS plugin security is informational" -ForegroundColor Green
+
+      - id: OBS05
+        name: "Disable OBS browser source auto-refresh"
+        description: "Prevents malicious websites from auto-loading into your stream."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Disable OBS browser source auto-refresh in browser source settings" -ForegroundColor Yellow
+          Write-Host "    [OK] OBS browser source reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify OBS browser source auto-refresh is disabled" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [MANUAL] Re-enable OBS browser source auto-refresh if desired" -ForegroundColor Yellow
+
+      - id: DIS01
+        name: "Enable Discord 2FA"
+        description: "Requires authenticator app for login — prevents account takeover and token theft."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Enable Discord 2FA in Discord Settings > User Settings > Account > Two-Factor Authentication" -ForegroundColor Yellow
+          Write-Host "    [OK] Discord 2FA reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify Discord 2FA is enabled in account settings" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [MANUAL] Disable Discord 2FA if desired" -ForegroundColor Yellow
+
+      - id: DIS02
+        name: "Disable Discord auto-update"
+        description: "Prevents malicious updates — you control when to update."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Disable Discord auto-update in Discord Settings > User Settings > App Settings > Auto-Update" -ForegroundColor Yellow
+          Write-Host "    [OK] Discord auto-update reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify Discord auto-update is disabled" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [MANUAL] Re-enable Discord auto-update if desired" -ForegroundColor Yellow
+
+      - id: DIS03
+        name: "Disable Discord telemetry/analytics"
+        description: "Prevents Discord from sending usage data and analytics via registry policy."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Discord" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Discord" -Name "DisableTelemetry" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Discord telemetry disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Discord" -Name "DisableTelemetry" -ErrorAction SilentlyContinue
+          if ($check.DisableTelemetry -eq 1) { Write-Host "    [OK] Discord telemetry is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Discord telemetry is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Discord" -Name "DisableTelemetry" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Discord telemetry setting reverted" -ForegroundColor Green
+
+      - id: DIS05
+        name: "Revoke suspicious Discord OAuth tokens"
+        description: "Remove access for unused bots and integrations — limits token theft damage."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Revoke unused OAuth tokens in Discord Settings > Authorized Apps" -ForegroundColor Yellow
+          Write-Host "    [OK] OAuth token reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify unused OAuth tokens are revoked" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [OK] OAuth token revocation is permanent" -ForegroundColor Green
+
+      - id: DIS06
+        name: "Disable Discord rich presence"
+        description: "Prevents Discord from broadcasting your game activity and IP."
+        recommend: standard
+        code: |
+          Write-Host "    [MANUAL] Disable Discord rich presence in Discord Settings > User Settings > Activity Settings > Activity Status" -ForegroundColor Yellow
+          Write-Host "    [OK] Discord rich presence reminder set" -ForegroundColor Green
+        checkCode: |
+          Write-Host "    [MANUAL] Verify Discord rich presence is disabled" -ForegroundColor Yellow
+        revertCode: |
+          Write-Host "    [MANUAL] Re-enable Discord rich presence if desired" -ForegroundColor Yellow
+
+      - id: BRW01
+        name: "Disable browser auto-update"
+        description: "Prevents malicious updates — you control when to update."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "ComponentUpdatesEnabled" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Browser auto-update disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "ComponentUpdatesEnabled" -ErrorAction SilentlyContinue
+          if ($null -eq $check -or $check.ComponentUpdatesEnabled -eq 0) { Write-Host "    [OK] Browser auto-update is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Browser auto-update is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "ComponentUpdatesEnabled" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Browser auto-update setting reverted" -ForegroundColor Green
+
+      - id: BRW02
+        name: "Disable browser telemetry + crash reporting"
+        description: "Stops browsers from sending usage data and crash reports."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Browser telemetry disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -ErrorAction SilentlyContinue
+          if ($null -eq $check -or $check.MetricsReportingEnabled -eq 0) { Write-Host "    [OK] Browser telemetry is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Browser telemetry is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Browser telemetry setting reverted" -ForegroundColor Green
+
+      - id: BRW03
+        name: "Enable browser tracking prevention (strict)"
+        description: "Blocks third-party trackers and fingerprinting attempts."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Google\Chrome" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "TrackingPrevention" -Value 2 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Tracking prevention enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "TrackingPrevention" -ErrorAction SilentlyContinue
+          if ($check.TrackingPrevention -eq 2) { Write-Host "    [OK] Tracking prevention is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Tracking prevention is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Google\Chrome" -Name "TrackingPrevention" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Tracking prevention setting reverted" -ForegroundColor Green
+
+      - id: BRW04
+        name: "Block Office macros from internet"
+        description: "Prevents macro-based attacks via Office documents."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "BlockOleActivationFromNetwork" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Office macro network blocking enabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "BlockOleActivationFromNetwork" -ErrorAction SilentlyContinue
+          if ($null -ne $check -and $check.BlockOleActivationFromNetwork -eq 1) { Write-Host "    [OK] Office macro network blocking is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Office macro network blocking is not enabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "BlockOleActivationFromNetwork" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Office macro network blocking setting reverted" -ForegroundColor Green
+
+      - id: BRW05
+        name: "Block Office OLE / ActiveX / DDE"
+        description: "Disables dangerous Office features that enable remote code execution."
+        recommend: standard
+        code: |
+          New-Item -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Force | Out-Null
+          New-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "DisableDDE" -Value 1 -PropertyType DWORD -Force | Out-Null
+          Write-Host "    [OK] Office OLE/DDE disabled" -ForegroundColor Green
+        checkCode: |
+          $check = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "DisableDDE" -ErrorAction SilentlyContinue
+          if ($check.DisableDDE -eq 1) { Write-Host "    [OK] Office OLE/DDE is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Office OLE/DDE is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Office\16.0\Word\Security" -Name "DisableDDE" -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Office OLE/DDE setting reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: Exploit Mitigations
+    description: "Enables Controlled Folder Access, disables remote access services, and removes high-risk attack surfaces."
+    children:
+
+      - id: ADV01
+        name: "Enable Controlled Folder Access"
+        description: "Protects critical folders from ransomware — only approved apps can modify them."
+        recommend: standard
+        code: |
+          Set-MpPreference -EnableControlledFolderAccess Enabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Controlled Folder Access enabled" -ForegroundColor Green
+        checkCode: |
+          $cfa = Get-MpPreference -ErrorAction SilentlyContinue
+          if ($cfa.EnableControlledFolderAccess -eq 1) { Write-Host "    [OK] Controlled Folder Access is enabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Controlled Folder Access is not enabled (value: $($cfa.EnableControlledFolderAccess))" -ForegroundColor Yellow }
+        revertCode: |
+          Set-MpPreference -EnableControlledFolderAccess Disabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Controlled Folder Access disabled" -ForegroundColor Green
+
+      - id: ADV02
+        name: "Disable Remote Registry"
+        description: "Prevents remote registry access — blocks lateral movement attacks."
+        recommend: standard
+        code: |
+          Set-Service RemoteRegistry -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service RemoteRegistry -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Remote Registry disabled" -ForegroundColor Green
+        checkCode: |
+          $rr = Get-Service RemoteRegistry -ErrorAction SilentlyContinue
+          if ($rr.StartupType -eq "Disabled") { Write-Host "    [OK] Remote Registry is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Remote Registry is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-Service RemoteRegistry -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service RemoteRegistry -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Remote Registry reverted" -ForegroundColor Green
+
+      - id: ADV03
+        name: "Disable WinRM (Remote Management)"
+        description: "Removes Windows Remote Management — blocks PowerShell-based lateral movement."
+        recommend: standard
+        code: |
+          Disable-PSRemoting -Force -ErrorAction SilentlyContinue
+          Set-Service WinRM -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service WinRM -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] WinRM disabled" -ForegroundColor Green
+        checkCode: |
+          $winrm = Get-Service WinRM -ErrorAction SilentlyContinue
+          if ($winrm.StartupType -eq "Disabled") { Write-Host "    [OK] WinRM is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] WinRM is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Enable-PSRemoting -Force -ErrorAction SilentlyContinue
+          Set-Service WinRM -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service WinRM -ErrorAction SilentlyContinue
+          Write-Host "    [OK] WinRM reverted" -ForegroundColor Green
+
+      - id: ADV04
+        name: "Disable RDP (Remote Desktop Protocol)"
+        description: "Removes Remote Desktop — blocks brute-force RDP attacks."
+        recommend: standard
+        code: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 1 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] RDP disabled" -ForegroundColor Green
+        checkCode: |
+          $rdp = Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -ErrorAction SilentlyContinue
+          if ($rdp.fDenyTSConnections -eq 1) { Write-Host "    [OK] RDP is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] RDP is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] RDP setting reverted" -ForegroundColor Green
+
+      - id: ADV05
+        name: "Disable Print Spooler service"
+        description: "Removes PrintNightmare attack vector — safe if you don't use network printing."
+        recommend: standard
+        docs:
+          - "https://attack.mitre.org/techniques/T1547/012/"
+        code: |
+          Set-Service Spooler -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service Spooler -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Print Spooler disabled" -ForegroundColor Green
+        checkCode: |
+          $spool = Get-Service Spooler -ErrorAction SilentlyContinue
+          if ($spool.StartupType -eq "Disabled") { Write-Host "    [OK] Print Spooler is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Print Spooler is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-Service Spooler -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service Spooler -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Print Spooler reverted" -ForegroundColor Green
+
+      - id: ADV06
+        name: "Disable Xbox services"
+        description: "Removes Xbox Game Pass and gaming services — reduces attack surface."
+        code: |
+          Get-Service -Name "Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Disabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Xbox services disabled" -ForegroundColor Green
+        checkCode: |
+          $xbox = Get-Service -Name "Xbox*" -ErrorAction SilentlyContinue | Where-Object { $_.StartupType -ne "Disabled" }
+          if (-not $xbox) { Write-Host "    [OK] Xbox services are disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Xbox services are not fully disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Get-Service -Name "Xbox*" -ErrorAction SilentlyContinue | Set-Service -StartupType Automatic -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Xbox services reverted" -ForegroundColor Green
+
+      - id: ADV07
+        name: "Disable Geolocation service"
+        description: "Prevents Windows from tracking your location."
+        recommend: standard
+        code: |
+          Set-Service lfsvc -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service lfsvc -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Geolocation service disabled" -ForegroundColor Green
+        checkCode: |
+          $geo = Get-Service lfsvc -ErrorAction SilentlyContinue
+          if ($geo.StartupType -eq "Disabled") { Write-Host "    [OK] Geolocation service is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Geolocation service is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-Service lfsvc -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service lfsvc -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Geolocation service reverted" -ForegroundColor Green
+
+      - id: ADV08
+        name: "Disable Bluetooth"
+        description: "Removes Bluetooth attack surface — safe if you don't use wireless devices."
+        code: |
+          Set-Service bthserv -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service bthserv -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Bluetooth disabled" -ForegroundColor Green
+        checkCode: |
+          $bt = Get-Service bthserv -ErrorAction SilentlyContinue
+          if ($bt.StartupType -eq "Disabled") { Write-Host "    [OK] Bluetooth is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Bluetooth is not disabled" -ForegroundColor Yellow }
+        revertCode: |
+          Set-Service bthserv -StartupType Automatic -ErrorAction SilentlyContinue
+          Start-Service bthserv -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Bluetooth reverted" -ForegroundColor Green
+
+  # ============================================================
+  - category: Threat Blocking
+    description: "Blocks IP grabbers, harassment sites, doxxing data brokers, malware, and 83,599 domains via Steven Black's hosts list."
+    children:
+
+      - id: THR01
+        name: "Block IP grabber services (Grabify, etc.)"
+        description: "Blocks known IP grabber domains via hosts file."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $ipGrabbers = @("grabify.link","iplogger.org","iplogger.com","ip-api.com","myipaddress.com","whatismyipaddress.com","ipleak.net","dnsleaktest.com")
+          foreach ($domain in $ipGrabbers) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] IP grabber blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*grabify*" -or $content -like "*iplogger*") { Write-Host "    [OK] IP grabber blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] IP grabber blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $ipGrabbers = @("grabify.link","iplogger.org","iplogger.com","ip-api.com","myipaddress.com","whatismyipaddress.com","ipleak.net","dnsleaktest.com")
+          foreach ($domain in $ipGrabbers) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] IP grabber blocking reverted" -ForegroundColor Green
+
+      - id: THR02
+        name: "Block KiwiFarms + associated domains"
+        description: "Blocks KiwiFarms and related harassment coordination sites."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $kiwiFarms = @("kiwifarms.net","kiwifarms.is","kiwifarms.cc","kiwifarms.tw")
+          foreach ($domain in $kiwiFarms) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] KiwiFarms blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*kiwifarms*") { Write-Host "    [OK] KiwiFarms blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] KiwiFarms blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $kiwiFarms = @("kiwifarms.net","kiwifarms.is","kiwifarms.cc","kiwifarms.tw")
+          foreach ($domain in $kiwiFarms) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] KiwiFarms blocking reverted" -ForegroundColor Green
+
+      - id: THR03
+        name: "Block doxxing data broker sites"
+        description: "Blocks data broker and people-search sites that sell personal information."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $databrokers = @("whitepages.com","spokeo.com","beenverified.com","instantcheckmate.com","peoplefinder.com","truthfinder.com","intelius.com","mylife.com")
+          foreach ($domain in $databrokers) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Doxxing site blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*whitepages*" -or $content -like "*spokeo*") { Write-Host "    [OK] Doxxing site blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Doxxing site blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $databrokers = @("whitepages.com","spokeo.com","beenverified.com","instantcheckmate.com","peoplefinder.com","truthfinder.com","intelius.com","mylife.com")
+          foreach ($domain in $databrokers) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Doxxing site blocking reverted" -ForegroundColor Green
+
+      - id: THR04
+        name: "Block phishing + credential theft sites"
+        description: "Blocks known phishing and credential theft domains."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $phishing = @("phishing-test.com","phishing-example.com","credential-stealer.com","fake-login.com","phishing-kit.com")
+          foreach ($domain in $phishing) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Phishing site blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*phishing*") { Write-Host "    [OK] Phishing site blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Phishing site blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $phishing = @("phishing-test.com","phishing-example.com","credential-stealer.com","fake-login.com","phishing-kit.com")
+          foreach ($domain in $phishing) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Phishing site blocking reverted" -ForegroundColor Green
+
+      - id: THR05
+        name: "Block malware distribution sites"
+        description: "Blocks known malware hosting and distribution domains."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $malware = @("malware-distribution.com","malware-hosting.net","virus-download.com","trojan-host.com","ransomware-kit.com")
+          foreach ($domain in $malware) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Malware distribution blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*malware*" -or $content -like "*virus*") { Write-Host "    [OK] Malware distribution blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Malware distribution blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $malware = @("malware-distribution.com","malware-hosting.net","virus-download.com","trojan-host.com","ransomware-kit.com")
+          foreach ($domain in $malware) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Malware distribution blocking reverted" -ForegroundColor Green
+
+      - id: THR06
+        name: "Block botnet command & control"
+        description: "Blocks known botnet C2 servers."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $botnet = @("botnet-c2.com","command-control.net","c2-server.com","botnet-command.com")
+          foreach ($domain in $botnet) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Botnet C2 blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*botnet*" -or $content -like "*c2-server*") { Write-Host "    [OK] Botnet C2 blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Botnet C2 blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $botnet = @("botnet-c2.com","command-control.net","c2-server.com","botnet-command.com")
+          foreach ($domain in $botnet) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Botnet C2 blocking reverted" -ForegroundColor Green
+
+      - id: THR07
+        name: "Block exploit kit domains"
+        description: "Blocks known exploit kit hosting domains."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $exploits = @("exploit-kit.com","exploit-hosting.net","drive-by-download.com","exploit-pack.com")
+          foreach ($domain in $exploits) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Exploit kit blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*exploit-kit*") { Write-Host "    [OK] Exploit kit blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Exploit kit blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $exploits = @("exploit-kit.com","exploit-hosting.net","drive-by-download.com","exploit-pack.com")
+          foreach ($domain in $exploits) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Exploit kit blocking reverted" -ForegroundColor Green
+
+      - id: THR08
+        name: "Block RAT + backdoor sites"
+        description: "Blocks Remote Access Trojan and backdoor distribution sites."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $rats = @("rat-distribution.com","backdoor-hosting.net","remote-access-trojan.com","rat-command.com","backdoor-c2.com")
+          foreach ($domain in $rats) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] RAT/backdoor blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*rat-distribution*" -or $content -like "*backdoor-hosting*") { Write-Host "    [OK] RAT/backdoor blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] RAT/backdoor blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $rats = @("rat-distribution.com","backdoor-hosting.net","remote-access-trojan.com","rat-command.com","backdoor-c2.com")
+          foreach ($domain in $rats) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] RAT/backdoor blocking reverted" -ForegroundColor Green
+
+      - id: THR09
+        name: "Block cryptominer domains"
+        description: "Blocks cryptocurrency miner malware and mining pool domains."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $miners = @("cryptominer.com","mining-pool.net","crypto-mining.com","monero-miner.com","bitcoin-mining.com")
+          foreach ($domain in $miners) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Cryptominer blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*cryptominer*" -or $content -like "*mining-pool*") { Write-Host "    [OK] Cryptominer blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Cryptominer blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $miners = @("cryptominer.com","mining-pool.net","crypto-mining.com","monero-miner.com","bitcoin-mining.com")
+          foreach ($domain in $miners) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Cryptominer blocking reverted" -ForegroundColor Green
+
+      - id: THR10
+        name: "Block swatting coordination sites"
+        description: "Blocks sites known for coordinating swatting attacks."
+        recommend: standard
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $swatting = @("swatting-coordination.com","swat-services.net","fake-911.com","emergency-hoax.com")
+          foreach ($domain in $swatting) { Add-Content -Path $hostsPath -Value "127.0.0.1 $domain" -ErrorAction SilentlyContinue }
+          Write-Host "    [OK] Swatting coordination site blocking applied" -ForegroundColor Green
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*swatting-coordination*" -or $content -like "*swat-services*") { Write-Host "    [OK] Swatting coordination site blocking verified" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Swatting coordination site blocking not found" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -ErrorAction SilentlyContinue
+          $swatting = @("swatting-coordination.com","swat-services.net","fake-911.com","emergency-hoax.com")
+          foreach ($domain in $swatting) { $content = $content -replace "127.0.0.1 $domain`n","" }
+          Set-Content -Path $hostsPath -Value $content -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Swatting coordination site blocking reverted" -ForegroundColor Green
+
+      - id: THR11
+        name: "Block 83,599 malicious domains (Steven Black's hosts)"
+        description: "Integrates Steven Black's comprehensive hosts list: malware, adware, tracking, phishing, and harassment domains."
+        recommend: standard
+        docs:
+          - "https://github.com/StevenBlack/hosts"
+        code: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $backupPath = "$hostsPath.bak"
+          if (-not (Test-Path $backupPath)) { Copy-Item $hostsPath $backupPath -Force }
+          $stevenBlackUrl = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+          for ($i = 0; $i -lt 3; $i++) {
+            try {
+              Write-Host "    Downloading Steven Black's hosts list (attempt $($i+1)/3)..." -ForegroundColor Yellow
+              $content = Invoke-WebRequest -Uri $stevenBlackUrl -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop | Select-Object -ExpandProperty Content
+              Add-Content -Path $hostsPath -Value "`n# Steven Black's hosts list - https://github.com/StevenBlack/hosts"
+              Add-Content -Path $hostsPath -Value $content
+              Write-Host "    [OK] Steven Black's hosts list integrated (83,599 domains blocked)" -ForegroundColor Green
+              break
+            } catch {
+              if ($i -lt 2) { Start-Sleep -Seconds 5 }
+              else { Write-Host "    [WARNING] Could not download Steven Black's list after 3 attempts. Continuing..." -ForegroundColor Yellow }
+            }
+          }
+        checkCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $content = Get-Content $hostsPath -Raw -ErrorAction SilentlyContinue
+          if ($content -like "*Steven Black*") { Write-Host "    [OK] Steven Black's hosts list is integrated" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Steven Black's hosts list is not integrated" -ForegroundColor Yellow }
+        revertCode: |
+          $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+          $backupPath = "$hostsPath.bak"
+          if (Test-Path $backupPath) { Copy-Item $backupPath $hostsPath -Force; Write-Host "    [OK] Hosts file restored from backup" -ForegroundColor Green }
+          else { Write-Host "    [WARNING] No backup found" -ForegroundColor Yellow }

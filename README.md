@@ -1,121 +1,185 @@
 # PrivacyWarden
-**Created by Aya Yoki (AyaYokiVT) -- Gearlight Labs**
 
-Hey, I'm Aya Yoki. I built this because I got tired of choosing between privacy and streaming quality.
+> **Windows security hardening for streamers, VTubers, and content creators.**  
+> 64 hardening steps. Select what you need. Download one script. Run it.
 
-Real talk: every time I turned on a VPN, my stream would lag. So I'd toggle it on and off manually like an idiot. Then one time I went offline, forgot to turn the VPN back on, and was browsing for two hours completely exposed. That's how you get doxxed.
+[![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
+[![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
+[![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
 
-So I automated it. And I made it solid because if I'm going to use it, it needs to actually work.
-
-> **Only works with Mullvad VPN.** If you use anything else, this isn't for you.
-
----
-
-## What it does
-
-This is a Windows background service that runs 24/7 and handles your VPN automatically. You set it up once and forget it exists.
-
-**Two modes, switches automatically:**
-
-- **Privacy Mode** -- VPN on, DNS locked, DAITA and Quantum resistance enabled. This is the default whenever you're not live.
-- **Streaming Mode** -- VPN off so your latency doesn't tank, but DNS is still locked to Mullvad so your ISP can't see what you're doing.
-
-You go live -> it switches to Streaming Mode. You go offline -> it switches back to Privacy Mode. You never touch it.
+**Created by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
 ---
 
-## What you get
+## What is PrivacyWarden?
 
-As of v1.3.0, I merged everything into one single file. No more file multiplication.
+PrivacyWarden is an open-source Windows security hardening tool built for the real threat model of streamers and VTubers: **doxxing, IP grabbing, swatting, account takeover, and RAT distribution through Discord and other platforms**.
 
-| File | What it is |
-|---|---|
-| `PrivacyWarden.exe` | The unified program. It runs as the background service, and it also runs the system tray icon. One file does it all. |
-| `PrivacyWarden-Setup-v1.3.0.exe` | The installer. It sets up the service, puts the icon in your tray, and can apply security hardening if you want it. |
+Generic hardening guides aren't built for people with large public audiences, known online personas, and high-value accounts. PrivacyWarden is.
 
----
-
-## Requirements
-
-- Windows 10 or 11
-- Admin rights (needed to install a Windows service)
-- [Mullvad VPN](https://mullvad.net) installed and logged in
+**The web interface at [privwarden.org](https://privwarden.org) reads this repository's YAML collection at runtime** and generates a custom PowerShell script based on your selections. No data is collected. No account required. All script code is visible in this repo.
 
 ---
 
-## Install
-
-Grab `PrivacyWarden-Setup-v1.3.0.exe` from the [latest release](https://github.com/Gearlight-Labs/PrivacyWarden/releases/latest) and run it as Administrator.
-
-The installer handles everything -- registers the service to start on boot, adds the tray app to your startup, done. If you already have an older version installed, it will detect it, upgrade it, and keep your settings.
-
----
-
-## Tray icon
-
-After install you'll see the icon in your system tray. Right-click it:
+## How It Works
 
 ```
-PrivacyWarden
--------------------------
-* Privacy Mode
-  VPN: Connected
-  DNS: Locked -- 100.64.0.1
--------------------------
-  Open Log Folder
--------------------------
-  Exit
+collections/windows.yaml   ←  Single source of truth for all 64 hardening steps
+        ↓
+privwarden.org             ←  Fetches YAML, renders UI, generates custom script
+        ↓
+PrivacyWarden.ps1          ←  Downloaded by user, run with admin privileges
 ```
 
----
-
-## Logs
-
-Logs live in `C:\ProgramData\PrivacyWarden\Logs\` -- three files per day:
-
-- `_service.log` -- every mode switch, VPN connect/disconnect, DNS check
-- `_session.log` -- your stream sessions with timestamps
-- `_threat.log` -- anything suspicious: unknown processes, credential access attempts, weird outbound connections
-
-Plain English, readable in Notepad. Each log has a `.hmac` sidecar that cryptographically proves it hasn't been tampered with -- useful if you ever need them as evidence.
+Architecture inspired by [privacy.sexy](https://privacy.sexy). All script logic lives in the YAML collection. The website is a thin UI layer that reads from it.
 
 ---
 
-## Zero telemetry. Seriously.
+## Quick Start
 
-Nothing leaves your machine. It only talks to the Mullvad CLI that's already installed on your PC. No analytics, no crash reporting, no phoning home. The logs are yours and only yours.
+### Option 1: Web Interface (Recommended)
 
-I built this for privacy. Tracking you would defeat the entire purpose.
+1. Go to **[privwarden.org](https://privwarden.org)**
+2. Select a threat profile or individual steps
+3. Choose Apply, Audit, or Undo mode
+4. Click **Generate Script** and download
+5. Run the `.ps1` as Administrator
 
----
-
-## Controlling the service
+### Option 2: Run Directly
 
 ```powershell
-Get-Service PrivacyWarden    # check if it's running
-Stop-Service PrivacyWarden   # stop it
-Start-Service PrivacyWarden  # start it
+# Apply recommended hardening
+irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Setup-PrivacyWarden-Hardening.ps1 | iex
+
+# Audit current status (no changes)
+irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Verify-SecurityAudit.ps1 | iex
 ```
 
-Or just right-click the tray icon.
+### Option 3: Clone and Run
+
+```powershell
+git clone https://github.com/Gearlight-Labs/PrivacyWarden.git
+cd PrivacyWarden
+# Run as Administrator
+.\scripts\Setup-PrivacyWarden-Hardening.ps1
+```
 
 ---
 
-## Docs
+## 64 Hardening Steps
 
-- [User Guide](docs/USER_GUIDE.md)
-- [FAQ](docs/FAQ.md)
-- [Security design](docs/SECURITY.md)
-- [Changelog](CHANGELOG.md)
+| Phase | Steps | What It Covers |
+|---|---|---|
+| Network Privacy | NET01–NET10 | LLMNR, NetBIOS, WPAD, IPv6 tunneling, firewall, DNS leaks |
+| Telemetry & Tracking | TEL01–TEL08 | DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
+| System Hardening | SYS01–SYS05 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC |
+| Malware Prevention | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender |
+| Browser & Streamer | OBS01–OBS05, DIS01–DIS06, BRW01–BRW05 | OBS, Discord, browser hardening |
+| Exploit Mitigations | ADV01–ADV08 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
+| Threat Blocking | THR01–THR11 | IP grabbers, KiwiFarms, doxxing sites, 83,599 malicious domains |
+
+---
+
+## Execution Modes
+
+| Mode | Flag | What It Does |
+|---|---|---|
+| Apply | *(default)* | Apply hardening steps to your system |
+| Audit | `-Check` | Verify current status — no changes made |
+| Undo | `-Undo` | Revert hardening changes back to defaults |
+
+```powershell
+.\PrivacyWarden.ps1           # Apply
+.\PrivacyWarden.ps1 -Check    # Audit
+.\PrivacyWarden.ps1 -Undo     # Undo
+```
+
+---
+
+## Threat Profiles
+
+| Profile | Best For |
+|---|---|
+| Standard | All streamers — good balance of security and compatibility |
+| Streamer | Active streamers — avoids breaking streaming tools |
+| Paranoid | Maximum hardening — may break some software |
+| Minimal | Essential protections only |
+| Network & Privacy | Network-level threat focus |
+| VTuber | VTuber-specific threat model |
+
+---
+
+## YAML Collection Format
+
+All 64 steps are defined in [`collections/windows.yaml`](collections/windows.yaml). Each step has three code blocks:
+
+```yaml
+- id: NET01
+  name: "Disable LLMNR"
+  description: "Stops LLMNR broadcast queries that can be used to capture credentials on shared networks."
+  phase: network
+  recommend: standard
+  tags: [network, credential-theft]
+  code: |
+    # PowerShell to APPLY this step
+  checkCode: |
+    # PowerShell to VERIFY this step (read-only)
+  revertCode: |
+    # PowerShell to UNDO this step
+```
+
+**Want to add a step?** Edit `collections/windows.yaml` and submit a pull request. The website picks it up automatically. See [CONTRIBUTING.md](docs/CONTRIBUTING.md).
+
+---
+
+## Repository Structure
+
+```
+PrivacyWarden/
+├── collections/
+│   └── windows.yaml          ← All 64 hardening steps (single source of truth)
+├── docs/
+│   ├── USER_GUIDE.md
+│   ├── FAQ.md
+│   ├── SECURITY.md
+│   └── CONTRIBUTING.md
+├── scripts/
+│   ├── Setup-PrivacyWarden-Hardening.ps1
+│   └── Verify-SecurityAudit.ps1
+├── src/                      ← Legacy C# tray service (Mullvad VPN auto-switcher)
+├── README.md
+├── CHANGELOG.md
+└── LICENSE
+```
+
+> **Note on `src/`:** The C# tray application (Mullvad VPN auto-switcher) lives here. It is not the primary product — the YAML collection and web interface are. The tray app may be revived or replaced in a future release.
+
+---
+
+## Security & Privacy
+
+- **Zero telemetry.** No data collection. No accounts required.
+- **Fully open source.** Every line of script code is visible in `collections/windows.yaml`.
+- **Auditable.** Run `-Check` mode to see exactly what's applied without making changes.
+- **Reversible.** Run `-Undo` mode to safely revert any hardening step.
+
+For security disclosures, see [SECURITY.md](docs/SECURITY.md).
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for how to add or improve hardening steps.
 
 ---
 
 ## Questions
 
-gearlightlabs@gmail.com or open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues).
+Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or email gearlightlabs@gmail.com.
 
 ---
 
-**Version:** 1.3.0 * **Creator:** Aya Yoki (AyaYokiVT) * **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Version:** 2.0.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
 
-[License](LICENSE) -- free to use, credit required if you distribute it.
+[MIT License](LICENSE)

@@ -1,194 +1,165 @@
-# PrivacyWarden -- User Guide
+# PrivacyWarden User Guide
 
-## How It Works
+## Overview
 
-PrivacyWarden runs as a Windows background service and automatically switches your Mullvad VPN on and off depending on whether you're streaming. I built this so you can install it once and forget about it.
-
-**Privacy Mode** -- when you're not streaming, VPN is on, DNS is locked, DAITA and Quantum resistance are active. Maximum protection.
-
-**Streaming Mode** -- when OBS (or another streaming app) is detected, VPN turns off so your latency drops, but DNS stays locked so your ISP still can't see what you're doing.
-
-The switch happens automatically. You don't do anything.
+PrivacyWarden generates custom PowerShell scripts to harden your Windows system against threats common to streamers and VTubers. You select the steps you want, download one script, and run it as Administrator.
 
 ---
 
-## Installation
+## Using the Web Interface
 
-**What you need:**
-- Windows 10 or 11 (Pro or higher)
-- Admin rights
-- Mullvad VPN installed and logged in (this won't work with anything else)
+The easiest way to use PrivacyWarden is through **[privwarden.org](https://privwarden.org)**.
 
-**Steps:**
-1. Download `PrivacyWarden-Setup-v1.3.0.exe` from the releases page
-2. Run it as Administrator
-3. Follow the installer -- it sets up the service and the tray app automatically
-4. The tray icon appears in your system tray when it's done
+### Step 1: Select Your Threat Profile
 
-The service starts automatically on every boot. The tray app starts automatically when you log in.
+Choose a profile that matches your situation:
 
----
-
-## The Tray App
-
-`PrivacyWarden.exe` runs in your system tray and shows you what's happening at a glance.
-
-The icon changes color:
-- **Green** -- Privacy Mode active, VPN on
-- **Blue** -- Streaming Mode, VPN off, DNS locked
-- **Grey** -- Service stopped or unreachable
-
-Right-click the icon for options: open logs folder, start/stop the service, or exit the tray app (the service keeps running even if you close the tray).
-
----
-
-## Configuration
-
-The config file is at `C:\ProgramData\PrivacyWarden\config.json`
-
-*(ProgramData is a hidden folder -- type the path directly into the Explorer address bar or enable Hidden Items.)*
-
-**What you can change:**
-
-- **`streamingProcessNames`** -- which apps trigger Streaming Mode. Default: `["obs64", "obs32", "streamlabs obs", "xsplit"]`. Add your app's `.exe` name without the extension.
-- **`allowedDnsServers`** -- DNS servers to lock to. Default: Mullvad's ad-blocking servers (`194.242.2.4`, `194.242.2.3`).
-- **`obfuscationMode`** -- how the VPN hides its traffic. Default: `"auto"`.
-- **`enableDaita`** -- Defense against AI-guided Traffic Analysis. Default: `false`.
-- **`enableQuantumResistance`** -- post-quantum encryption. Default: `false`.
-- **`logRetentionDays`** -- how many days of logs to keep before automatic deletion. Default: `7`. Set to `0` to keep logs forever (not recommended -- logs will grow indefinitely).
-
-**False-positive bypass options** (new in patch1):
-
-- **`suppressedProcessAlerts`** -- list of process names to never alert on. Useful if you run Wireshark, Fiddler, or a proxy tool regularly and don't want repeated warnings. Example: `["wireshark", "fiddler"]`. Default: `[]` (nothing suppressed).
-- **`suppressedTempPaths`** -- list of folder path prefixes in `%TEMP%` to ignore for the executable-drop check. Example: `["C:\\Users\\Aya\\AppData\\Local\\Temp\\Steam"]`. Default: `[]`.
-- **`suppressedTempFilePatterns`** -- list of filename glob patterns (using `*` as wildcard) to ignore for the executable-drop check. Default: `["*setup*", "*install*", "*unins*", "*update*"]` -- these cover most legitimate installers out of the box. Remove entries if you want maximum sensitivity.
-
-After editing, restart the service: open `services.msc`, find PrivacyWarden, right-click -> Restart.
-
----
-
-## The Log Files
-
-Logs are in `C:\ProgramData\PrivacyWarden\Logs\`
-
-There are three files per day:
-
-| File | What's in it |
+| Profile | Description |
 |---|---|
-| `2026-05-31_service.log` | Service start/stop, VPN switches, DNS checks, startup verification |
-| `2026-05-31_session.log` | Your streaming session timeline -- when you went live, VPN status checks, when you stopped |
-| `2026-05-31_threat.log` | Threat detections -- suspicious processes, credential access, unknown outbound connections |
-| `2026-05-31.hmac` | Cryptographic integrity chain -- do not edit or delete this file |
+| **Standard** | Recommended for all streamers. Good balance of security and compatibility. |
+| **Streamer** | Optimized for active streamers. Avoids steps that could break OBS or streaming tools. |
+| **Paranoid** | Maximum hardening. May break some software — test before using on your main rig. |
+| **Minimal** | Essential protections only. Lowest impact on your system. |
+| **Network & Privacy** | Focus on network-level protections (DNS leaks, IP exposure, firewall). |
+| **VTuber** | Tuned for VTubers — covers Discord, browser, and identity exposure risks. |
 
-### What the logs look like
+### Step 2: Review Individual Steps
 
-```
-[2026-05-31 20:00:01.412][privacywarden.service][INFO] PrivacyWarden started
-[2026-05-31 20:00:01.531][privacywarden.vpn][INFO] Privacy Mode active -- VPN on, DNS locked
+After selecting a profile, you can review and toggle individual steps. Each step shows:
+- What it does
+- Why it matters for streamers
+- Whether it requires a manual action in app settings
 
-[2026-05-31 20:14:33.001][privacywarden.session][INFO] Stream session started -- OBS Studio detected
-[2026-05-31 20:14:33.044][privacywarden.vpn.check][INFO] VPN status at session start
-  VPN     : Mullvad connected
-  DNS     : Locked
-  DAITA   : on
-  Quantum : on
+### Step 3: Choose Execution Mode
 
-[2026-05-31 21:12:44.882][privacywarden.session][INFO] Stream session ended -- OBS Studio closed
-  Duration : 58m 11s
-  Started  : 20:14:33
-  Ended    : 21:12:44
-```
+| Mode | What It Does |
+|---|---|
+| **Apply Hardening** | Applies the selected steps to your system |
+| **Audit Mode** | Checks your current status without making changes |
+| **Undo Hardening** | Reverts applied steps back to Windows defaults |
 
-No JSON, no cryptographic hashes on every line. Just timestamps and plain English.
+### Step 4: Generate and Run
 
-### The threat log
+1. Click **Generate Script**
+2. Download the `.ps1` file
+3. Right-click → **Run with PowerShell** (as Administrator)
 
-If the threat monitor detects something suspicious:
-
-```
-[2026-05-31 20:14:33][privacywarden.threat.process][HIGH] New executable in temp folder
-  File    : C:\Users\...\AppData\Local\Temp\10183\RegAsm.exe
-  Hash    : d8b7c717...
-
-[2026-05-31 20:14:35][privacywarden.threat.browser][HIGH] Unknown process accessed browser credentials
-  Process : RegAsm.exe (PID 4821)
-  Target  : Chrome\User Data\Default\Login Data
-
-[2026-05-31 20:14:36][privacywarden.threat.network][CRIT] Unknown process made outbound connection
-  Process : RegAsm.exe (PID 4821)
-  Remote  : 89.105.223.80:27105
-  Note    : Process not on trusted list -- possible C2 communication
-```
-
-This is your black box. If you ever get hacked or hit by a social engineering attack, this is what you hand to law enforcement or your platform's trust & safety team. I made sure each entry is cryptographically signed so it can't be tampered with after the fact.
-
----
-
-## What the Threat Monitor Watches
-
-The threat monitor runs continuously and logs anything suspicious:
-
-- New executables appearing in temp folders
-- Unknown processes accessing your browser's saved passwords or cookies
-- Unknown processes making outbound connections to unfamiliar IPs
-- Config file changes while the service is running
-- New network adapters appearing unexpectedly
-- Packet capture tools starting (Wireshark, etc.)
-
-It only watches your own machine. It doesn't capture traffic, doesn't log what websites you visit, and doesn't record anything about other people.
-
----
-
-## Log Integrity
-
-Each log entry is part of a cryptographic HMAC chain stored in the `.hmac` sidecar file. If anyone edits a log file after the fact, the chain breaks and the service flags it on next startup.
-
-The HMAC key is a cryptographically random 32-byte key generated on first run and stored in `C:\ProgramData\PrivacyWarden\hmac_seed.bin`. It is protected by Windows DPAPI -- only SYSTEM and Administrators can decrypt it. Standard users cannot read or derive the key.
-
-To verify manually:
-```powershell
-.\Verify-SecurityAudit.ps1
-```
-
----
-
-## Checking the Service
+If you get an execution policy error:
 
 ```powershell
-Get-Service PrivacyWarden        # Is it running?
-Stop-Service PrivacyWarden       # Stop it
-Start-Service PrivacyWarden      # Start it
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\PrivacyWarden.ps1
 ```
 
-Or right-click the tray icon.
+---
+
+## Running Scripts Directly
+
+### Apply Recommended Hardening
+
+```powershell
+# Run as Administrator
+irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Setup-PrivacyWarden-Hardening.ps1 | iex
+```
+
+### Audit Current Status
+
+```powershell
+# Check what's applied without making changes
+irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Verify-SecurityAudit.ps1 | iex
+```
+
+---
+
+## Understanding the Output
+
+The script prints status for each step as it runs:
+
+```
+[NET01] Disable LLMNR
+    [OK] LLMNR is disabled
+
+[NET05] Harden Windows Firewall
+    [OK] Firewall hardening applied
+
+[DIS01] Disable Discord Tracking
+    [MANUAL] Open Discord → Settings → Privacy & Safety → disable all tracking
+
+[THR11] Block Threat Domains (Steven Black)
+    [OK] 83599 threat domains blocked in hosts file
+```
+
+**Status codes:**
+- `[OK]` — Step applied or verified successfully
+- `[MISSING]` — Step is not applied (Audit Mode only)
+- `[MANUAL]` — Requires manual action in app settings
+- `[WARN]` — Non-critical issue, step may be partially applied
+- `[ERROR]` — Step failed — check the error message
+
+---
+
+## After Running Apply Mode
+
+1. **Reboot your system** — some changes require a restart
+2. **Run Audit Mode** — verify all steps applied correctly
+3. **Test your streaming setup** — make sure OBS and Discord still work
+4. **Check for [MANUAL] steps** — complete any steps that require app settings changes
+
+---
+
+## Manual Steps
+
+Some hardening steps can't be automated because they require changes inside application settings. The script will print instructions for these. Common manual steps:
+
+**Discord:**
+- Settings → Privacy & Safety → disable all tracking and analytics
+- Settings → Advanced → disable hardware acceleration (reduces fingerprinting)
+
+**OBS:**
+- Tools → Settings → General → disable automatic update checks
+- Tools → Settings → Advanced → disable browser source hardware acceleration
+
+**Browsers:**
+- Disable WebRTC (IP leak prevention)
+- Enable DNS-over-HTTPS
+- Disable telemetry in browser settings
 
 ---
 
 ## Troubleshooting
 
-**Tray icon not showing:**
-Run `PrivacyWarden.exe` manually from `C:\Program Files\PrivacyWarden\PrivacyWarden.exe`. It should auto-start on login -- if it's not, check that it's in your startup apps.
+### Script execution is blocked
 
-**Service not starting:**
-Open `services.msc`, find PrivacyWarden, check the status. If it failed, check Windows Event Log -> Applications for the error.
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\PrivacyWarden.ps1
+```
 
-**Logs not appearing:**
-Check that `C:\ProgramData\PrivacyWarden\Logs\` exists. If it doesn't, the service may not have started yet.
+### A step broke something
 
-**LOG_INTEGRITY_FAILED in the log:**
-Normal after reinstalling or updating. Not a sign of tampering -- the HMAC seed is preserved across reinstalls but a fresh machine or cleared ProgramData will break the previous chain.
+Run Undo Mode to revert:
 
-**Windows SmartScreen warning on the installer:**
-Click "More info" then "Run anyway". This is a private indie tool without a corporate code signing certificate.
+```powershell
+.\PrivacyWarden.ps1 -Undo
+```
+
+Then open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) with the step ID and error message.
+
+### Audit Mode shows [MISSING] after Apply
+
+Some steps require a reboot before they take effect. Reboot and run Audit Mode again.
+
+### THR11 (Steven Black hosts list) failed to download
+
+This step downloads a large hosts file from GitHub. If it fails:
+- Check your internet connection
+- Try running the script again (it retries 3 times automatically)
+- The step will skip gracefully if all attempts fail
 
 ---
 
-## Uninstalling
+## Getting Help
 
-Run `Uninstall-PrivacyWarden.ps1` as Administrator, or use Settings -> Apps -> Installed apps -> PrivacyWarden -> Uninstall.
-
-Logs in `C:\ProgramData\PrivacyWarden\Logs\` are kept after uninstall. Delete them manually if you want them gone.
-
----
-
-**Contact:** gearlightlabs@gmail.com
+- [FAQ](FAQ.md)
+- [GitHub Issues](https://github.com/Gearlight-Labs/PrivacyWarden/issues)
+- Email: gearlightlabs@gmail.com
