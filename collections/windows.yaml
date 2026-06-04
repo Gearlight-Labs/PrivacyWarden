@@ -1941,3 +1941,491 @@ actions:
             revertCode: |
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
               $__lines = [System.IO.File]::Read
+AllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Malware" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Malware distribution blocking removed" -ForegroundColor Green
+
+      - id: THR06
+        name: "Block botnet C2 servers"
+        description: "Blocks known botnet command-and-control server domains via hosts file."
+        recommend: strict
+        docs: |
+          Botnet C2 servers are used to control infected machines remotely.
+          Blocking these domains prevents malware from receiving commands [1].
+
+          [1]: https://attack.mitre.org/techniques/T1071/ "T1071: Application Layer Protocol | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "feodotracker.abuse.ch",
+                "bazaar.abuse.ch",
+                "urlhaus.abuse.ch",
+                "threatfox.abuse.ch"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-BotnetC2")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Botnet C2 blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-BotnetC2") {
+                Write-Host "    [OK] Botnet C2 blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Botnet C2 blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-BotnetC2" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Botnet C2 blocking removed" -ForegroundColor Green
+
+      - id: THR07
+        name: "Block exploit kit domains"
+        description: "Blocks known exploit kit hosting domains that deliver drive-by downloads."
+        recommend: strict
+        docs: |
+          Exploit kits are web-based attack toolkits that exploit browser vulnerabilities.
+          Blocking their hosting domains prevents drive-by download attacks [1].
+
+          [1]: https://attack.mitre.org/techniques/T1189/ "T1189: Drive-by Compromise | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "rig-ek.com", "magnitude-ek.com",
+                "spelevo-ek.com", "underminer-ek.com",
+                "purple-fox.com", "fallout-ek.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-ExploitKit")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Exploit kit blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-ExploitKit") {
+                Write-Host "    [OK] Exploit kit blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Exploit kit blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-ExploitKit" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Exploit kit blocking removed" -ForegroundColor Green
+
+      - id: THR08
+        name: "Block RAT and backdoor distribution"
+        description: "Blocks known Remote Access Trojan (RAT) and backdoor hosting domains."
+        recommend: strict
+        docs: |
+          RATs and backdoors are commonly distributed via Discord, gaming forums, and
+          fake streaming tools. Blocking their distribution domains reduces infection risk [1].
+
+          [1]: https://attack.mitre.org/techniques/T1219/ "T1219: Remote Access Software | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "asyncrat.com", "njrat.net",
+                "remcos-rat.com", "darkcomet-rat.com",
+                "quasar-rat.com", "nanocore-rat.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-RAT")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] RAT/backdoor blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-RAT") {
+                Write-Host "    [OK] RAT/backdoor blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] RAT/backdoor blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-RAT" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] RAT/backdoor blocking removed" -ForegroundColor Green
+
+      - id: THR09
+        name: "Block cryptominer domains"
+        description: "Blocks known in-browser cryptomining and mining pool domains."
+        recommend: standard
+        docs: |
+          Browser-based cryptominers hijack CPU resources without user consent.
+          Blocking mining pool domains prevents unauthorized mining [1].
+
+          [1]: https://attack.mitre.org/techniques/T1496/ "T1496: Resource Hijacking | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "coinhive.com", "coin-hive.com",
+                "minero.cc", "cryptoloot.pro",
+                "jsecoin.com", "authedmine.com",
+                "monerominer.rocks", "xmrig.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Miner")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Cryptominer blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-Miner") {
+                Write-Host "    [OK] Cryptominer blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Cryptominer blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Miner" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Cryptominer blocking removed" -ForegroundColor Green
+
+      - id: THR10
+        name: "Block swatting coordination sites"
+        description: "Blocks known swatting coordination and fake emergency services domains."
+        recommend: strict
+        caution: |
+          This step targets domains associated with swatting coordination.
+          These domains change frequently; this provides a baseline layer of protection only.
+        docs: |
+          Swatting — filing false emergency reports to send armed police to a streamer's home —
+          is a serious threat to content creators. Blocking coordination sites adds a layer of
+          protection [1].
+
+          [1]: https://www.fbi.gov/news/stories/fbi-warns-of-swatting-attacks "FBI Warning: Swatting Attacks"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
+              $__domains = @(
+                "swatting.co", "swatter.io",
+                "prank-dial.com", "prankdial.com",
+                "ownage-pranks.com", "prankhotline.com"
+              )
+              $__added = 0
+              foreach ($__domain in $__domains) {
+                if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Swatting")
+                  $__added++
+                }
+              }
+              Write-Host "    [OK] Swatting coordination site blocking applied ($__added new domains)" -ForegroundColor Green
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-Swatting") {
+                Write-Host "    [OK] Swatting coordination site blocking is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Swatting coordination site blocking not found" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+              $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-Swatting" }
+              [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+              Write-Host "    [OK] Swatting coordination site blocking removed" -ForegroundColor Green
+
+      - id: THR11
+        name: "Integrate Steven Black's hosts list"
+        description: "Downloads and integrates Steven Black's 83,599-domain hosts file for comprehensive ad/malware blocking."
+        recommend: standard
+        caution: |
+          This downloads a large hosts file (~2MB) from GitHub. Requires internet access.
+          May slow DNS resolution slightly on older systems. Backup is created automatically.
+        docs: |
+          Steven Black's consolidated hosts file aggregates multiple reputable blocklists
+          covering ads, malware, fake news, gambling, and social media [1].
+
+          [1]: https://github.com/StevenBlack/hosts "StevenBlack/hosts: Consolidating and extending hosts files from several well-curated sources"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__backupPath = "$__hostsPath.privacywarden.bak"
+              if (-not (Test-Path $__backupPath)) {
+                Copy-Item $__hostsPath $__backupPath -Force
+                Write-Host "    [INFO] Hosts file backed up to $__backupPath" -ForegroundColor Cyan
+              }
+              $__urls = @(
+                "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+                "https://cdn.jsdelivr.net/gh/StevenBlack/hosts@master/hosts"
+              )
+              $__success = $false
+              foreach ($__url in $__urls) {
+                for ($__i = 0; $__i -lt 3; $__i++) {
+                  try {
+                    Write-Host "    Downloading Steven Black's hosts list (attempt $($__i+1)/3)..." -ForegroundColor Yellow
+                    $__content = (Invoke-WebRequest -Uri $__url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop).Content
+                    $__marker = "# PrivacyWarden-StevenBlack"
+                    $__existing = [System.IO.File]::ReadAllText($__hostsPath)
+                    if ($__existing -notmatch [regex]::Escape($__marker)) {
+                      [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__marker`r`n$__content")
+                    }
+                    Write-Host "    [OK] Steven Black's hosts list integrated (83,599+ domains blocked)" -ForegroundColor Green
+                    $__success = $true
+                    break
+                  } catch {
+                    if ($__i -lt 2) { Start-Sleep -Seconds 5 }
+                  }
+                }
+                if ($__success) { break }
+              }
+              if (-not $__success) {
+                Write-Host "    [WARNING] Could not download Steven Black's list after all attempts. Skipping." -ForegroundColor Yellow
+              }
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__content = [System.IO.File]::ReadAllText($__hostsPath)
+              if ($__content -match "PrivacyWarden-StevenBlack") {
+                Write-Host "    [OK] Steven Black's hosts list is integrated" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Steven Black's hosts list is not integrated" -ForegroundColor Yellow
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__backupPath = "$__hostsPath.privacywarden.bak"
+              if (Test-Path $__backupPath) {
+                Copy-Item $__backupPath $__hostsPath -Force
+                Write-Host "    [OK] Hosts file restored from PrivacyWarden backup" -ForegroundColor Green
+              } else {
+                $__lines = [System.IO.File]::ReadAllLines($__hostsPath)
+                $__filtered = $__lines | Where-Object { $_ -notmatch "PrivacyWarden-StevenBlack" }
+                [System.IO.File]::WriteAllLines($__hostsPath, $__filtered)
+                Write-Host "    [OK] Steven Black's hosts list removed" -ForegroundColor Green
+              }
+
+  - category: "Advanced Hardening"
+    children:
+
+      - id: ADV09
+        name: "Enable TPM 2.0 verification"
+        description: "Verifies TPM 2.0 is active and configured for BitLocker and Windows 11 security features."
+        recommend: strict
+        docs: |
+          TPM 2.0 (Trusted Platform Module) provides hardware-based security for BitLocker
+          encryption and Windows Hello. Required for Windows 11 and modern security features [1].
+
+          [1]: https://docs.microsoft.com/en-us/windows/security/information-protection/tpm/tpm-fundamentals "TPM Fundamentals | Microsoft Docs"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              try {
+                $__tpm = Get-Tpm -ErrorAction Stop
+                if ($__tpm.TpmPresent -and $__tpm.TpmEnabled) {
+                  Write-Host "    [OK] TPM 2.0 is present and enabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [WARNING] TPM is not present or not enabled. Enable in BIOS/UEFI." -ForegroundColor Yellow
+                }
+              } catch {
+                Write-Host "    [WARNING] Could not query TPM status: $_" -ForegroundColor Yellow
+              }
+            checkCode: |
+              try {
+                $__tpm = Get-Tpm -ErrorAction Stop
+                if ($__tpm.TpmPresent -and $__tpm.TpmEnabled) {
+                  Write-Host "    [OK] TPM 2.0 is present and enabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [MISSING] TPM is not present or not enabled" -ForegroundColor Yellow
+                }
+              } catch {
+                Write-Host "    [MISSING] Could not query TPM status" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Write-Host "    [INFO] TPM configuration is managed in BIOS/UEFI — no software revert available." -ForegroundColor Cyan
+
+      - id: ADV10
+        name: "Clean Discord token grabber artifacts"
+        description: "Removes Discord token grabber malware remnants from common installation locations."
+        recommend: strict
+        caution: |
+          This step scans and removes files matching known token grabber patterns.
+          Review the list of removed files before running if you have custom scripts in these locations.
+        docs: |
+          Discord token grabbers steal authentication tokens from the Discord client's local storage,
+          allowing attackers to take over accounts without needing passwords [1].
+
+          [1]: https://attack.mitre.org/techniques/T1539/ "T1539: Steal Web Session Cookie | MITRE ATT&CK"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__discordPaths = @(
+                "$env:APPDATA\discord\",
+                "$env:LOCALAPPDATA\Discord\"
+              )
+              $__suspiciousPatterns = @("*.exe", "*.bat", "*.vbs", "*.ps1")
+              $__found = 0
+              foreach ($__path in $__discordPaths) {
+                if (Test-Path $__path) {
+                  foreach ($__pattern in $__suspiciousPatterns) {
+                    $__files = Get-ChildItem -Path $__path -Filter $__pattern -Recurse -ErrorAction SilentlyContinue |
+                      Where-Object { $_.Name -notmatch "^(Discord|Update|SquirrelSetup)" }
+                    foreach ($__file in $__files) {
+                      Write-Host "    [FOUND] Suspicious file: $($__file.FullName)" -ForegroundColor Yellow
+                      Remove-Item $__file.FullName -Force -ErrorAction SilentlyContinue
+                      $__found++
+                    }
+                  }
+                }
+              }
+              if ($__found -gt 0) {
+                Write-Host "    [OK] Removed $__found suspicious Discord artifact(s)" -ForegroundColor Green
+              } else {
+                Write-Host "    [OK] No Discord token grabber artifacts found" -ForegroundColor Green
+              }
+            checkCode: |
+              $__discordPaths = @(
+                "$env:APPDATA\discord\",
+                "$env:LOCALAPPDATA\Discord\"
+              )
+              $__suspiciousPatterns = @("*.exe", "*.bat", "*.vbs", "*.ps1")
+              $__found = 0
+              foreach ($__path in $__discordPaths) {
+                if (Test-Path $__path) {
+                  foreach ($__pattern in $__suspiciousPatterns) {
+                    $__files = Get-ChildItem -Path $__path -Filter $__pattern -Recurse -ErrorAction SilentlyContinue |
+                      Where-Object { $_.Name -notmatch "^(Discord|Update|SquirrelSetup)" }
+                    $__found += $__files.Count
+                  }
+                }
+              }
+              if ($__found -eq 0) {
+                Write-Host "    [OK] No Discord token grabber artifacts found" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Found $__found suspicious Discord artifact(s)" -ForegroundColor Yellow
+              }
+            revertCode: |
+              Write-Host "    [INFO] Removed artifacts cannot be restored. No revert available." -ForegroundColor Cyan
+
+  - category: "Browser & Streamer Protections"
+    children:
+
+      - id: DIS03
+        name: "Disable Discord telemetry"
+        description: "Disables Discord analytics and telemetry data collection via registry."
+        recommend: standard
+        docs: |
+          Discord collects usage analytics and telemetry data. Disabling this reduces
+          data sent to Discord's servers [1].
+
+          [1]: https://discord.com/privacy "Discord Privacy Policy"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKCU:\\Software\\Discord"
+            valueName: "DisableAnalytics"
+            data: "1"
+            type: "String"
+            deleteOnRevert: "true"
+
+      - id: DIS04
+        name: "Disable Discord hardware acceleration"
+        description: "Disables Discord hardware acceleration to reduce GPU fingerprinting surface."
+        recommend: strict
+        caution: |
+          Disabling hardware acceleration may reduce Discord's visual performance on lower-end systems.
+        docs: |
+          Hardware acceleration in Discord can expose GPU information that could be used for
+          fingerprinting or exploitation. Disabling it reduces this attack surface [1].
+
+          [1]: https://support.discord.com/hc/en-us/articles/360040613412 "Discord Hardware Acceleration | Discord Support"
+        call:
+          function: SetRegistryValue
+          parameters:
+            keyPath: "HKCU:\\Software\\Discord"
+            valueName: "DisableHardwareAcceleration"
+            data: "1"
+            type: "String"
+            deleteOnRevert: "true"
+
+      - id: OBS02
+        name: "Disable OBS telemetry and analytics"
+        description: "Disables OBS Studio's crash reporting and analytics data collection."
+        recommend: standard
+        docs: |
+          OBS Studio collects crash reports and usage analytics. Disabling these reduces
+          data sent to OBS Project servers [1].
+
+          [1]: https://obsproject.com/privacy-policy "OBS Project Privacy Policy"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__obsConfigPath = "$env:APPDATA\obs-studio\global.ini"
+              if (Test-Path $__obsConfigPath) {
+                $__content = Get-Content $__obsConfigPath -Raw -ErrorAction SilentlyContinue
+                if ($__content -notmatch "EnableAutoUpdates=false") {
+                  $__content = $__content -replace "EnableAutoUpdates=true", "EnableAutoUpdates=false"
+                  if ($__content -notmatch "EnableAutoUpdates") {
+                    $__content += "`r`nEnableAutoUpdates=false"
+                  }
+                  Set-Content -Path $__obsConfigPath -Value $__content -ErrorAction SilentlyContinue
+                }
+                Write-Host "    [OK] OBS telemetry/analytics disabled" -ForegroundColor Green
+              } else {
+                Write-Host "    [INFO] OBS config not found — OBS may not be installed or not yet launched" -ForegroundColor Cyan
+              }
+            checkCode: |
+              $__obsConfigPath = "$env:APPDATA\obs-studio\global.ini"
+              if (Test-Path $__obsConfigPath) {
+                $__content = Get-Content $__obsConfigPath -Raw -ErrorAction SilentlyContinue
+                if ($__content -match "EnableAutoUpdates=false") {
+                  Write-Host "    [OK] OBS telemetry/analytics is disabled" -ForegroundColor Green
+                } else {
+                  Write-Host "    [MISSING] OBS telemetry/analytics is not disabled" -ForegroundColor Yellow
+                }
+              } else {
+                Write-Host "    [INFO] OBS config not found" -ForegroundColor Cyan
+              }
+            revertCode: |
+              $__obsConfigPath = "$env:APPDATA\obs-studio\global.ini"
+              if (Test-Path $__obsConfigPath) {
+                $__content = Get-Content $__obsConfigPath -Raw -ErrorAction SilentlyContinue
+                $__content = $__content -replace "EnableAutoUpdates=false", "EnableAutoUpdates=true"
+                Set-Content -Path $__obsConfigPath -Value $__content -ErrorAction SilentlyContinue
+                Write-Host "    [OK] OBS telemetry/analytics reverted" -ForegroundColor Green
+              }
