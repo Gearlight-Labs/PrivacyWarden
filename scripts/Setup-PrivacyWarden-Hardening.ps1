@@ -845,28 +845,395 @@ if ($Check) {
 # UNDO MODE (--undo)
 # ==============================================================================
 if ($Undo) {
-    Write-Host ""; Write-Host "PrivacyWarden v$ScriptVersion -- Undo Mode" -ForegroundColor Cyan
-    Write-Host "Reverting key hardening changes..." -ForegroundColor Yellow; Write-Host ""
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings" -Name "Enabled" -Value 1 -Type DWord -Force -EA SilentlyContinue
-    Write-Host "  [OK] WSH re-enabled" -ForegroundColor Green
-    Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -EA SilentlyContinue
-    Write-Host "  [OK] AutoRun re-enabled" -ForegroundColor Green
-    Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -EA SilentlyContinue | Out-Null
-    Write-Host "  [OK] SMBv1 re-enabled" -ForegroundColor Green
-    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force -EA SilentlyContinue
-    Write-Host "  [OK] PowerShell execution policy restored to RemoteSigned" -ForegroundColor Green
-    Set-Service "TermService" -StartupType Manual -EA SilentlyContinue
-    Write-Host "  [OK] Terminal Services restored to Manual" -ForegroundColor Green
-    Set-Service "Spooler" -StartupType Automatic -EA SilentlyContinue
-    Start-Service "Spooler" -EA SilentlyContinue
-    Write-Host "  [OK] Print Spooler re-enabled" -ForegroundColor Green
-    $up = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-    Set-ItemProperty -Path $up -Name "ConsentPromptBehaviorAdmin" -Value 5 -Type DWord -Force -EA SilentlyContinue
-    Set-ItemProperty -Path $up -Name "PromptOnSecureDesktop" -Value 1 -Type DWord -Force -EA SilentlyContinue
-    Write-Host "  [OK] UAC restored to default" -ForegroundColor Green
-    Write-Host ""; Write-Host "Undo complete. Reboot for all changes to take effect." -ForegroundColor Yellow
-    Write-Host "NOTE: Hosts file NOT restored. Use $env:windir\System32\drivers\etc\hosts.bak manually." -ForegroundColor DarkYellow
-    Write-Host ""; exit
+    Write-Host ""
+    Write-Host "PrivacyWarden v$ScriptVersion -- Undo Mode" -ForegroundColor Cyan
+    Write-Host "Reverting ALL hardening changes to Windows defaults..." -ForegroundColor Yellow
+    Write-Host "(Based on privacy.sexy revert research + Microsoft documentation)" -ForegroundColor DarkGray
+    Write-Host ""
+
+    function Undo-Step {
+        param([string]$Label, [scriptblock]$Action)
+        try {
+            & $Action
+            Write-Host "  [OK] $Label" -ForegroundColor Green
+        } catch {
+            Write-Host "  [WARN] $Label -- $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 1: NETWORK PRIVACY -- restore defaults
+    # ------------------------------------------------------------------
+    Write-Host "  [NETWORK PRIVACY]" -ForegroundColor Yellow
+
+    Undo-Step "LLMNR re-enabled (default: enabled)" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -EA SilentlyContinue
+    }
+
+    Undo-Step "NetBIOS restored to DHCP-controlled (default: 0)" {
+        $p = "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces"
+        if (Test-Path $p) {
+            Get-ChildItem -Path $p | ForEach-Object {
+                Set-ItemProperty -Path $_.PSPath -Name "NetbiosOptions" -Value 0 -Type DWord -Force -EA SilentlyContinue
+            }
+        }
+    }
+
+    Undo-Step "WPAD re-enabled (default: enabled)" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" -Name "DisableWpad" -EA SilentlyContinue
+    }
+
+    Undo-Step "Teredo and 6to4 re-enabled" {
+        & netsh interface teredo set state default | Out-Null
+        & netsh interface 6to4 set state default | Out-Null
+    }
+
+    Undo-Step "NTP restored to Microsoft time servers" {
+        & w32tm /config /syncfromflags:domhier /update 2>$null | Out-Null
+        Restart-Service -Name "w32tm" -EA SilentlyContinue
+    }
+
+    Undo-Step "Delivery Optimization P2P restored (default: LAN only)" {
+        # Default is 1 (LAN-only P2P) on Windows 10/11 Pro
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" -Name "DODownloadMode" -EA SilentlyContinue
+    }
+
+    Undo-Step "Browser DoH overrides restored (Chrome/Edge)" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome" -Name "DnsOverHttpsMode" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "DnsOverHttpsMode" -EA SilentlyContinue
+    }
+
+    Undo-Step "OS-level DoH/DoT restored to default" {
+        & netsh dns delete global doh=no 2>$null | Out-Null
+        & netsh dns delete global dot=no 2>$null | Out-Null
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 2: TELEMETRY & TRACKING -- restore defaults
+    # Note: privacy.sexy marks most of these as deleteOnRevert=true,
+    # meaning the correct Windows default is to have the key ABSENT.
+    # Removing the policy key lets Windows use its built-in default.
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "  [TELEMETRY & TRACKING]" -ForegroundColor Yellow
+
+    Undo-Step "DiagTrack (Connected User Experiences) re-enabled" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -EA SilentlyContinue
+        Set-Service "DiagTrack" -StartupType Automatic -EA SilentlyContinue
+        Start-Service "DiagTrack" -EA SilentlyContinue
+        Set-Service "dmwappushservice" -StartupType Manual -EA SilentlyContinue
+        Start-Service "dmwappushservice" -EA SilentlyContinue
+    }
+
+    Undo-Step "Advertising ID re-enabled (default: enabled)" {
+        # Default: key exists with Enabled=1
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 1 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Activity History / Timeline re-enabled" {
+        # privacy.sexy deleteOnRevert=true -- remove policy key to restore default
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableActivityFeed" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "PublishUserActivities" -EA SilentlyContinue
+    }
+
+    Undo-Step "Cloud Content / App Suggestions re-enabled" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableWindowsConsumerFeatures" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableSoftLanding" -EA SilentlyContinue
+    }
+
+    Undo-Step "Cortana re-enabled" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -EA SilentlyContinue
+    }
+
+    Undo-Step "Cloud Clipboard Sync re-enabled" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "AllowCrossDeviceClipboard" -EA SilentlyContinue
+    }
+
+    Undo-Step "Recall AI re-enabled (Windows 11)" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" -Name "DisableAIDataAnalysis" -EA SilentlyContinue
+    }
+
+    Undo-Step "12 telemetry scheduled tasks re-enabled" {
+        $tasks = @(
+            "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
+            "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
+            "\Microsoft\Windows\Application Experience\StartupAppTask",
+            "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+            "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+            "\Microsoft\Windows\Customer Experience Improvement Program\KernelCeipTask",
+            "\Microsoft\Windows\Autochk\Proxy",
+            "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
+            "\Microsoft\Windows\PI\Sqm-Tasks",
+            "\Microsoft\Windows\Windows Error Reporting\QueueReporting",
+            "\Microsoft\Windows\Feedback\Siuf\DmClient",
+            "\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload"
+        )
+        foreach ($t in $tasks) {
+            Enable-ScheduledTask -TaskPath (Split-Path $t -Parent) -TaskName (Split-Path $t -Leaf) -EA SilentlyContinue | Out-Null
+        }
+    }
+
+    Undo-Step "Windows Error Reporting re-enabled" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -EA SilentlyContinue
+        Set-Service "WerSvc" -StartupType Manual -EA SilentlyContinue
+        Start-Service "WerSvc" -EA SilentlyContinue
+    }
+
+    Undo-Step "Windows Insider Service re-enabled" {
+        Set-Service "wisvc" -StartupType Manual -EA SilentlyContinue
+        Start-Service "wisvc" -EA SilentlyContinue
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 3: ANTI-HARASSMENT / ATTACK SURFACE -- restore defaults
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "  [ATTACK SURFACE REDUCTION]" -ForegroundColor Yellow
+
+    Undo-Step "Windows Script Host (WSH) re-enabled" {
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings" -Name "Enabled" -Value 1 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "AutoRun / AutoPlay re-enabled" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -EA SilentlyContinue
+    }
+
+    Undo-Step "Dangerous file extension redirects removed" {
+        $exts = @(".hta",".js",".jse",".wsh",".wsf",".scf",".scr",".vbs",".vbe",".pif",".cpl",".msc",".msh",".msh1",".msh2",".mshxml")
+        foreach ($ext in $exts) {
+            Remove-ItemProperty -Path "HKCU:\Software\Classes\$ext" -Name "(Default)" -EA SilentlyContinue
+        }
+    }
+
+    Undo-Step "File extensions hidden / hidden files restored to Windows defaults" {
+        $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        Set-ItemProperty -Path $p -Name "HideFileExt" -Value 1 -Type DWord -Force -EA SilentlyContinue
+        Set-ItemProperty -Path $p -Name "Hidden" -Value 2 -Type DWord -Force -EA SilentlyContinue
+        Set-ItemProperty -Path $p -Name "ShowSuperHidden" -Value 0 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "SMBv1 re-enabled (NOT RECOMMENDED -- only if required for legacy devices)" {
+        Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -EA SilentlyContinue | Out-Null
+    }
+
+    Undo-Step "LSA Protection (RunAsPPL) removed (requires reboot)" {
+        # WARNING: This removes Mimikatz protection. Only undo if required by enterprise software.
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -Value 0 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Remote Registry service restored to Manual" {
+        Set-Service "RemoteRegistry" -StartupType Manual -EA SilentlyContinue
+    }
+
+    Undo-Step "WinRM (PowerShell Remoting) restored to Manual" {
+        Set-Service "WinRM" -StartupType Manual -EA SilentlyContinue
+    }
+
+    Undo-Step "Terminal Services (RDP) restored to Manual" {
+        Set-Service "TermService" -StartupType Manual -EA SilentlyContinue
+    }
+
+    Undo-Step "DCOM re-enabled" {
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Ole" -Name "EnableDCOM" -Value "Y" -Type String -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "14 Windows Defender ASR rules removed" {
+        $rules = @(
+            "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550","D4F940AB-401B-4EFC-AADC-AD5F3C50688A",
+            "3B576869-A4EC-4529-8536-B80A7769E899","75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84",
+            "D3E037E1-3EB8-44C8-A917-57927947596D","5BEB7EFE-FD9A-4556-801D-275E5FFC04CC",
+            "92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B","B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4",
+            "C1DB55AB-C21A-4637-BB3F-A12568109D35","9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2",
+            "D1E49AAC-8F56-4280-B9BA-993A6D77406C","26190899-1602-49E8-8B27-EB1D0A1CE869",
+            "7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C","E6DB77E5-3DF2-4CF1-B95A-636979351E5B"
+        )
+        foreach ($r in $rules) {
+            Remove-MpPreference -AttackSurfaceReductionRules_Ids $r -EA SilentlyContinue
+        }
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 4: BROWSER & STREAMER -- restore defaults
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "  [BROWSER & STREAMER]" -ForegroundColor Yellow
+
+    Undo-Step "Firefox group policy hardening removed" {
+        Remove-Item -Path "HKLM:\SOFTWARE\Policies\Mozilla\Firefox" -Recurse -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Brave group policy hardening removed" {
+        Remove-Item -Path "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave" -Recurse -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Chrome group policy hardening removed" {
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome" -Name "MetricsReportingEnabled" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome" -Name "SafeBrowsingExtendedReportingEnabled" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome" -Name "SpellCheckServiceEnabled" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome" -Name "PasswordManagerEnabled" -EA SilentlyContinue
+    }
+
+    Undo-Step "Office macro hardening removed (all versions)" {
+        foreach ($ver in @("16.0","15.0","14.0")) {
+            foreach ($app in @("Word","Excel","PowerPoint","Outlook")) {
+                $p = "HKCU:\Software\Policies\Microsoft\Office\$ver\$app\Security"
+                Remove-ItemProperty -Path $p -Name "VBAWarnings" -EA SilentlyContinue
+                Remove-ItemProperty -Path $p -Name "BlockContentExecutionFromInternet" -EA SilentlyContinue
+                Remove-ItemProperty -Path $p -Name "PackagerPrompt" -EA SilentlyContinue
+                Remove-ItemProperty -Path $p -Name "DisableAllActiveX" -EA SilentlyContinue
+            }
+            foreach ($app in @("Word","Excel")) {
+                $p = "HKCU:\Software\Microsoft\Office\$ver\$app\Options"
+                Remove-ItemProperty -Path $p -Name "DontUpdateLinks" -EA SilentlyContinue
+            }
+        }
+    }
+
+    Undo-Step "Acrobat Reader JavaScript re-enabled" {
+        foreach ($ver in @("DC","2020","2017","2015","11.0","10.0")) {
+            Set-ItemProperty -Path "HKCU:\Software\Adobe\Acrobat Reader\$ver\JSPrefs" -Name "bJavaScriptEnabled" -Value 1 -Type DWord -Force -EA SilentlyContinue
+            Set-ItemProperty -Path "HKCU:\Software\Adobe\Acrobat Reader\$ver\TrustManager" -Name "bEnhancedSecurityInBrowser" -Value 0 -Type DWord -Force -EA SilentlyContinue
+            Set-ItemProperty -Path "HKCU:\Software\Adobe\Acrobat Reader\$ver\TrustManager" -Name "bEnhancedSecurityStandalone" -Value 0 -Type DWord -Force -EA SilentlyContinue
+        }
+    }
+
+    Undo-Step "OBS / Streamlabs auto-updates re-enabled" {
+        foreach ($app in @("OBS Studio","Streamlabs OBS")) {
+            Remove-ItemProperty -Path "HKCU:\Software\$app" -Name "EnableAutoUpdates" -EA SilentlyContinue
+        }
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 5: EXPLOIT MITIGATIONS -- restore defaults
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "  [EXPLOIT MITIGATIONS]" -ForegroundColor Yellow
+
+    Undo-Step "System-wide ASLR/DEP/CFG mitigations removed" {
+        try {
+            Set-ProcessMitigation -System -Disable ForceRelocateImages,BottomUp,HighEntropy -EA SilentlyContinue
+            Set-ProcessMitigation -System -Disable DEP -EA SilentlyContinue
+            Set-ProcessMitigation -System -Disable CFG -EA SilentlyContinue
+        } catch {}
+    }
+
+    Undo-Step "SEHOP restored to default (disabled)" {
+        # Windows default: DisableExceptionChainValidation = 1 (SEHOP off by default on client)
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" -Name "DisableExceptionChainValidation" -Value 1 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Controlled Folder Access disabled" {
+        Set-MpPreference -EnableControlledFolderAccess Disabled -EA SilentlyContinue
+    }
+
+    Undo-Step "Windows Defender preferences restored to defaults" {
+        Set-MpPreference -PUAProtection Disabled -EA SilentlyContinue
+        Set-MpPreference -MAPSReporting Disabled -EA SilentlyContinue
+        Set-MpPreference -SubmitSamplesConsent NeverSend -EA SilentlyContinue
+    }
+
+    Undo-Step "Windows Firewall default inbound action restored to Allow" {
+        Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction Allow -EA SilentlyContinue
+        Set-NetFirewallProfile -Profile Public -LogBlocked False -EA SilentlyContinue
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 6: SERVICE HARDENING -- restore defaults
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "  [SERVICE HARDENING]" -ForegroundColor Yellow
+
+    Undo-Step "UAC restored to Windows default (prompt for non-Windows binaries only)" {
+        $up = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+        Set-ItemProperty -Path $up -Name "ConsentPromptBehaviorAdmin" -Value 5 -Type DWord -Force -EA SilentlyContinue
+        Set-ItemProperty -Path $up -Name "PromptOnSecureDesktop" -Value 1 -Type DWord -Force -EA SilentlyContinue
+        Set-ItemProperty -Path $up -Name "EnableLUA" -Value 1 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Print Spooler re-enabled" {
+        Set-Service "Spooler" -StartupType Automatic -EA SilentlyContinue
+        Start-Service "Spooler" -EA SilentlyContinue
+    }
+
+    Undo-Step "Xbox services restored to Manual" {
+        foreach ($s in @("XblAuthManager","XblGameSave","XboxGipSvc","XboxNetApiSvc")) {
+            Set-Service $s -StartupType Manual -EA SilentlyContinue
+        }
+    }
+
+    Undo-Step "Geolocation service re-enabled (default: Manual)" {
+        Set-Service "lfsvc" -StartupType Manual -EA SilentlyContinue
+        # Restore registry status to 1 (default per privacy.sexy dataOnRevert)
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" -Name "Status" -Value 1 -Type DWord -Force -EA SilentlyContinue
+    }
+
+    Undo-Step "Internet Connection Sharing restored to Manual" {
+        Set-Service "SharedAccess" -StartupType Manual -EA SilentlyContinue
+    }
+
+    Undo-Step "Phone / Mobile Hotspot services restored to Manual" {
+        foreach ($s in @("PhoneSvc","icssvc")) {
+            Set-Service $s -StartupType Manual -EA SilentlyContinue
+        }
+    }
+
+    Undo-Step "Retail Demo / Maps / WMP services restored to Manual" {
+        foreach ($s in @("RetailDemo","MapsBroker","WMPNetworkSvc")) {
+            Set-Service $s -StartupType Manual -EA SilentlyContinue
+        }
+    }
+
+    Undo-Step "Bluetooth service restored to Manual" {
+        Set-Service "bthserv" -StartupType Manual -EA SilentlyContinue
+    }
+
+    Undo-Step "PowerShell execution policy restored to RemoteSigned" {
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force -EA SilentlyContinue
+    }
+
+    # ------------------------------------------------------------------
+    # PHASE 7: THREAT DOMAIN BLOCKING -- restore hosts file
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "  [THREAT DOMAIN BLOCKING]" -ForegroundColor Yellow
+
+    Undo-Step "Hosts file threat block list removed" {
+        $HostsPath = "$env:windir\System32\drivers\etc\hosts"
+        $BakPath   = "$HostsPath.bak"
+        if (Test-Path $BakPath) {
+            Copy-Item -Path $BakPath -Destination $HostsPath -Force
+            & ipconfig /flushdns | Out-Null
+            Write-Host "    Restored from hosts.bak and flushed DNS" -ForegroundColor DarkGray
+        } else {
+            # No backup -- strip PrivacyWarden lines manually
+            $lines = Get-Content -Path $HostsPath -EA SilentlyContinue
+            if ($lines) {
+                $clean = $lines | Where-Object {
+                    $_ -notmatch "^0\.0\.0\.0\s+" -and $_ -notmatch "^#\s*PrivacyWarden"
+                }
+                Set-Content -Path $HostsPath -Value $clean -Force
+                & ipconfig /flushdns | Out-Null
+                Write-Host "    No backup found -- stripped PrivacyWarden entries manually" -ForegroundColor DarkYellow
+            }
+        }
+    }
+
+    # ------------------------------------------------------------------
+    # SUMMARY
+    # ------------------------------------------------------------------
+    Write-Host ""
+    Write-Host "=================================================" -ForegroundColor Cyan
+    Write-Host "Undo complete." -ForegroundColor Green
+    Write-Host "=================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "IMPORTANT: Reboot your PC for all changes to take full effect." -ForegroundColor Yellow
+    Write-Host "           LSA Protection, ASLR, SEHOP, and ASR rules require a reboot." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "SECURITY NOTE: Some reverted settings (LSA RunAsPPL, ASR rules, SMBv1)" -ForegroundColor DarkYellow
+    Write-Host "               reduce your system security. Re-apply PrivacyWarden" -ForegroundColor DarkYellow
+    Write-Host "               when the compatibility issue is resolved." -ForegroundColor DarkYellow
+    Write-Host ""
+    exit
 }
 
 # ==============================================================================
