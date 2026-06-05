@@ -19,7 +19,7 @@
 
 .PARAMETER Profile
     Apply a preset profile without the interactive menu.
-    Values: Recommended | Streamer | Paranoid | Minimal | Network | Telemetry
+    Values: Recommended | Streamer | Paranoid | Minimal | Network | VTuber
 
 .PARAMETER Steps
     Comma-separated list of step IDs to run non-interactively.
@@ -41,7 +41,7 @@ param (
     [switch]$Check,
     [switch]$Undo,
     [switch]$All,
-    [ValidateSet("Recommended","Streamer","Paranoid","Minimal","Network","Telemetry")]
+    [ValidateSet("Recommended","Streamer","Paranoid","Minimal","Network","VTuber")]
     [string]$Profile,
     [string[]]$Steps
 )
@@ -115,9 +115,9 @@ Register-Step -Id "NET03" -Phase "Network Privacy" -Name "Disable WPAD" `
     -Desc "Blocks Web Proxy Auto-Discovery -- prevents proxy hijacking attacks" `
     -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Network","Minimal") `
     -Action {
-        $p = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp"
+        $p = "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Wpad"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
-        Set-ItemProperty -Path $p -Name "DisableWpad" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $p -Name "WpadOverride" -Value 1 -Type DWord -Force
     }
 
 Register-Step -Id "NET04" -Phase "Network Privacy" -Name "Disable Teredo and 6to4" `
@@ -170,9 +170,9 @@ Register-Step -Id "NET08" -Phase "Network Privacy" -Name "Disable OS-level DoH/D
 # ==============================================================================
 Register-Step -Id "TEL01" -Phase "Telemetry & Tracking" -Name "Disable DiagTrack + WAP Push service" `
     -Desc "Stops the main Windows telemetry service and WAP push message routing" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry","Minimal") `
+-Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber","Minimal") `
     -Action {
-        $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
+        $p = "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
         Set-ItemProperty -Path $p -Name "AllowTelemetry" -Value 0 -Type DWord -Force
         Stop-Service "DiagTrack" -ErrorAction SilentlyContinue
@@ -183,16 +183,16 @@ Register-Step -Id "TEL01" -Phase "Telemetry & Tracking" -Name "Disable DiagTrack
 
 Register-Step -Id "TEL02" -Phase "Telemetry & Tracking" -Name "Disable Advertising ID" `
     -Desc "Stops Windows from assigning you an ad tracking ID used across apps" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry","Minimal") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber","Minimal") `
     -Action {
-        $p = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
+        $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
-        Set-ItemProperty -Path $p -Name "Enabled" -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path $p -Name "DisabledForUser" -Value 1 -Type DWord -Force
     }
 
 Register-Step -Id "TEL03" -Phase "Telemetry & Tracking" -Name "Disable Activity History / Timeline" `
     -Desc "Stops Windows from recording and syncing your app usage history to Microsoft" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber") `
     -Action {
         $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
@@ -202,7 +202,7 @@ Register-Step -Id "TEL03" -Phase "Telemetry & Tracking" -Name "Disable Activity 
 
 Register-Step -Id "TEL04" -Phase "Telemetry & Tracking" -Name "Disable Cloud Content & App Suggestions" `
     -Desc "Stops Microsoft from pushing sponsored app suggestions into your Start menu" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry","Minimal") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber","Minimal") `
     -Action {
         $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
@@ -212,7 +212,7 @@ Register-Step -Id "TEL04" -Phase "Telemetry & Tracking" -Name "Disable Cloud Con
 
 Register-Step -Id "TEL05" -Phase "Telemetry & Tracking" -Name "Disable Cortana" `
     -Desc "Disables Cortana search assistant and its associated data collection" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry","Minimal") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber","Minimal") `
     -Action {
         $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
@@ -221,7 +221,7 @@ Register-Step -Id "TEL05" -Phase "Telemetry & Tracking" -Name "Disable Cortana" 
 
 Register-Step -Id "TEL06" -Phase "Telemetry & Tracking" -Name "Disable Cloud Clipboard Sync" `
     -Desc "Prevents clipboard contents from being synced to Microsoft servers" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber") `
     -Action {
         $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
@@ -230,7 +230,7 @@ Register-Step -Id "TEL06" -Phase "Telemetry & Tracking" -Name "Disable Cloud Cli
 
 Register-Step -Id "TEL07" -Phase "Telemetry & Tracking" -Name "Disable Recall AI (Windows 11)" `
     -Desc "Disables the Recall AI feature that screenshots everything you do" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry","Minimal") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber","Minimal") `
     -Action {
         $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
@@ -239,7 +239,7 @@ Register-Step -Id "TEL07" -Phase "Telemetry & Tracking" -Name "Disable Recall AI
 
 Register-Step -Id "TEL08" -Phase "Telemetry & Tracking" -Name "Disable 12 telemetry scheduled tasks" `
     -Desc "Removes Microsoft tasks that re-enable telemetry and send diagnostic data" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber") `
     -Action {
         $tasks = @(
             "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser",
@@ -262,7 +262,7 @@ Register-Step -Id "TEL08" -Phase "Telemetry & Tracking" -Name "Disable 12 teleme
 
 Register-Step -Id "TEL09" -Phase "Telemetry & Tracking" -Name "Disable Windows Error Reporting" `
     -Desc "Stops crash data (which may include memory contents) from being sent to Microsoft" `
-    -Risk "LOW" -Profiles @("Paranoid","Telemetry") `
+    -Risk "LOW" -Profiles @("Paranoid","VTuber") `
     -Action {
         $p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting"
         if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
@@ -273,7 +273,7 @@ Register-Step -Id "TEL09" -Phase "Telemetry & Tracking" -Name "Disable Windows E
 
 Register-Step -Id "TEL10" -Phase "Telemetry & Tracking" -Name "Disable Windows Insider Service" `
     -Desc "Removes the Windows Insider telemetry and preview build service" `
-    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Telemetry") `
+    -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","VTuber") `
     -Action {
         Stop-Service "wisvc" -ErrorAction SilentlyContinue
         Set-Service "wisvc" -StartupType Disabled -ErrorAction SilentlyContinue
@@ -762,7 +762,7 @@ $ProfileDefinitions = @{
     "Paranoid"    = "Everything. Maximum hardening. Some MEDIUM risk steps included."
     "Minimal"     = "Only the most impactful steps with zero risk of breakage."
     "Network"     = "Network privacy steps only."
-    "Telemetry"   = "Telemetry and tracking steps only."
+    "VTuber"    = "Telemetry, tracking, and VTuber-specific privacy steps."
 }
 
 # ==============================================================================
@@ -793,11 +793,11 @@ if ($Check) {
     }
     Write-Host "-- NETWORK --" -ForegroundColor Yellow
     Test-Setting "LLMNR disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" "EnableMulticast" -EA SilentlyContinue) -eq 0)
-    Test-Setting "WPAD disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" "DisableWpad" -EA SilentlyContinue) -eq 1)
+    Test-Setting "WPAD disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" "WpadOverride" -EA SilentlyContinue) -eq 1)
     Test-Setting "Delivery Optimization P2P disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" "DODownloadMode" -EA SilentlyContinue) -eq 0)
     Write-Host ""; Write-Host "-- TELEMETRY --" -ForegroundColor Yellow
     Test-Setting "Telemetry disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" -EA SilentlyContinue) -eq 0)
-    Test-Setting "Advertising ID disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" "Enabled" -EA SilentlyContinue) -eq 0)
+    Test-Setting "Advertising ID disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" "DisabledForUser" -EA SilentlyContinue) -eq 1)
     Test-Setting "Recall AI disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" "DisableAIDataAnalysis" -EA SilentlyContinue) -eq 1)
     Test-Setting "Cortana disabled" ((Get-ItemPropertyValue "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" -EA SilentlyContinue) -eq 0)
     Write-Host ""; Write-Host "-- ATTACK SURFACE --" -ForegroundColor Yellow
@@ -880,7 +880,7 @@ if ($Undo) {
     }
 
     Undo-Step "WPAD re-enabled (default: enabled)" {
-        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\WinHttp" -Name "DisableWpad" -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\Wpad" -Name "WpadOverride" -EA SilentlyContinue
     }
 
     Undo-Step "Teredo and 6to4 re-enabled" {
@@ -927,7 +927,7 @@ if ($Undo) {
 
     Undo-Step "Advertising ID re-enabled (default: enabled)" {
         # Default: key exists with Enabled=1
-        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 1 -Type DWord -Force -EA SilentlyContinue
+        Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" -Name "DisabledForUser" -EA SilentlyContinue
     }
 
     Undo-Step "Activity History / Timeline re-enabled" {
