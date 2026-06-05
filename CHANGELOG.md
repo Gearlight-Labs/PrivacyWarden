@@ -1,5 +1,14 @@
 # Changelog
 
+## [Collection v3.2.1 / Script v0.12.0] — 2026-06-05
+
+### Fixed
+- **Undo mode coverage: 28% → 100%** (`Setup-PrivacyWarden-Hardening.ps1`): The `-Undo` flag previously only reversed 9 of 83 system changes across 7 of 25 hardening categories. All 25 categories now have full revert coverage — 50 individual undo steps total. Every registry key, service state, and policy change applied by the script can now be safely reversed back to the exact Windows default value. Default values were cross-referenced against [privacy.sexy](https://privacy.sexy) source YAML and Microsoft documentation to ensure correctness.
+  - **Newly covered:** Telemetry/DiagTrack, Activity Feed/Timeline, Cortana, Consumer Features, Cross-device Clipboard, Recall AI, Scheduled Telemetry Tasks, Error Reporting (WER), Insider/Flighting (wisvc), LSA Protection (RunAsPPL), Remote Registry, WinRM, DCOM, Firefox policies, Chrome/Brave policies, Office macro hardening, file extension visibility
+  - **Already covered (unchanged):** WSH, AutoRun, SMBv1, PowerShell Execution Policy, RDP, Print Spooler, UAC, hosts file
+
+---
+
 ## [1.2.0] -- 2026-06-02 -- Maximum Privacy Edition
 
 ### Added

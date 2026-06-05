@@ -12,7 +12,7 @@ No. The website generates your script locally in your browser. Nothing is sent t
 
 **Does it work on Windows 10 and 11?**
 
-Yes. All 64 steps are tested on Windows 10 (20H2+) and Windows 11.
+Yes. All 68 steps are tested on Windows 10 (20H2+) and Windows 11.
 
 **Do I need to be an Administrator?**
 

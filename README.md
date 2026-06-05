@@ -1,12 +1,13 @@
 # PrivacyWarden
 
 > **Windows security hardening for streamers, VTubers, and content creators.**  
-> 64 hardening steps. Select what you need. Download one script. Run it.
+> 68 hardening steps. Select what you need. Download one script. Run it.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
+[![Version](https://img.shields.io/badge/Collection-v3.2.1-cyan.svg)](CHANGELOG.md)
 
 **Created by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
@@ -25,7 +26,7 @@ Generic hardening guides aren't built for people with large public audiences, kn
 ## How It Works
 
 ```
-collections/windows.yaml   ←  Single source of truth for all 64 hardening steps
+collections/windows.yaml   ←  Single source of truth for all 68 hardening steps
         ↓
 privwarden.org             ←  Fetches YAML, renders UI, generates custom script
         ↓
@@ -67,17 +68,17 @@ cd PrivacyWarden
 
 ---
 
-## 64 Hardening Steps
+## 68 Hardening Steps
 
-| Phase | Steps | What It Covers |
-|---|---|---|
-| Network Privacy | NET01–NET10 | LLMNR, NetBIOS, WPAD, IPv6 tunneling, firewall, DNS leaks |
-| Telemetry & Tracking | TEL01–TEL08 | DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
-| System Hardening | SYS01–SYS05 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC |
-| Malware Prevention | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender |
-| Browser & Streamer | OBS01–OBS05, DIS01–DIS06, BRW01–BRW05 | OBS, Discord, browser hardening |
-| Exploit Mitigations | ADV01–ADV08 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
-| Threat Blocking | THR01–THR11 | IP grabbers, KiwiFarms, doxxing sites, 83,599 malicious domains |
+| Phase | Steps | Count | What It Covers |
+|---|---|---|---|
+| Network Privacy | NET01–NET10 | 10 | LLMNR, NetBIOS, WPAD, IPv6 tunneling, firewall, DNS leaks |
+| Telemetry & Tracking | TEL01–TEL08 | 8 | DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
+| System Hardening | SYS01–SYS05 | 5 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC |
+| Malware Prevention | MAL01–MAL08 | 8 | WSH, AutoRun, dangerous file extensions, Office macros, Defender |
+| Browser & Streamer | OBS01–OBS05, DIS01–DIS06, BRW01–BRW05 | 16 | OBS, Discord, browser hardening |
+| Exploit Mitigations | ADV01–ADV10 | 10 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
+| Threat Blocking | THR01–THR12 | 12 | IP grabbers, KiwiFarms + all TLD mirrors, doxxing sites, stalkerware C2, 83,599 malicious domains |
 
 ---
 
@@ -87,13 +88,15 @@ cd PrivacyWarden
 |---|---|---|
 | Apply | *(default)* | Apply hardening steps to your system |
 | Audit | `-Check` | Verify current status — no changes made |
-| Undo | `-Undo` | Revert hardening changes back to defaults |
+| Undo | `-Undo` | Revert **all** hardening changes back to Windows defaults (100% coverage) |
 
 ```powershell
 .\PrivacyWarden.ps1           # Apply
 .\PrivacyWarden.ps1 -Check    # Audit
 .\PrivacyWarden.ps1 -Undo     # Undo
 ```
+
+The Undo mode reverses every registry key, service, and policy change made by Apply mode. All 25 hardening categories have full revert coverage, using the exact Windows default values sourced from [privacy.sexy](https://privacy.sexy) and Microsoft documentation.
 
 ---
 
@@ -112,7 +115,7 @@ cd PrivacyWarden
 
 ## YAML Collection Format
 
-All 64 steps are defined in [`collections/windows.yaml`](collections/windows.yaml). Each step has three code blocks:
+All 68 steps are defined in [`collections/windows.yaml`](collections/windows.yaml). Each step has three code blocks:
 
 ```yaml
 - id: NET01
@@ -138,22 +141,23 @@ All 64 steps are defined in [`collections/windows.yaml`](collections/windows.yam
 ```
 PrivacyWarden/
 ├── collections/
-│   └── windows.yaml          ← All 64 hardening steps (single source of truth)
+│   ├── windows.yaml          ← All 68 hardening steps (single source of truth)
+│   └── windows.yaml.sha256   ← SHA-256 integrity file (supply chain protection)
 ├── docs/
 │   ├── USER_GUIDE.md
 │   ├── FAQ.md
 │   ├── SECURITY.md
 │   └── CONTRIBUTING.md
 ├── scripts/
-│   ├── Setup-PrivacyWarden-Hardening.ps1
-│   └── Verify-SecurityAudit.ps1
-├── src/                      ← Legacy C# tray service (Mullvad VPN auto-switcher)
+│   ├── Setup-PrivacyWarden-Hardening.ps1   ← Main hardening script (Apply/Audit/Undo)
+│   └── Verify-SecurityAudit.ps1            ← Standalone audit script
+├── src/                      ← C# tray service (Mullvad VPN auto-switcher)
 ├── README.md
 ├── CHANGELOG.md
 └── LICENSE
 ```
 
-> **Note on `src/`:** The C# tray application (Mullvad VPN auto-switcher) lives here. It is not the primary product — the YAML collection and web interface are. The tray app may be revived or replaced in a future release.
+> **Note on `src/`:** The C# tray application (Mullvad VPN auto-switcher) lives here. It is a companion tool — the YAML collection and web interface are the primary product. See the [CHANGELOG](CHANGELOG.md) for tray app release history.
 
 ---
 
@@ -162,7 +166,8 @@ PrivacyWarden/
 - **Zero telemetry.** No data collection. No accounts required.
 - **Fully open source.** Every line of script code is visible in `collections/windows.yaml`.
 - **Auditable.** Run `-Check` mode to see exactly what's applied without making changes.
-- **Reversible.** Run `-Undo` mode to safely revert any hardening step.
+- **Fully reversible.** Run `-Undo` mode to safely revert every hardening step back to Windows defaults. All 25 categories have 100% revert coverage.
+- **Supply chain protected.** `collections/windows.yaml.sha256` ships with every release. Verify the collection has not been tampered with before running.
 
 For security disclosures, see [SECURITY.md](docs/SECURITY.md).
 
@@ -180,6 +185,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Version:** 2.0.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Collection:** v3.2.1 · **Script:** v0.12.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
 
 [MIT License](LICENSE)
