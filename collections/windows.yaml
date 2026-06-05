@@ -1,4 +1,4 @@
-version: "3.2.0"
+version: "3.2.1"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -2385,6 +2385,95 @@ actions:
                 Write-Host "    [OK] Steven Black's hosts list removed" -ForegroundColor Green
               }
 
+      - id: THR12
+        name: "Block Stalkerware C2 Infrastructure"
+        risk: medium
+        category: threat
+        description: |
+          Blocks the command-and-control (C2) servers and distribution sites for the most widely deployed
+          stalkerware applications — FlexiSPY, mSpy, Hoverwatch, Cerberus, Cocospy, uMobix, ClevGuard,
+          SpyEra, iKeyMonitor, HighsterMobile, WebWatcher, SpyMasterPro, and Spynger.
+          Stalkerware is commercial spyware marketed as "parental controls" or "employee monitoring"
+          but is routinely used for intimate partner surveillance. Blocking their C2 domains prevents
+          any installed stalkerware agent from phoning home, exfiltrating data, or receiving commands.
+          This is especially relevant for streamers and VTubers who share devices or have been targeted
+          by harassment campaigns that escalate to physical surveillance.
+        caution: |
+          This step blocks domains at the Windows hosts file level. It will not remove any stalkerware
+          already installed on the device — use a dedicated anti-stalkerware scanner (e.g., Malwarebytes,
+          Certo Mobile Security) for removal. Some entries (e.g., umeng analytics) may affect unrelated
+          Chinese apps that bundle the same SDK.
+        docs: |
+          Stalkerware indicators sourced from AssoEchap/stalkerware-indicators (CC0 license) [1],
+          a community-maintained IOC database used by Kaspersky, ESET, and the Coalition Against Stalkerware.
+          [1]: https://github.com/AssoEchap/stalkerware-indicators "AssoEchap/stalkerware-indicators on GitHub"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
+              $__domains = @(
+                "flexispy.com","www.flexispy.com","admin.flexispy.com","api.flexispy.com",
+                "community.flexispy.com","mobilefonex.com","client.mobilefonex.com","djp.bz","dmw.bz",
+                "mspy.com","cart.mspy.com","bill-msp.app","ctrl-msp.app",
+                "a.thd.cc","a-qa3.thd.cc","api.thd.cc","alter757.info","kidsecured.com","freefonespy.com",
+                "hoverwatch.com","dev.hoverwatch.com","hw.cab","a.hw.cab","a.hwa.cab",
+                "refog.com","account.refog.com","highstermobi.com",
+                "cerberusapp.com","www.cerberusapp.com","enterprise.cerberusapp.com","cerberusbrasil.com",
+                "cocospy.com","cocospy.net","spyic.com","minspy.com","fonemonitor.co",
+                "umobix.com","n.umobix.com","tt.umobix.com","android-api.umobix.com","us.umobix.com","spyfer.info",
+                "clevguard.com","www.clevguard.com","clevguard.net","panel.clevguard.com","api.clevguard.com",
+                "spyera.com","spylogs.com","login.spylogs.com","support.spyera.com",
+                "easemon.com","awsapi.io","em.awsapi.io","ikm.awsapi.io","emcpanel.com",
+                "auto-forward.com","autoforward.app","autoforward.co",
+                "webwatcher.com","www.webwatcher.com","awarenesstechnologies.com","interguardsoftware.com",
+                "api.awarenesstechnologies.com","data.webwatcherdata.com",
+                "spymasterpro.com","www.spymasterpro.com","imobispy.com",
+                "spynger.net","cart.spynger.net","my.spynger.net","ios-gw.spynger.net",
+                "copy9.com","my.copy9.com","guestspy.com","exactspy.com",
+                "fonetracker.com","ispyoo.com","thetruthspy.com","thespyapp.com",
+                "mxspy.com","www.mxspy.com","phonespying.com","phonetracking.net",
+                "mobilespyonline.com","secondclone.com","spyapps.net","spycell.net",
+                "xnspy.pro","us.xnspy.pro","xpspy.com","inospy.com","hespyapp.com",
+                "innoaspy.com","mobidad.app","phoneparental.com","weysys.com",
+                "spyzie.com","app-api.spyzie.com",
+                "android-monitor.ru","anmon.ru","anmon.su","anmon.name","androidspy.info",
+                "eyezy.com","moniterro.com"
+              )
+              $__current = Get-Content $__hostsPath -Raw -ErrorAction SilentlyContinue
+              if ($__current -match [regex]::Escape($__marker)) {
+                Write-Host "    [OK] Stalkerware C2 block already applied" -ForegroundColor Green
+              } else {
+                $__lines = "`n$__marker`n"
+                foreach ($__d in $__domains) { $__lines += "0.0.0.0 $__d`n" }
+                Add-Content -Path $__hostsPath -Value $__lines -Encoding UTF8
+                Write-Host "    [OK] Blocked $($__domains.Count) stalkerware C2 domains" -ForegroundColor Green
+              }
+            checkCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
+              $__current = Get-Content $__hostsPath -Raw -ErrorAction SilentlyContinue
+              if ($__current -match [regex]::Escape($__marker)) {
+                Write-Host "    [OK] Stalkerware C2 block is active" -ForegroundColor Green
+              } else {
+                Write-Host "    [MISSING] Stalkerware C2 block not found in hosts file" -ForegroundColor Red
+              }
+            revertCode: |
+              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
+              $__lines = Get-Content $__hostsPath -ErrorAction SilentlyContinue
+              if ($__lines) {
+                $__inBlock = $false
+                $__newLines = @()
+                foreach ($__line in $__lines) {
+                  if ($__line -match [regex]::Escape($__marker)) { $__inBlock = $true }
+                  if (-not $__inBlock) { $__newLines += $__line }
+                  if ($__inBlock -and $__line.Trim() -eq "") { $__inBlock = $false }
+                }
+                Set-Content -Path $__hostsPath -Value $__newLines -Encoding UTF8
+                Write-Host "    [OK] Stalkerware C2 block removed from hosts file" -ForegroundColor Green
+              }
   - category: "Advanced Hardening"
     children:
 
@@ -2490,92 +2579,3 @@ actions:
               Write-Host "    [INFO] Removed artifacts cannot be restored. No revert available." -ForegroundColor Cyan
 
 
-      - id: THR12
-        name: "Block Stalkerware C2 Infrastructure"
-        risk: medium
-        category: threat
-        description: |
-          Blocks the command-and-control (C2) servers and distribution sites for the most widely deployed
-          stalkerware applications — FlexiSPY, mSpy, Hoverwatch, Cerberus, Cocospy, uMobix, ClevGuard,
-          SpyEra, iKeyMonitor, HighsterMobile, WebWatcher, SpyMasterPro, and Spynger.
-          Stalkerware is commercial spyware marketed as "parental controls" or "employee monitoring"
-          but is routinely used for intimate partner surveillance. Blocking their C2 domains prevents
-          any installed stalkerware agent from phoning home, exfiltrating data, or receiving commands.
-          This is especially relevant for streamers and VTubers who share devices or have been targeted
-          by harassment campaigns that escalate to physical surveillance.
-        caution: |
-          This step blocks domains at the Windows hosts file level. It will not remove any stalkerware
-          already installed on the device — use a dedicated anti-stalkerware scanner (e.g., Malwarebytes,
-          Certo Mobile Security) for removal. Some entries (e.g., umeng analytics) may affect unrelated
-          Chinese apps that bundle the same SDK.
-        docs: |
-          Stalkerware indicators sourced from AssoEchap/stalkerware-indicators (CC0 license) [1],
-          a community-maintained IOC database used by Kaspersky, ESET, and the Coalition Against Stalkerware.
-          [1]: https://github.com/AssoEchap/stalkerware-indicators "AssoEchap/stalkerware-indicators on GitHub"
-        call:
-          function: RunPowerShell
-          parameters:
-            code: |
-              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
-              $__domains = @(
-                "flexispy.com","www.flexispy.com","admin.flexispy.com","api.flexispy.com",
-                "community.flexispy.com","mobilefonex.com","client.mobilefonex.com","djp.bz","dmw.bz",
-                "mspy.com","cart.mspy.com","bill-msp.app","ctrl-msp.app",
-                "a.thd.cc","a-qa3.thd.cc","api.thd.cc","alter757.info","kidsecured.com","freefonespy.com",
-                "hoverwatch.com","dev.hoverwatch.com","hw.cab","a.hw.cab","a.hwa.cab",
-                "refog.com","account.refog.com","highstermobi.com",
-                "cerberusapp.com","www.cerberusapp.com","enterprise.cerberusapp.com","cerberusbrasil.com",
-                "cocospy.com","cocospy.net","spyic.com","minspy.com","fonemonitor.co",
-                "umobix.com","n.umobix.com","tt.umobix.com","android-api.umobix.com","us.umobix.com","spyfer.info",
-                "clevguard.com","www.clevguard.com","clevguard.net","panel.clevguard.com","api.clevguard.com",
-                "spyera.com","spylogs.com","login.spylogs.com","support.spyera.com",
-                "easemon.com","awsapi.io","em.awsapi.io","ikm.awsapi.io","emcpanel.com",
-                "auto-forward.com","autoforward.app","autoforward.co",
-                "webwatcher.com","www.webwatcher.com","awarenesstechnologies.com","interguardsoftware.com",
-                "api.awarenesstechnologies.com","data.webwatcherdata.com",
-                "spymasterpro.com","www.spymasterpro.com","imobispy.com",
-                "spynger.net","cart.spynger.net","my.spynger.net","ios-gw.spynger.net",
-                "copy9.com","my.copy9.com","guestspy.com","exactspy.com",
-                "fonetracker.com","ispyoo.com","thetruthspy.com","thespyapp.com",
-                "mxspy.com","www.mxspy.com","phonespying.com","phonetracking.net",
-                "mobilespyonline.com","secondclone.com","spyapps.net","spycell.net",
-                "xnspy.pro","us.xnspy.pro","xpspy.com","inospy.com","hespyapp.com",
-                "innoaspy.com","mobidad.app","phoneparental.com","weysys.com",
-                "spyzie.com","app-api.spyzie.com",
-                "android-monitor.ru","anmon.ru","anmon.su","anmon.name","androidspy.info",
-                "eyezy.com","moniterro.com"
-              )
-              $__current = Get-Content $__hostsPath -Raw -ErrorAction SilentlyContinue
-              if ($__current -match [regex]::Escape($__marker)) {
-                Write-Host "    [OK] Stalkerware C2 block already applied" -ForegroundColor Green
-              } else {
-                $__lines = "`n$__marker`n"
-                foreach ($__d in $__domains) { $__lines += "0.0.0.0 $__d`n" }
-                Add-Content -Path $__hostsPath -Value $__lines -Encoding UTF8
-                Write-Host "    [OK] Blocked $($__domains.Count) stalkerware C2 domains" -ForegroundColor Green
-              }
-            checkCode: |
-              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
-              $__current = Get-Content $__hostsPath -Raw -ErrorAction SilentlyContinue
-              if ($__current -match [regex]::Escape($__marker)) {
-                Write-Host "    [OK] Stalkerware C2 block is active" -ForegroundColor Green
-              } else {
-                Write-Host "    [MISSING] Stalkerware C2 block not found in hosts file" -ForegroundColor Red
-              }
-            revertCode: |
-              $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-              $__marker = "# PrivacyWarden THR12 - Stalkerware C2 Block"
-              $__lines = Get-Content $__hostsPath -ErrorAction SilentlyContinue
-              if ($__lines) {
-                $__inBlock = $false
-                $__newLines = @()
-                foreach ($__line in $__lines) {
-                  if ($__line -match [regex]::Escape($__marker)) { $__inBlock = $true }
-                  if (-not $__inBlock) { $__newLines += $__line }
-                  if ($__inBlock -and $__line.Trim() -eq "") { $__inBlock = $false }
-                }
-                Set-Content -Path $__hostsPath -Value $__newLines -Encoding UTF8
-                Write-Host "    [OK] Stalkerware C2 block removed from hosts file" -ForegroundColor Green
-              }
