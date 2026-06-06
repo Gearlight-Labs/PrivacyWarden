@@ -1,4 +1,4 @@
-version: "3.2.3"
+version: "3.2.4"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -494,7 +494,8 @@ actions:
     recommend: network,paranoid,gaming
     risk: medium
     caution: "This step modifies your DNS server settings. If you use a different privacy DNS (NextDNS, Pi-hole, AdGuard),
-      deselect this step. It is automatically skipped if Mullvad, ProtonVPN, NordVPN, or ExpressVPN is detected."
+      deselect this step. It is automatically skipped if Mullvad, ProtonVPN, NordVPN, ExpressVPN, or any WireGuard
+      adapter/process is detected."
     docs: |
       After disabling LLMNR, NetBIOS, and WPAD, Windows falls back to pure DNS resolution.
       Without a fast, privacy-respecting DNS server configured, the first reconnection after
@@ -506,22 +507,24 @@ actions:
       - ProtonVPN: adapter name "ProtonVPN" or process ProtonVPN.exe [4]
       - NordVPN: adapter name "NordLynx" or process nordvpn.exe [5]
       - ExpressVPN: adapter name "ExpressVPN" or process expressvpn.exe [6]
+      - WireGuard (generic): adapter name "wg0" / "WireGuard" or process wireguard.exe [7]
       [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dns-client-resolution-timeouts "DNS client resolution timeouts | Microsoft Learn"
       [2]: https://www.quad9.net/privacy/policy/ "Quad9 Privacy Policy"
       [3]: https://github.com/mullvad/mullvadvpn-app "Mullvad VPN app | GitHub"
       [4]: https://protonvpn.com "ProtonVPN"
       [5]: https://nordvpn.com "NordVPN"
       [6]: https://www.expressvpn.com "ExpressVPN"
+      [7]: https://www.wireguard.com "WireGuard"
     call:
       function: RunPowerShell
       parameters:
         code: |
           # Detect supported VPNs by adapter name or running process
           $vpnAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-              $_.InterfaceDescription -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN' -or
-              $_.Name -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN'
+              $_.InterfaceDescription -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN|WireGuard' -or
+              $_.Name -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN|wg0|WireGuard'
           }
-          $vpnProcess = Get-Process -Name 'mullvad-daemon','ProtonVPN','nordvpn','expressvpn' -ErrorAction SilentlyContinue
+          $vpnProcess = Get-Process -Name 'mullvad-daemon','ProtonVPN','nordvpn','expressvpn','wireguard' -ErrorAction SilentlyContinue
           if ($vpnAdapter -or $vpnProcess) {
               $detected = if ($vpnAdapter) { $vpnAdapter[0].Name } else { $vpnProcess[0].ProcessName }
               Write-Host "    [SKIP] VPN detected ($detected) -- DNS left unchanged" -ForegroundColor DarkGray
@@ -546,10 +549,10 @@ actions:
           }
         checkCode: |
           $vpnAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-              $_.InterfaceDescription -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN' -or
-              $_.Name -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN'
+              $_.InterfaceDescription -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN|WireGuard' -or
+              $_.Name -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN|wg0|WireGuard'
           }
-          $vpnProcess = Get-Process -Name 'mullvad-daemon','ProtonVPN','nordvpn','expressvpn' -ErrorAction SilentlyContinue
+          $vpnProcess = Get-Process -Name 'mullvad-daemon','ProtonVPN','nordvpn','expressvpn','wireguard' -ErrorAction SilentlyContinue
           if ($vpnAdapter -or $vpnProcess) {
               $detected = if ($vpnAdapter) { $vpnAdapter[0].Name } else { $vpnProcess[0].ProcessName }
               Write-Host "    [SKIP] VPN detected ($detected) -- DNS check skipped" -ForegroundColor DarkGray
