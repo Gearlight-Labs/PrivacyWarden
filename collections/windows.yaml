@@ -560,7 +560,7 @@ actions:
               }
               ipconfig /flushdns | Out-Null
               Write-Host "    [OK] DNS cache flushed. All adapters now use DHCP-assigned DNS." -ForegroundColor Green
-  - id: TEL01
+      - id: TEL01
         name: "Disable DiagTrack + WAP Push service"
         description: "Stops the main Windows telemetry service and WAP push message routing."
         recommend: standard,streamer,vtuber,network,paranoid,minimal
