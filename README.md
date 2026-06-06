@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.2.1-cyan.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Collection-v3.2.4-cyan.svg)](CHANGELOG.md)
 
 **Created by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
@@ -102,14 +102,55 @@ The Undo mode reverses every registry key, service, and policy change made by Ap
 
 ## Threat Profiles
 
-| Profile | Best For |
+| Profile | Steps | Best For |
+|---|---|---|
+| Standard | 46 | All streamers — good balance of security and compatibility |
+| Streamer | 64 | Active streamers — avoids breaking streaming tools |
+| VTuber | 66 | VTuber-specific threat model |
+| Paranoid | 68 | Maximum hardening — may break some software |
+| Minimal | ~20 | Essential protections only |
+| Network & Privacy | 18 | Network-level threat focus |
+| **Gaming** | **64** | **Gamers — anti-cheat safe (see below)** |
+
+---
+
+## 🎮 Gaming Profile (AC-SAFE)
+
+The **Gaming** profile applies 64 hardening steps that are verified to be compatible with the most common anti-cheat systems used in competitive and live-service games.
+
+### Compatible Anti-Cheat Systems
+
+| Anti-Cheat | Games |
 |---|---|
-| Standard | All streamers — good balance of security and compatibility |
-| Streamer | Active streamers — avoids breaking streaming tools |
-| Paranoid | Maximum hardening — may break some software |
-| Minimal | Essential protections only |
-| Network & Privacy | Network-level threat focus |
-| VTuber | VTuber-specific threat model |
+| Easy Anti-Cheat (EAC) | Fortnite, Apex Legends, Rust, Dead by Daylight, and 200+ others |
+| BattlEye | PUBG, Rainbow Six Siege, DayZ, Arma 3, and others |
+| GameGuard | MapleStory, Phantasy Star Online 2, and others |
+| HoYoKProtect | Genshin Impact, Honkai: Star Rail, Zenless Zone Zero |
+| Vanguard | Valorant |
+| FACEIT Anti-Cheat | CS2 (FACEIT), and others |
+
+### Excluded Steps
+
+The following 5 steps are **excluded** from the Gaming profile because they can conflict with kernel-level anti-cheat drivers:
+
+| Step | Name | Why Excluded |
+|---|---|---|
+| ADV01 | Enable Controlled Folder Access | Blocks anti-cheat from writing to protected folders |
+| MAL08 | Disable Windows Script Host | Some anti-cheat launchers use WSH for integrity checks |
+| MAL01 | Disable AutoRun | Can interfere with game launcher auto-start mechanisms |
+| ADV05 | Disable Remote Registry | Some anti-cheat telemetry uses registry reads |
+| THR11 | Block via Hosts File | Large hosts file can slow DNS resolution during game startup |
+
+### Tested Games
+
+The Gaming profile has been designed around the threat models of streamers and VTubers who play:
+- **Valorant** (Vanguard — kernel-level, requires reboot to load/unload)
+- **Genshin Impact / Honkai: Star Rail / Zenless Zone Zero** (HoYoKProtect)
+- **Fortnite / Apex Legends** (Easy Anti-Cheat)
+- **Rainbow Six Siege / PUBG** (BattlEye)
+- **CS2 on FACEIT** (FACEIT Anti-Cheat)
+
+> **Note:** If a game still fails to launch after applying the Gaming profile, try deselecting the remaining excluded steps one at a time. The most likely culprit is ADV01 (Controlled Folder Access) or THR11 (hosts file blocking). See the [FAQ](https://privwarden.org/#faq) for troubleshooting.
 
 ---
 
@@ -185,6 +226,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection:** v3.2.1 · **Script:** v0.12.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Collection:** v3.2.4 · **Script:** v0.12.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
 
 [MIT License](LICENSE)
