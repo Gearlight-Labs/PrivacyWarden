@@ -48,7 +48,7 @@ If you get an execution policy error:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-.\PrivacyWarden.ps1
+.\Setup-PrivacyWarden-Hardening.ps1
 ```
 
 ---
@@ -66,7 +66,7 @@ irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/
 
 ```powershell
 # Check what's applied without making changes
-irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Verify-SecurityAudit.ps1 | iex
+irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Setup-PrivacyWarden-Hardening.ps1 | iex -Check
 ```
 
 ---
@@ -132,7 +132,7 @@ Some hardening steps can't be automated because they require changes inside appl
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-.\PrivacyWarden.ps1
+.\Setup-PrivacyWarden-Hardening.ps1
 ```
 
 ### A step broke something
@@ -140,7 +140,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 Run Undo Mode to revert:
 
 ```powershell
-.\PrivacyWarden.ps1 -Undo
+.\Setup-PrivacyWarden-Hardening.ps1 -Undo
 ```
 
 Then open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) with the step ID and error message.
