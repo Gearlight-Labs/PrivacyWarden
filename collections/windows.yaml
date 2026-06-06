@@ -498,48 +498,34 @@ actions:
           function: RunPowerShell
           parameters:
             code: |
-              $__vpnPattern = 'Mullvad|ProtonVPN|NordLynx|NordVPN|ExpressVPN|WireGuard|OpenVPN|Cisco|Pulse|GlobalProtect|Fortinet|Tailscale|WARP'
-              $__allAdapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
-              if (-not $__allAdapters) {
-                  Write-Host "    [WARN] No active network adapters found" -ForegroundColor Yellow
+              $__mullvad = Get-NetAdapter | Where-Object { $_.Status -eq "Up" -and ($_.InterfaceDescription -match "Mullvad" -or $_.Name -match "Mullvad") }
+              if ($__mullvad) {
+                  Write-Host "    [SKIP] Mullvad VPN detected on adapter: $($__mullvad.Name -join ', ')" -ForegroundColor Cyan
+                  Write-Host "    [SKIP] Mullvad manages its own DNS — leaving it untouched." -ForegroundColor Cyan
               } else {
-                  # Split adapters into VPN and non-VPN
-                  $__vpnAdapters  = $__allAdapters | Where-Object { $_.InterfaceDescription -match $__vpnPattern -or $_.Name -match $__vpnPattern }
-                  $__mainAdapters = $__allAdapters | Where-Object { $_.InterfaceDescription -notmatch $__vpnPattern -and $_.Name -notmatch $__vpnPattern }
-                  # Log previous DNS before touching anything
-                  Write-Host "    [INFO] Previous DNS settings (save these if you want to restore manually):" -ForegroundColor Cyan
-                  foreach ($__a in $__allAdapters) {
-                      $__prev4 = (Get-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
-                      $__prev6 = (Get-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -AddressFamily IPv6 -ErrorAction SilentlyContinue).ServerAddresses
-                      $__p4str = if ($__prev4) { $__prev4 -join ', ' } else { 'DHCP' }
-                      $__p6str = if ($__prev6) { $__prev6 -join ', ' } else { 'DHCP' }
-                      Write-Host "      $($__a.Name): IPv4=$__p4str  IPv6=$__p6str" -ForegroundColor DarkGray
-                  }
-                  # Skip VPN adapters — let the VPN manage its own DNS
-                  if ($__vpnAdapters) {
-                      Write-Host "" -ForegroundColor White
-                      Write-Host "    [NOTE] VPN adapter(s) detected — skipping DNS change on: $($__vpnAdapters.Name -join ', ')" -ForegroundColor Cyan
-                      Write-Host "    [NOTE] Your VPN manages its own DNS. Quad9 will be set on non-VPN adapters only." -ForegroundColor Cyan
-                  }
-                  # Apply Quad9 IPv4 + IPv6 on non-VPN adapters (Titus-style: both address families)
-                  $__applied = 0
-                  $__failed  = @()
-                  foreach ($__a in $__mainAdapters) {
-                      try {
-                          Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ServerAddresses ('9.9.9.9', '149.112.112.112') -ErrorAction Stop
-                          Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ServerAddresses ('2620:fe::fe', '2620:fe::9') -ErrorAction SilentlyContinue
-                          $__applied++
-                      } catch {
-                          $__failed += $__a.Name
-                          Write-Host "    [WARN] Could not set DNS on $($__a.Name): $_" -ForegroundColor Yellow
+                  $__adapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+                  if (-not $__adapters) {
+                      Write-Host "    [WARN] No active network adapters found" -ForegroundColor Yellow
+                  } else {
+                      Write-Host "    [INFO] Previous DNS settings:" -ForegroundColor Cyan
+                      foreach ($__a in $__adapters) {
+                          $__prev = (Get-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
+                          $__str  = if ($__prev) { $__prev -join ', ' } else { 'DHCP' }
+                          Write-Host "      $($__a.Name): $__str" -ForegroundColor DarkGray
                       }
-                  }
-                  if ($__applied -gt 0) {
-                      ipconfig /flushdns | Out-Null
-                      Write-Host "    [OK] Quad9 DNS (IPv4 + IPv6) set on $__applied adapter(s). DNS cache flushed." -ForegroundColor Green
-                  }
-                  if ($__failed.Count -gt 0) {
-                      Write-Host "    [WARN] Could not set DNS on: $($__failed -join ', ')" -ForegroundColor Yellow
+                      $__applied = 0
+                      foreach ($__a in $__adapters) {
+                          try {
+                              Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ServerAddresses ('9.9.9.9', '149.112.112.112') -ErrorAction Stop
+                              $__applied++
+                          } catch {
+                              Write-Host "    [WARN] Could not set DNS on $($__a.Name): $_" -ForegroundColor Yellow
+                          }
+                      }
+                      if ($__applied -gt 0) {
+                          ipconfig /flushdns | Out-Null
+                          Write-Host "    [OK] Quad9 DNS set on $__applied adapter(s). DNS cache flushed." -ForegroundColor Green
+                      }
                   }
               }
             checkCode: |
@@ -2572,7 +2558,6 @@ actions:
         recommend: streamer,vtuber,paranoid
         risk: medium
         name: "Block Stalkerware C2 Infrastructure"
-        risk: medium
         category: threat
         description: |
           Blocks the command-and-control (C2) servers and distribution sites for the most widely deployed
