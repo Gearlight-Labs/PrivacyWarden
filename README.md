@@ -26,11 +26,11 @@ Generic hardening guides aren't built for people with large public audiences, kn
 ## How It Works
 
 ```
-collections/windows.yaml   ←  Single source of truth for all 68 hardening steps
+collections/windows.yaml   ←  Single source of truth for all 69 hardening steps
         ↓
 privwarden.org             ←  Fetches YAML, renders UI, generates custom script
         ↓
-PrivacyWarden.ps1          ←  Downloaded by user, run with admin privileges
+Setup-PrivacyWarden-Hardening.ps1  ←  Fetches YAML at runtime, executes steps
 ```
 
 Architecture inspired by [privacy.sexy](https://privacy.sexy). All script logic lives in the YAML collection. The website is a thin UI layer that reads from it.
@@ -50,12 +50,11 @@ Architecture inspired by [privacy.sexy](https://privacy.sexy). All script logic 
 ### Option 2: Run Directly
 
 ```powershell
-# Apply recommended hardening
+# Apply recommended hardening (standard profile)
 irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Setup-PrivacyWarden-Hardening.ps1 | iex
-
-# Audit current status (no changes)
-irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Verify-SecurityAudit.ps1 | iex
 ```
+
+> **Note:** The script fetches the latest YAML collection from GitHub at runtime, so you always get the most current hardening steps.
 
 ### Option 3: Clone and Run
 
@@ -91,9 +90,10 @@ cd PrivacyWarden
 | Undo | `-Undo` | Revert **all** hardening changes back to Windows defaults (100% coverage) |
 
 ```powershell
-.\PrivacyWarden.ps1           # Apply
-.\PrivacyWarden.ps1 -Check    # Audit
-.\PrivacyWarden.ps1 -Undo     # Undo
+.\Setup-PrivacyWarden-Hardening.ps1                    # Apply (interactive TUI)
+.\Setup-PrivacyWarden-Hardening.ps1 -Profile standard  # Apply standard profile
+.\Setup-PrivacyWarden-Hardening.ps1 -Check             # Audit
+.\Setup-PrivacyWarden-Hardening.ps1 -Undo              # Undo
 ```
 
 The Undo mode reverses every registry key, service, and policy change made by Apply mode. All 25 hardening categories have full revert coverage, using the exact Windows default values sourced from [privacy.sexy](https://privacy.sexy) and Microsoft documentation.
@@ -182,7 +182,7 @@ All 68 steps are defined in [`collections/windows.yaml`](collections/windows.yam
 ```
 PrivacyWarden/
 ├── collections/
-│   ├── windows.yaml          ← All 68 hardening steps (single source of truth)
+│   ├── windows.yaml          ← All 69 hardening steps (single source of truth)
 │   └── windows.yaml.sha256   ← SHA-256 integrity file (supply chain protection)
 ├── docs/
 │   ├── USER_GUIDE.md
@@ -190,8 +190,7 @@ PrivacyWarden/
 │   ├── SECURITY.md
 │   └── CONTRIBUTING.md
 ├── scripts/
-│   ├── Setup-PrivacyWarden-Hardening.ps1   ← Main hardening script (Apply/Audit/Undo)
-│   └── Verify-SecurityAudit.ps1            ← Standalone audit script
+│   └── Setup-PrivacyWarden-Hardening.ps1   ← YAML-driven wrapper (Apply/Audit/Undo)
 ├── src/                      ← C# tray service (Mullvad VPN auto-switcher)
 ├── README.md
 ├── CHANGELOG.md

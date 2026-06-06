@@ -9,7 +9,7 @@
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>tray_icon.ico</ApplicationIcon>
-    <Version>1.3.1</Version>
+    <Version>3.2.4</Version>
     <Authors>Aya Yoki (AyaYokiVT) -- Gearlight Labs</Authors>
     <Company>Gearlight Labs</Company>
     <Product>PrivacyWarden</Product>
@@ -29,16 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Embed the hardening script directly inside the exe -->
+    <!-- Embed the YAML-driven hardening wrapper inside the exe.
+         The wrapper fetches the latest YAML collection from GitHub at runtime.
+         No hardcoded steps — the YAML is the single source of truth. -->
     <EmbeddedResource Include="..\..\scripts\Setup-PrivacyWarden-Hardening.ps1">
       <LogicalName>PrivacyWarden.Scripts.Setup-PrivacyWarden-Hardening.ps1</LogicalName>
-    </EmbeddedResource>
-    <!-- Embed Gearlight Labs branding assets -->
-    <EmbeddedResource Include="..\..\site\assets\logo.png">
-      <LogicalName>PrivacyWarden.Assets.logo.png</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\..\site\assets\banner.png">
-      <LogicalName>PrivacyWarden.Assets.banner.png</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 
