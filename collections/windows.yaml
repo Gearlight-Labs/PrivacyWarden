@@ -2480,7 +2480,6 @@ actions:
         recommend: streamer,vtuber,paranoid
         risk: medium
         name: "Block Stalkerware C2 Infrastructure"
-        risk: medium
         category: threat
         description: |
           Blocks the command-and-control (C2) servers and distribution sites for the most widely deployed
