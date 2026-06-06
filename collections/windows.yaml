@@ -1,4 +1,4 @@
-version: "3.2.6"
+version: "3.2.7"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -500,7 +500,7 @@ actions:
     description: "Sets Quad9 (9.9.9.9 / 149.112.112.112) as the system DNS on all active adapters — only if no
       supported VPN (Mullvad, ProtonVPN, NordVPN, ExpressVPN) is currently active. Skipped automatically
       if any of these VPNs are detected."
-    recommend: network,paranoid,gaming
+    recommend: standard,streamer,vtuber,paranoid,network,gaming
     risk: medium
     caution: "This step modifies your DNS server settings. If you use a different privacy DNS (NextDNS, Pi-hole, AdGuard),
       deselect this step. It is automatically skipped if Mullvad, ProtonVPN, NordVPN, ExpressVPN, or any WireGuard
@@ -2949,7 +2949,7 @@ actions:
   - id: SYS06
     name: "Enable 14 Windows Defender ASR rules"
     description: "Blocks macro droppers, script RATs, WMI persistence, LSASS theft, and more — comprehensive attack surface reduction."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: medium
     docs: |
       Attack Surface Reduction (ASR) rules are built-in Windows Defender policies that block
@@ -3099,7 +3099,7 @@ actions:
   - id: ADV11
     name: "Disable Internet Connection Sharing (ICS)"
     description: "Removes the ICS service that can expose your connection to other devices on the network."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       Internet Connection Sharing (ICS) allows a Windows PC to act as a network gateway for other devices.
@@ -3127,7 +3127,7 @@ actions:
   - id: ADV12
     name: "Disable Phone Link / Mobile Hotspot services"
     description: "Removes Phone Service and Windows Mobile Hotspot Service — not needed on desktop streaming rigs."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       Phone Service (PhoneSvc) and the Mobile Hotspot service (icssvc) are rarely needed on
@@ -3163,7 +3163,7 @@ actions:
   - id: ADV13
     name: "Disable Retail Demo / Maps / WMP Network services"
     description: "Removes RetailDemo, Downloaded Maps Manager, and Windows Media Player Network Sharing — unused bloat."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       These three services serve no purpose on a personal streaming or gaming PC:
@@ -3208,7 +3208,7 @@ actions:
   - id: TEL09
     name: "Disable Windows Error Reporting"
     description: "Stops crash data (which may include memory contents) from being sent to Microsoft."
-    recommend: vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       Windows Error Reporting (WER) collects crash dumps and sends them to Microsoft [1].
@@ -3242,7 +3242,7 @@ actions:
   - id: TEL10
     name: "Disable Windows Insider Service"
     description: "Removes the Windows Insider telemetry and preview build service."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       The Windows Insider Service (wisvc) enables enrollment in Windows preview builds
@@ -3276,7 +3276,7 @@ actions:
   - id: BRW09
     name: "Block Office OLE / ActiveX / DDE execution"
     description: "Disables OLE object execution, ActiveX, and DDE in Office — secondary attack vectors for RAT delivery."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: medium
     docs: |
       Beyond macros, Office documents can execute code through OLE (Object Linking and Embedding),
@@ -3329,7 +3329,7 @@ actions:
   - id: BRW10
     name: "Harden Adobe Acrobat Reader (disable JavaScript)"
     description: "Disables PDF JavaScript and enables Enhanced Security in Acrobat Reader — blocks PDF-based exploits."
-    recommend: standard,streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       Adobe Acrobat Reader supports JavaScript execution within PDFs, which has been
@@ -3412,7 +3412,7 @@ actions:
   - id: THR13
     name: "Block URL shorteners used as IP loggers"
     description: "Blocks bit.ly, tinyurl, cutt.ly, ouo.io and other shorteners commonly abused for IP tracking."
-    recommend: streamer,vtuber,paranoid
+    recommend: standard,streamer,vtuber,paranoid,gaming
     risk: medium
     docs: |
       URL shorteners are routinely used to disguise IP logger links (e.g., Grabify wrapped in bit.ly).
@@ -3476,7 +3476,7 @@ actions:
   - id: THR14
     name: "Block Brazilian cybercrime forums"
     description: "Blocks Brazilian hacking and fraud forums that specifically target Brazilian streamers and VTubers."
-    recommend: streamer,paranoid
+    recommend: streamer,vtuber,paranoid,gaming
     risk: low
     docs: |
       Brazilian-language cybercrime forums host targeted harassment campaigns, credential leaks,
