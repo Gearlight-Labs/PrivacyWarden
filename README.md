@@ -214,8 +214,13 @@ For security disclosures, see [SECURITY.md](docs/SECURITY.md).
 ---
 
 ## Contributing
-
 See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for how to add or improve hardening steps.
+
+---
+
+## Acknowledgements
+
+[privacy.sexy](https://privacy.sexy) — the YAML-driven template engine architecture that PrivacyWarden's collection format is based on. Their open-source approach to script generation (define steps in YAML, compile to scripts at runtime) is what made this project possible. If you want a general-purpose privacy tool without the streamer/VTuber focus, check them out.
 
 ---
 
