@@ -487,33 +487,44 @@ actions:
         deleteOnRevert: "true"
 
   - id: NET11
-    name: "Set Quad9 DNS (if Mullvad VPN not detected)"
-    description: "Sets Quad9 (9.9.9.9 / 149.112.112.112) as the system DNS on all active adapters — only if Mullvad VPN is
-      not currently active. Skipped automatically if Mullvad is detected."
+    name: "Set Quad9 DNS (skip if VPN detected)"
+    description: "Sets Quad9 (9.9.9.9 / 149.112.112.112) as the system DNS on all active adapters — only if no
+      supported VPN (Mullvad, ProtonVPN, NordVPN, ExpressVPN) is currently active. Skipped automatically
+      if any of these VPNs are detected."
     recommend: network,paranoid,gaming
     risk: medium
     caution: "This step modifies your DNS server settings. If you use a different privacy DNS (NextDNS, Pi-hole, AdGuard),
-      deselect this step. It is automatically skipped if Mullvad VPN is detected."
+      deselect this step. It is automatically skipped if Mullvad, ProtonVPN, NordVPN, or ExpressVPN is detected."
     docs: |
       After disabling LLMNR, NetBIOS, and WPAD, Windows falls back to pure DNS resolution.
       Without a fast, privacy-respecting DNS server configured, the first reconnection after
       reboot can be slow as Windows negotiates with DHCP-assigned DNS [1].
       Quad9 (9.9.9.9 / 149.112.112.112) is a non-profit, privacy-focused DNS that blocks
       known malicious domains and does not log queries [2].
-      This step detects Mullvad VPN by checking for its network adapter ("Mullvad") and
-      known process (mullvad-daemon.exe). If Mullvad is active, DNS is left untouched [3].
+      This step detects the following VPNs and skips DNS configuration if any are active:
+      - Mullvad VPN: adapter name "Mullvad" or process mullvad-daemon.exe [3]
+      - ProtonVPN: adapter name "ProtonVPN" or process ProtonVPN.exe [4]
+      - NordVPN: adapter name "NordLynx" or process nordvpn.exe [5]
+      - ExpressVPN: adapter name "ExpressVPN" or process expressvpn.exe [6]
       [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dns-client-resolution-timeouts "DNS client resolution timeouts | Microsoft Learn"
       [2]: https://www.quad9.net/privacy/policy/ "Quad9 Privacy Policy"
       [3]: https://github.com/mullvad/mullvadvpn-app "Mullvad VPN app | GitHub"
+      [4]: https://protonvpn.com "ProtonVPN"
+      [5]: https://nordvpn.com "NordVPN"
+      [6]: https://www.expressvpn.com "ExpressVPN"
     call:
       function: RunPowerShell
       parameters:
         code: |
-          # Detect Mullvad VPN by adapter name or running daemon process
-          $mullvadAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceDescription -match 'Mullvad' -or $_.Name -match 'Mullvad' }
-          $mullvadProcess = Get-Process -Name 'mullvad-daemon' -ErrorAction SilentlyContinue
-          if ($mullvadAdapter -or $mullvadProcess) {
-              Write-Host "    [SKIP] Mullvad VPN detected -- DNS left unchanged" -ForegroundColor DarkGray
+          # Detect supported VPNs by adapter name or running process
+          $vpnAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
+              $_.InterfaceDescription -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN' -or
+              $_.Name -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN'
+          }
+          $vpnProcess = Get-Process -Name 'mullvad-daemon','ProtonVPN','nordvpn','expressvpn' -ErrorAction SilentlyContinue
+          if ($vpnAdapter -or $vpnProcess) {
+              $detected = if ($vpnAdapter) { $vpnAdapter[0].Name } else { $vpnProcess[0].ProcessName }
+              Write-Host "    [SKIP] VPN detected ($detected) -- DNS left unchanged" -ForegroundColor DarkGray
           } else {
               $adapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' }
               $applied = 0
@@ -534,10 +545,14 @@ actions:
               }
           }
         checkCode: |
-          $mullvadAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceDescription -match 'Mullvad' -or $_.Name -match 'Mullvad' }
-          $mullvadProcess = Get-Process -Name 'mullvad-daemon' -ErrorAction SilentlyContinue
-          if ($mullvadAdapter -or $mullvadProcess) {
-              Write-Host "    [SKIP] Mullvad VPN detected -- DNS check skipped" -ForegroundColor DarkGray
+          $vpnAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
+              $_.InterfaceDescription -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN' -or
+              $_.Name -match 'Mullvad|ProtonVPN|NordLynx|ExpressVPN'
+          }
+          $vpnProcess = Get-Process -Name 'mullvad-daemon','ProtonVPN','nordvpn','expressvpn' -ErrorAction SilentlyContinue
+          if ($vpnAdapter -or $vpnProcess) {
+              $detected = if ($vpnAdapter) { $vpnAdapter[0].Name } else { $vpnProcess[0].ProcessName }
+              Write-Host "    [SKIP] VPN detected ($detected) -- DNS check skipped" -ForegroundColor DarkGray
           } else {
               $adapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' }
               foreach ($adapter in $adapters) {
