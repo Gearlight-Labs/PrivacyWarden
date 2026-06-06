@@ -1,117 +1,82 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-**Do not open a public GitHub issue for security vulnerabilities.**
+**Don't open a public GitHub issue for security vulnerabilities.**
 
-Email **gearlightlabs@gmail.com** with:
-- A description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Your GitHub username (optional, for credit)
+Email **gearlightlabs@gmail.com** with a description of the issue, steps to reproduce, and what the potential impact is. Your GitHub username is optional — I'll credit you if you want.
 
-You will receive a response within 48 hours. Critical vulnerabilities will be patched and released within 7 days.
+I'll respond as fast as I can. Critical issues get patched first.
 
 ---
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported |
+| Version | Status |
 |---|---|
-| 2.x (YAML collection + web interface) | ✅ Active |
-| 1.x (legacy .exe service) | ❌ No longer maintained |
+| 3.x (YAML collection + web interface) | Active |
+| 1.x (legacy .exe service) | No longer maintained |
 
 ---
 
-## Threat Model
+## What this tool is actually for
 
-PrivacyWarden is built for the real threat model of streamers and VTubers:
+PrivacyWarden is built for the real threat model of streamers and VTubers — not enterprise security, not nation-state actors. The threats it's designed to address are:
 
-- **IP exposure** — doxxing via IP grabbers in chat links, Discord embeds, or fake brand deal files
-- **Credential theft** — infostealers (Lumma, RedLine) targeting browser saved passwords and session cookies
-- **RAT distribution** — malware delivered through fake brand deals, Discord DMs, or malicious OBS plugins
-- **Swatting** — location exposure through social engineering or leaked personal information
-- **Account takeover** — session hijacking after credential theft
-- **ISP surveillance** — DNS snooping and traffic analysis
+**IP exposure** — someone in your chat drops an IP grabber link, a fake brand deal file phones home, or a Discord embed leaks your IP. This is the most common threat for streamers and the one most generic hardening guides completely ignore.
+
+**Credential theft** — infostealers (Lumma, RedLine, and variants) targeting browser saved passwords and session cookies. These get delivered through fake brand deals, Discord DMs, and malicious OBS plugins.
+
+**RAT distribution** — malware delivered through the same channels as above. The script disables the most common delivery vectors (WSH, AutoRun, Office macros, dangerous file extensions).
+
+**Swatting** — location exposure through social engineering or leaked personal information. The script hardens the network layer to reduce what an attacker can learn about you passively.
+
+**Account takeover** — session hijacking after credential theft. The browser hardening steps reduce the attack surface.
+
+**ISP surveillance** — DNS snooping and traffic analysis. NET11 sets Quad9 DNS and skips it if a VPN is detected.
 
 ---
 
-## Security Design
+## How the script generation works
 
-### Script Generation
+The website at [privwarden.org](https://privwarden.org) generates PowerShell scripts entirely in your browser. No script code is sent to any server. The site fetches the YAML collection from this GitHub repo and assembles the script client-side.
 
-The website at [privwarden.org](https://privwarden.org) generates PowerShell scripts **entirely in the browser**. No script code is sent to any server. The site fetches the YAML collection from GitHub and assembles the script client-side.
-
-### YAML Collection
-
-All 64 hardening steps are defined in [`collections/windows.yaml`](../collections/windows.yaml). This is the single source of truth for all script code. Anyone can audit it before running any generated script.
-
-### No Telemetry
+All 82 hardening steps are defined in [`collections/windows.yaml`](../collections/windows.yaml). That's the single source of truth. Anyone can read it before running anything.
 
 Neither the website nor the generated scripts collect any data. No analytics, no crash reporting, no usage tracking.
 
-### Script Integrity
+---
 
-Generated scripts are assembled from the YAML collection at the time of generation. To verify a script matches the collection:
+## What the scripts actually do
 
-1. Clone the repository
-2. Compare the script code against `collections/windows.yaml`
-3. All step IDs in the script header correspond to entries in the YAML file
+**Network:** Disables LLMNR and NetBIOS (credential capture vectors on shared networks), disables WPAD (proxy auto-discovery used in MITM attacks), hardens Windows Firewall, disables IPv6 tunneling protocols, sets Quad9 DNS.
+
+**Telemetry:** Disables DiagTrack, Advertising ID, Cortana data collection, Windows Recall AI, and telemetry scheduled tasks.
+
+**System hardening:** Enables ASLR and DEP, enables SEHOP, enables LSA protection (prevents credential dumping), disables SMBv1, hardens UAC.
+
+**Malware prevention:** Disables Windows Script Host (blocks .vbs/.js malware), disables AutoRun/AutoPlay (blocks USB malware), blocks dangerous file extensions, disables Office macros, configures Windows Defender ASR rules.
+
+**Threat blocking:** Blocks known IP grabber services, known doxxing and harassment coordination sites, and 83,599 malicious domains via Steven Black's consolidated hosts list.
 
 ---
 
-## What the Hardening Scripts Do
+## Known limitations
 
-The generated scripts apply Windows security hardening in these categories:
+Generated scripts require Administrator privileges. Always review the code in `collections/windows.yaml` before running.
 
-**Network Privacy**
-- Disables LLMNR and NetBIOS (credential capture vectors on shared networks)
-- Disables WPAD (proxy auto-discovery used in MITM attacks)
-- Hardens Windows Firewall (blocks unnecessary inbound/outbound connections)
-- Disables IPv6 tunneling protocols (Teredo, 6to4, ISATAP)
+THR11 downloads content from an external URL (Steven Black's hosts file). The URL is hardcoded in the YAML and can be audited.
 
-**Telemetry & Tracking**
-- Disables DiagTrack (Connected User Experiences and Telemetry service)
-- Disables Advertising ID
-- Disables Cortana data collection
-- Disables Windows Recall AI (screenshot surveillance feature)
-- Disables telemetry scheduled tasks
+Undo mode restores Windows defaults but can't guarantee a perfect rollback if something else modified your system between Apply and Undo.
 
-**System Hardening**
-- Enables ASLR and DEP (memory protection)
-- Enables SEHOP (structured exception handler overwrite protection)
-- Enables LSA protection (prevents credential dumping)
-- Disables SMBv1 (legacy protocol with known critical vulnerabilities)
-- Hardens UAC settings
+Some steps require a reboot to take full effect.
 
-**Malware Prevention**
-- Disables Windows Script Host (blocks .vbs/.js malware)
-- Disables AutoRun/AutoPlay (blocks USB malware)
-- Blocks dangerous file extensions in email attachments
-- Disables Office macros (primary RAT delivery vector)
-- Configures Windows Defender attack surface reduction rules
-
-**Threat Blocking**
-- Blocks known IP grabber services at the hosts file level
-- Blocks known doxxing and harassment coordination sites
-- Blocks 83,599 malicious domains via Steven Black's consolidated hosts list
+Manual steps (Discord, OBS, browser settings) can't be automated and require you to do them yourself.
 
 ---
 
-## Known Limitations
+## Responsible disclosure
 
-- Generated scripts require Administrator privileges. Always review the code before running.
-- THR11 downloads content from an external URL (Steven Black's hosts file). The URL is hardcoded in the YAML and can be audited.
-- Undo Mode restores Windows defaults but cannot guarantee a perfect rollback if the system state was modified by other tools between Apply and Undo.
-- Some steps require a reboot to take full effect.
-- Manual steps (Discord, OBS, browser settings) cannot be automated and require user action.
-
----
-
-## Responsible Disclosure
-
-If you find a vulnerability in a hardening step (e.g., a step that introduces a security regression rather than improving security), please report it via email before opening a public issue. This gives time to fix the issue before it is publicly known.
-
----
+If you find a vulnerability in a hardening step — for example, a step that introduces a security regression instead of improving security — please email before opening a public issue. That gives time to fix it before it's publicly known.
 
 **Contact:** gearlightlabs@gmail.com

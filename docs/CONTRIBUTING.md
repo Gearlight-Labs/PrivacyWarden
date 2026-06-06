@@ -1,33 +1,28 @@
 # Contributing to PrivacyWarden
 
-Thanks for wanting to contribute. This document covers how to add or improve hardening steps.
+If you want to add a hardening step, fix a bug, or improve the docs — great. Here's how.
 
 ---
 
-## Adding a Hardening Step
+## Adding a hardening step
 
-All hardening steps live in [`collections/windows.yaml`](../collections/windows.yaml). To add a new step:
+All steps live in [`collections/windows.yaml`](../collections/windows.yaml). Fork the repo, add your step, and open a pull request. The website and the CLI script both read from this file at runtime, so your step shows up in both automatically.
 
-1. Fork the repository
-2. Open `collections/windows.yaml`
-3. Add your step under the appropriate phase
-4. Submit a pull request
-
-### Step Format
+### Step format
 
 ```yaml
-- id: NET11
+- id: NET12
   name: "Your Step Name"
   description: "One sentence explaining what this does and why it matters for streamers."
   phase: network
-  recommend: standard          # standard | streamer | paranoid | minimal | network | vtuber
+  recommend: standard          # standard | streamer | vtuber | paranoid | network | gaming
   tags:
     - network
     - privacy
   manual: false                # true if this requires manual user action (e.g. app settings)
   code: |
-    # PowerShell code to APPLY this hardening step
-    # Must be idempotent (safe to run multiple times)
+    # PowerShell to APPLY this step
+    # Must be idempotent — safe to run multiple times
     try {
         # Your apply code here
         Write-Host "    [OK] Description of what was done" -ForegroundColor Green
@@ -35,7 +30,7 @@ All hardening steps live in [`collections/windows.yaml`](../collections/windows.
         Write-Host "    [WARN] Could not apply: $_" -ForegroundColor Yellow
     }
   checkCode: |
-    # PowerShell code to VERIFY this step is applied (Audit Mode)
+    # PowerShell to VERIFY this step is applied (Audit mode)
     # Must NOT make any changes to the system
     $check = Get-ItemProperty -Path "HKLM:\..." -Name "..." -ErrorAction SilentlyContinue
     if ($check.PropertyName -eq 0) {
@@ -44,7 +39,7 @@ All hardening steps live in [`collections/windows.yaml`](../collections/windows.
         Write-Host "    [MISSING] Step is not applied" -ForegroundColor Yellow
     }
   revertCode: |
-    # PowerShell code to UNDO this hardening step
+    # PowerShell to UNDO this step
     # Must restore the system to its pre-hardening state
     try {
         # Your revert code here
@@ -54,73 +49,60 @@ All hardening steps live in [`collections/windows.yaml`](../collections/windows.
     }
 ```
 
-### Required Fields
+### Required fields
 
-| Field | Required | Description |
+| Field | Required | Notes |
 |---|---|---|
-| `id` | Yes | Unique ID (e.g. NET11, TEL09). Follow existing naming convention. |
+| `id` | Yes | Unique ID (e.g. NET12, TEL09). Follow the existing naming convention for the phase. |
 | `name` | Yes | Short human-readable name |
-| `description` | Yes | One sentence explaining what and why |
+| `description` | Yes | One sentence — what it does and why it matters |
 | `phase` | Yes | `network`, `telemetry`, `system`, `malware`, `browser`, `advanced`, `threat` |
-| `recommend` | Yes | Which threat profile recommends this step |
-| `code` | Yes | Apply PowerShell code |
-| `checkCode` | Yes | Audit/verify PowerShell code (read-only) |
-| `revertCode` | Yes | Undo PowerShell code |
+| `recommend` | Yes | Which profile(s) include this step |
+| `code` | Yes | Apply code |
+| `checkCode` | Yes | Audit/verify code — read-only, no changes |
+| `revertCode` | Yes | Undo code — restore pre-hardening state |
 | `tags` | No | Array of tags for filtering |
-| `manual` | No | `true` if step requires manual user action |
+| `manual` | No | `true` if the step requires manual user action |
 
 ---
 
-## Code Standards
+## Code standards
 
-### Apply Code Rules
+**Apply code:** Must be idempotent (safe to run multiple times). Use `try/catch` with `Write-Host` status messages. Print `[OK]` on success, `[WARN]` on non-critical failure, `[ERROR]` on critical failure.
 
-- Must be **idempotent** — safe to run multiple times without side effects
-- Must use `try/catch` with `Write-Host` status messages
-- Must use `-ErrorAction SilentlyContinue` where appropriate
-- Must print `[OK]` on success, `[WARN]` on non-critical failure, `[ERROR]` on critical failure
+**Check code:** Must never modify the system. Read-only verification only. Print `[OK]` if the hardening is applied, `[MISSING]` if it's not. Handle null/missing registry paths gracefully with `Test-Path`.
 
-### Check Code Rules
-
-- Must **never modify** the system — read-only verification only
-- Must print `[OK]` if the hardening is applied
-- Must print `[MISSING]` if the hardening is not applied
-- Must handle null/missing registry paths gracefully with `Test-Path`
-
-### Revert Code Rules
-
-- Must restore the system to its **pre-hardening state**
-- Should back up values before removing them where possible
-- Must use `try/catch` with `Write-Host` status messages
+**Revert code:** Must restore the system to its pre-hardening state. Use `try/catch` with `Write-Host` status messages.
 
 ---
 
-## Testing Your Step
+## Testing your step
 
-Before submitting, test all three modes:
+Test all three modes before submitting. Use `-Local` to run against your local YAML without pushing to GitHub first:
 
 ```powershell
 # 1. Apply
-.\PrivacyWarden.ps1   # Should show [OK] for your step
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local
+# Should show [OK] for your step
 
 # 2. Audit
-.\PrivacyWarden.ps1 -Check   # Should show [OK] after applying
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local -Check
+# Should show [OK] after applying
 
 # 3. Undo
-.\PrivacyWarden.ps1 -Undo   # Should revert your step
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local -Undo
+# Should revert your step
 
 # 4. Audit again
-.\PrivacyWarden.ps1 -Check   # Should show [MISSING] after undoing
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local -Check
+# Should show [MISSING] after undoing
 ```
 
 ---
 
-## Pull Request Guidelines
+## Pull request guidelines
 
-- One step per pull request (unless steps are closely related)
-- Include test results in the PR description
-- Reference any relevant CVEs, Microsoft documentation, or threat intelligence
-- Do not break existing steps
+One step per PR unless the steps are closely related. Include your test results in the PR description. Reference any relevant CVEs, Microsoft documentation, or threat intelligence if applicable. Don't break existing steps.
 
 ---
 
