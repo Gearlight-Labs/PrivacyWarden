@@ -26,7 +26,6 @@ scripting:
 
 # ============================================================
 # REUSABLE FUNCTION LIBRARY
-# Inspired by privacy.sexy's template engine architecture.
 # Each function defines a parameterized PowerShell template.
 # Steps call functions with parameters instead of inline code.
 # ============================================================

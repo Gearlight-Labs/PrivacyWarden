@@ -33,7 +33,7 @@ privwarden.org             ←  Fetches YAML, renders UI, generates custom scrip
 Setup-PrivacyWarden-Hardening.ps1  ←  Fetches YAML at runtime, executes steps
 ```
 
-Architecture inspired by [privacy.sexy](https://privacy.sexy). All script logic lives in the YAML collection. The website is a thin UI layer that reads from it.
+All script logic lives in the YAML collection. The website is a thin UI layer that reads from it.
 
 ---
 
@@ -96,7 +96,7 @@ cd PrivacyWarden
 .\Setup-PrivacyWarden-Hardening.ps1 -Undo              # Undo
 ```
 
-The Undo mode reverses every registry key, service, and policy change made by Apply mode. All 25 hardening categories have full revert coverage, using the exact Windows default values sourced from [privacy.sexy](https://privacy.sexy) and Microsoft documentation.
+The Undo mode reverses every registry key, service, and policy change made by Apply mode. All 25 hardening categories have full revert coverage, using the exact Windows default values cross-referenced against Microsoft documentation.
 
 ---
 
