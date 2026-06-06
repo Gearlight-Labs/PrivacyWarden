@@ -1,4 +1,4 @@
-version: "3.2.5"
+version: "3.2.6"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -139,7 +139,16 @@ functions:
     if ($__hostsContent -notmatch [regex]::Escape("{{ domain }}")) {
       $__entry = "0.0.0.0 {{ domain }}"
       if ("{{ comment }}") { $__entry = "$__entry  {{ comment }}" }
-      [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__entry")
+      $__retries = 0
+      while ($__retries -lt 5) {
+        try {
+          [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__entry")
+          break
+        } catch {
+          $__retries++
+          if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+        }
+      }
     }
   checkCode: |
     $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
@@ -1951,7 +1960,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__ipGrabbers) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-IPGrabbers")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-IPGrabbers")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2081,7 +2099,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__hostsContent += "`r`n0.0.0.0 $__domain  # PrivacyWarden-Harassment"
               $__added++
             }
@@ -2131,7 +2158,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-DataBrokers")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-DataBrokers")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2178,7 +2214,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Phishing")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Phishing")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2226,7 +2271,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Malware")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Malware")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2282,7 +2336,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-BotnetC2")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-BotnetC2")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2326,7 +2389,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-ExploitKit")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-ExploitKit")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2370,7 +2442,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-RAT")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-RAT")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2415,7 +2496,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Miner")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Miner")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2463,7 +2553,16 @@ actions:
           $__added = 0
           foreach ($__domain in $__domains) {
             if ($__hostsContent -notmatch [regex]::Escape($__domain)) {
-              [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Swatting")
+              $__retries = 0
+              while ($__retries -lt 5) {
+                try {
+                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n0.0.0.0 $__domain  # PrivacyWarden-Swatting")
+                  break
+                } catch {
+                  $__retries++
+                  if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                }
+              }
               $__added++
             }
           }
@@ -2583,7 +2682,16 @@ actions:
                 $__marker = "# PrivacyWarden-StevenBlack"
                 $__existing = [System.IO.File]::ReadAllText($__hostsPath)
                 if ($__existing -notmatch [regex]::Escape($__marker)) {
-                  [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__marker`r`n$__content")
+                  $__retries = 0
+                  while ($__retries -lt 5) {
+                    try {
+                      [System.IO.File]::AppendAllText($__hostsPath, "`r`n$__marker`r`n$__content")
+                      break
+                    } catch {
+                      $__retries++
+                      if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+                    }
+                  }
                 } else {
                   Write-Host "    [INFO] Steven Black's list already present — skipping duplicate append." -ForegroundColor Cyan
                 }
@@ -3337,7 +3445,16 @@ actions:
             }
           }
           if ($__added -gt 0) {
-            [System.IO.File]::AppendAllLines($__hostsPath, $__newLines)
+            $__retries = 0
+            while ($__retries -lt 5) {
+              try {
+                [System.IO.File]::AppendAllLines($__hostsPath, $__newLines)
+                break
+              } catch {
+                $__retries++
+                if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+              }
+            }
             & ipconfig /flushdns | Out-Null
           }
           Write-Host "    [OK] $__added URL shortener domains blocked" -ForegroundColor Green
@@ -3389,7 +3506,16 @@ actions:
             }
           }
           if ($__added -gt 0) {
-            [System.IO.File]::AppendAllLines($__hostsPath, $__newLines)
+            $__retries = 0
+            while ($__retries -lt 5) {
+              try {
+                [System.IO.File]::AppendAllLines($__hostsPath, $__newLines)
+                break
+              } catch {
+                $__retries++
+                if ($__retries -lt 5) { Start-Sleep -Milliseconds 200 } else { throw }
+              }
+            }
             & ipconfig /flushdns | Out-Null
           }
           Write-Host "    [OK] $__added Brazilian cybercrime domains blocked" -ForegroundColor Green
