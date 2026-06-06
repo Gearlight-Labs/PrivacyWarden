@@ -2535,12 +2535,20 @@ actions:
                 "$env:LOCALAPPDATA\Discord\"
               )
               $__suspiciousPatterns = @("*.exe", "*.bat", "*.vbs", "*.ps1")
+              # Precise allowlist of every legitimate Discord-shipped executable and helper
+              $__knownGood = @(
+                "Discord.exe", "Update.exe", "SquirrelSetup.exe",
+                "audio_effects_helper.exe",
+                "gpu_encoder_helper.exe",
+                "chrome_crashpad_handler.exe",
+                "crashpad_handler.exe"
+              )
               $__found = 0
               foreach ($__path in $__discordPaths) {
                 if (Test-Path $__path) {
                   foreach ($__pattern in $__suspiciousPatterns) {
                     $__files = Get-ChildItem -Path $__path -Filter $__pattern -Recurse -ErrorAction SilentlyContinue |
-                      Where-Object { $_.Name -notmatch "^(Discord|Update|SquirrelSetup)" }
+                      Where-Object { $__knownGood -notcontains $_.Name }
                     foreach ($__file in $__files) {
                       Write-Host "    [FOUND] Suspicious file: $($__file.FullName)" -ForegroundColor Yellow
                       Remove-Item $__file.FullName -Force -ErrorAction SilentlyContinue
@@ -2560,12 +2568,19 @@ actions:
                 "$env:LOCALAPPDATA\Discord\"
               )
               $__suspiciousPatterns = @("*.exe", "*.bat", "*.vbs", "*.ps1")
+              $__knownGood = @(
+                "Discord.exe", "Update.exe", "SquirrelSetup.exe",
+                "audio_effects_helper.exe",
+                "gpu_encoder_helper.exe",
+                "chrome_crashpad_handler.exe",
+                "crashpad_handler.exe"
+              )
               $__found = 0
               foreach ($__path in $__discordPaths) {
                 if (Test-Path $__path) {
                   foreach ($__pattern in $__suspiciousPatterns) {
                     $__files = Get-ChildItem -Path $__path -Filter $__pattern -Recurse -ErrorAction SilentlyContinue |
-                      Where-Object { $_.Name -notmatch "^(Discord|Update|SquirrelSetup)" }
+                      Where-Object { $__knownGood -notcontains $_.Name }
                     $__found += $__files.Count
                   }
                 }

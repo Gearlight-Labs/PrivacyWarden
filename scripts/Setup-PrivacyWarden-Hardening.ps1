@@ -349,8 +349,12 @@ Register-Step -Id "HAR08" -Phase "Anti-Harassment Hardening" -Name "Disable WinR
     -Desc "Closes the PowerShell remote execution attack surface" `
     -Risk "LOW" -Profiles @("Recommended","Streamer","Paranoid","Minimal") `
     -Action {
-        Stop-Service "WinRM" -ErrorAction SilentlyContinue
-        Set-Service "WinRM" -StartupType Disabled -ErrorAction SilentlyContinue
+        try {
+            Stop-Service "WinRM" -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+            Set-Service "WinRM" -StartupType Disabled -ErrorAction SilentlyContinue
+        } catch {}
     }
 
 Register-Step -Id "HAR09" -Phase "Anti-Harassment Hardening" -Name "Disable Terminal Services (RDP)" `
