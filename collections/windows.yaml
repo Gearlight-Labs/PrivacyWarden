@@ -1,4 +1,4 @@
-version: "3.2.4"
+version: "3.2.5"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -2832,3 +2832,578 @@ actions:
           Write-Host "    [INFO] Removed artifacts cannot be restored. No revert available." -ForegroundColor Cyan
 
 
+
+  # ============================================================
+- category: Exploit Mitigations
+  description: "Hardens Windows Firewall, enables Secure Boot verification, and configures ASR rules."
+  children:
+
+  - id: SYS06
+    name: "Enable 14 Windows Defender ASR rules"
+    description: "Blocks macro droppers, script RATs, WMI persistence, LSASS theft, and more — comprehensive attack surface reduction."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: medium
+    docs: |
+      Attack Surface Reduction (ASR) rules are built-in Windows Defender policies that block
+      specific attack techniques commonly used in malware campaigns [1].
+
+      The 14 rules enabled here block:
+      - Office macro-based malware delivery
+      - Script-based RAT execution via wscript/cscript
+      - LSASS credential dumping
+      - WMI-based persistence
+      - Ransomware file encryption behaviors
+      - Executable content from email attachments
+
+      > **Caution:** Some ASR rules (especially the Office macro rules) may interfere with
+      > legitimate macros. Test in your environment before applying to production systems.
+
+      [1]: https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/attack-surface-reduction-rules-reference "ASR rules reference | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          $__rules = @{
+            "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550" = 1  # Block executable content from email/webmail
+            "D4F940AB-401B-4EFC-AADC-AD5F3C50688A" = 1  # Block Office apps from creating child processes
+            "3B576869-A4EC-4529-8536-B80A7769E899" = 1  # Block Office apps from creating executable content
+            "75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84" = 1  # Block Office apps from injecting into other processes
+            "D3E037E1-3EB8-44C8-A917-57927947596D" = 1  # Block JavaScript/VBScript from launching executables
+            "5BEB7EFE-FD9A-4556-801D-275E5FFC04CC" = 1  # Block execution of potentially obfuscated scripts
+            "92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B" = 1  # Block Win32 API calls from Office macros
+            "B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4" = 1  # Block credential stealing from LSASS
+            "C1DB55AB-C21A-4637-BB3F-A12568109D35" = 1  # Use advanced ransomware protection
+            "9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2" = 1  # Block persistence through WMI event subscription
+            "D1E49AAC-8F56-4280-B9BA-993A6D77406C" = 1  # Block process creations from PSExec and WMI
+            "26190899-1602-49E8-8B27-EB1D0A1CE869" = 1  # Block Office communication apps from creating child processes
+            "7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C" = 1  # Block Adobe Reader from creating child processes
+            "E6DB77E5-3DF2-4CF1-B95A-636979351E5B" = 1  # Block untrusted and unsigned processes from USB
+          }
+          $__applied = 0
+          foreach ($__r in $__rules.GetEnumerator()) {
+            try {
+              Add-MpPreference -AttackSurfaceReductionRules_Ids $__r.Key -AttackSurfaceReductionRules_Actions $__r.Value -ErrorAction SilentlyContinue
+              $__applied++
+            } catch {}
+          }
+          Write-Host "    [OK] $__applied/14 ASR rules enabled" -ForegroundColor Green
+        checkCode: |
+          $__prefs = Get-MpPreference -ErrorAction SilentlyContinue
+          $__count = if ($__prefs) { @($__prefs.AttackSurfaceReductionRules_Ids).Count } else { 0 }
+          if ($__count -ge 10) {
+            Write-Host "    [OK] $__count ASR rules are active" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Only $__count ASR rules active (expected 14)" -ForegroundColor Yellow
+          }
+        revertCode: |
+          $__rules = @(
+            "BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550","D4F940AB-401B-4EFC-AADC-AD5F3C50688A",
+            "3B576869-A4EC-4529-8536-B80A7769E899","75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84",
+            "D3E037E1-3EB8-44C8-A917-57927947596D","5BEB7EFE-FD9A-4556-801D-275E5FFC04CC",
+            "92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B","B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4",
+            "C1DB55AB-C21A-4637-BB3F-A12568109D35","9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2",
+            "D1E49AAC-8F56-4280-B9BA-993A6D77406C","26190899-1602-49E8-8B27-EB1D0A1CE869",
+            "7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C","E6DB77E5-3DF2-4CF1-B95A-636979351E5B"
+          )
+          foreach ($__r in $__rules) {
+            try {
+              Remove-MpPreference -AttackSurfaceReductionRules_Ids $__r -ErrorAction SilentlyContinue
+            } catch {}
+          }
+          Write-Host "    [OK] ASR rules removed" -ForegroundColor Green
+
+  - id: SYS07
+    name: "Harden Windows Firewall (block inbound, enable logging)"
+    description: "Enables all firewall profiles, sets default inbound to Block, enables dropped-packet logging."
+    recommend: standard,streamer,vtuber,paranoid,minimal,gaming
+    risk: low
+    docs: |
+      Windows Firewall with default settings may allow inbound connections on some profiles.
+      Hardening it to block all unsolicited inbound traffic and enable logging provides
+      both protection and visibility into blocked connection attempts [1].
+
+      [1]: https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/configure "Configure Windows Firewall | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -ErrorAction SilentlyContinue
+          Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction Block -ErrorAction SilentlyContinue
+          Set-NetFirewallProfile -Profile Public -LogBlocked True -LogFileName "$env:SystemRoot\System32\LogFiles\Firewall\pfirewall.log" -LogMaxSizeKilobytes 4096 -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Firewall hardened — all profiles enabled, inbound blocked, logging on" -ForegroundColor Green
+        checkCode: |
+          $__fwp = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+          $__allEnabled = ($__fwp | Where-Object { -not $_.Enabled }).Count -eq 0
+          $__allBlock = ($__fwp | Where-Object { $_.DefaultInboundAction -ne "Block" }).Count -eq 0
+          if ($__allEnabled -and $__allBlock) {
+            Write-Host "    [OK] Firewall enabled on all profiles with inbound blocked" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Firewall not fully hardened" -ForegroundColor Yellow
+          }
+        revertCode: |
+          Set-NetFirewallProfile -Profile Domain,Public,Private -DefaultInboundAction NotConfigured -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Firewall inbound action restored to default" -ForegroundColor Green
+
+  - id: SYS08
+    name: "Check Secure Boot status"
+    description: "Reports whether Secure Boot is enabled in UEFI — does not change anything, informational only."
+    recommend: standard,streamer,vtuber,paranoid,gaming
+    risk: low
+    docs: |
+      Secure Boot prevents unauthorized bootloaders and rootkits from loading before Windows [1].
+      This step is read-only — it reports the current status and advises if Secure Boot is disabled.
+
+      If Secure Boot is disabled, enable it in your UEFI/BIOS settings (usually under Security or Boot).
+
+      [1]: https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/oem-secure-boot "Secure Boot | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          try {
+            $__sb = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
+            if ($__sb -eq $true) {
+              Write-Host "    [OK] Secure Boot is enabled" -ForegroundColor Green
+            } elseif ($__sb -eq $false) {
+              Write-Host "    [WARN] Secure Boot is DISABLED — enable it in UEFI/BIOS for full protection" -ForegroundColor DarkYellow
+            } else {
+              Write-Host "    [INFO] Secure Boot check not applicable on this system (VM or legacy BIOS)" -ForegroundColor DarkCyan
+            }
+          } catch {
+            Write-Host "    [INFO] Could not check Secure Boot status" -ForegroundColor DarkCyan
+          }
+        checkCode: |
+          try {
+            $__sb = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
+            if ($__sb -eq $true) { Write-Host "    [OK] Secure Boot is enabled" -ForegroundColor Green }
+            else { Write-Host "    [MISSING] Secure Boot is not enabled" -ForegroundColor Yellow }
+          } catch {
+            Write-Host "    [INFO] Secure Boot status unknown" -ForegroundColor DarkCyan
+          }
+        revertCode: |
+          Write-Host "    [INFO] Secure Boot status is read-only — no revert needed" -ForegroundColor Cyan
+
+  # ============================================================
+- category: Service Hardening
+  description: "Disables unnecessary Windows services that expand the attack surface."
+  children:
+
+  - id: ADV11
+    name: "Disable Internet Connection Sharing (ICS)"
+    description: "Removes the ICS service that can expose your connection to other devices on the network."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: low
+    docs: |
+      Internet Connection Sharing (ICS) allows a Windows PC to act as a network gateway for other devices.
+      If not in use, it should be disabled to reduce the attack surface [1].
+
+      [1]: https://learn.microsoft.com/en-us/troubleshoot/windows-client/networking/internet-connection-sharing-ics "Internet Connection Sharing | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          Stop-Service "SharedAccess" -ErrorAction SilentlyContinue
+          Set-Service "SharedAccess" -StartupType Disabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Internet Connection Sharing disabled" -ForegroundColor Green
+        checkCode: |
+          $__svc = Get-Service "SharedAccess" -ErrorAction SilentlyContinue
+          if ($null -eq $__svc -or $__svc.StartType -eq "Disabled") {
+            Write-Host "    [OK] ICS service is disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] ICS service is still enabled ($($__svc.StartType))" -ForegroundColor Yellow
+          }
+        revertCode: |
+          Set-Service "SharedAccess" -StartupType Manual -ErrorAction SilentlyContinue
+          Write-Host "    [OK] ICS service restored to Manual" -ForegroundColor Green
+
+  - id: ADV12
+    name: "Disable Phone Link / Mobile Hotspot services"
+    description: "Removes Phone Service and Windows Mobile Hotspot Service — not needed on desktop streaming rigs."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: low
+    docs: |
+      Phone Service (PhoneSvc) and the Mobile Hotspot service (icssvc) are rarely needed on
+      dedicated streaming or desktop systems and add unnecessary network exposure [1].
+
+      [1]: https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-connectivity "Connectivity Policy CSP | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          foreach ($__s in @("PhoneSvc", "icssvc")) {
+            Stop-Service $__s -ErrorAction SilentlyContinue
+            Set-Service $__s -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Phone Link and Mobile Hotspot services disabled" -ForegroundColor Green
+        checkCode: |
+          $__disabled = 0
+          foreach ($__s in @("PhoneSvc", "icssvc")) {
+            $__svc = Get-Service $__s -ErrorAction SilentlyContinue
+            if ($null -eq $__svc -or $__svc.StartType -eq "Disabled") { $__disabled++ }
+          }
+          if ($__disabled -ge 2) {
+            Write-Host "    [OK] Phone Link and Hotspot services are disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] One or more services still enabled" -ForegroundColor Yellow
+          }
+        revertCode: |
+          foreach ($__s in @("PhoneSvc", "icssvc")) {
+            Set-Service $__s -StartupType Manual -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Phone Link and Hotspot services restored to Manual" -ForegroundColor Green
+
+  - id: ADV13
+    name: "Disable Retail Demo / Maps / WMP Network services"
+    description: "Removes RetailDemo, Downloaded Maps Manager, and Windows Media Player Network Sharing — unused bloat."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: low
+    docs: |
+      These three services serve no purpose on a personal streaming or gaming PC:
+      - **RetailDemo**: Powers Windows Store demo mode in retail stores
+      - **MapsBroker**: Downloads and updates offline map data
+      - **WMPNetworkSvc**: Shares Windows Media Player libraries over the network
+
+      All three can be safely disabled without affecting normal PC use [1].
+
+      [1]: https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server "Security guidelines for disabling system services | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          foreach ($__s in @("RetailDemo", "MapsBroker", "WMPNetworkSvc")) {
+            Stop-Service $__s -ErrorAction SilentlyContinue
+            Set-Service $__s -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] RetailDemo, MapsBroker, and WMPNetworkSvc disabled" -ForegroundColor Green
+        checkCode: |
+          $__disabled = 0
+          foreach ($__s in @("RetailDemo", "MapsBroker", "WMPNetworkSvc")) {
+            $__svc = Get-Service $__s -ErrorAction SilentlyContinue
+            if ($null -eq $__svc -or $__svc.StartType -eq "Disabled") { $__disabled++ }
+          }
+          if ($__disabled -ge 3) {
+            Write-Host "    [OK] All three bloat services are disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] $__disabled/3 bloat services disabled" -ForegroundColor Yellow
+          }
+        revertCode: |
+          foreach ($__s in @("RetailDemo", "MapsBroker", "WMPNetworkSvc")) {
+            Set-Service $__s -StartupType Manual -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Bloat services restored to Manual" -ForegroundColor Green
+
+  # ============================================================
+- category: Telemetry & Tracking
+  description: "Additional telemetry steps — Error Reporting and Windows Insider service."
+  children:
+
+  - id: TEL09
+    name: "Disable Windows Error Reporting"
+    description: "Stops crash data (which may include memory contents) from being sent to Microsoft."
+    recommend: vtuber,paranoid
+    risk: low
+    docs: |
+      Windows Error Reporting (WER) collects crash dumps and sends them to Microsoft [1].
+      Crash dumps can contain sensitive data including memory contents, clipboard data,
+      and open file handles — making this a privacy concern for VTubers and streamers.
+
+      [1]: https://learn.microsoft.com/en-us/windows/win32/wer/windows-error-reporting "Windows Error Reporting | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          $__p = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting"
+          if (-not (Test-Path $__p)) { New-Item -Path $__p -Force | Out-Null }
+          Set-ItemProperty -Path $__p -Name "Disabled" -Value 1 -Type DWord -Force
+          Stop-Service "WerSvc" -ErrorAction SilentlyContinue
+          Set-Service "WerSvc" -StartupType Disabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Error Reporting disabled" -ForegroundColor Green
+        checkCode: |
+          $__val = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -ErrorAction SilentlyContinue
+          $__svc = Get-Service "WerSvc" -ErrorAction SilentlyContinue
+          if ($__val.Disabled -eq 1 -and ($null -eq $__svc -or $__svc.StartType -eq "Disabled")) {
+            Write-Host "    [OK] Windows Error Reporting is disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Windows Error Reporting is still active" -ForegroundColor Yellow
+          }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -ErrorAction SilentlyContinue
+          Set-Service "WerSvc" -StartupType Manual -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Error Reporting restored to default" -ForegroundColor Green
+
+  - id: TEL10
+    name: "Disable Windows Insider Service"
+    description: "Removes the Windows Insider telemetry and preview build service."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: low
+    docs: |
+      The Windows Insider Service (wisvc) enables enrollment in Windows preview builds
+      and sends additional telemetry to Microsoft [1]. It is not needed on production
+      streaming or gaming systems.
+
+      [1]: https://learn.microsoft.com/en-us/windows-insider/business/manage-builds "Manage Windows Insider Preview builds | Microsoft Learn"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          Stop-Service "wisvc" -ErrorAction SilentlyContinue
+          Set-Service "wisvc" -StartupType Disabled -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Insider Service disabled" -ForegroundColor Green
+        checkCode: |
+          $__svc = Get-Service "wisvc" -ErrorAction SilentlyContinue
+          if ($null -eq $__svc -or $__svc.StartType -eq "Disabled") {
+            Write-Host "    [OK] Windows Insider Service is disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Windows Insider Service is still enabled" -ForegroundColor Yellow
+          }
+        revertCode: |
+          Set-Service "wisvc" -StartupType Manual -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Windows Insider Service restored to Manual" -ForegroundColor Green
+
+  # ============================================================
+- category: Browser & Application Hardening
+  description: "Hardens Office OLE/DDE/ActiveX, Adobe Acrobat Reader, and OBS telemetry registry settings."
+  children:
+
+  - id: BRW09
+    name: "Block Office OLE / ActiveX / DDE execution"
+    description: "Disables OLE object execution, ActiveX, and DDE in Office — secondary attack vectors for RAT delivery."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: medium
+    docs: |
+      Beyond macros, Office documents can execute code through OLE (Object Linking and Embedding),
+      ActiveX controls, and DDE (Dynamic Data Exchange) [1].
+      These are secondary attack vectors used in targeted attacks against streamers and content creators.
+
+      > **Caution:** Disabling DDE may break some Excel formulas that use external data connections.
+
+      [1]: https://attack.mitre.org/techniques/T1559/002/ "T1559.002: Dynamic Data Exchange | MITRE ATT&CK"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          foreach ($__ver in @("16.0","15.0","14.0")) {
+            foreach ($__app in @("Word","Excel","PowerPoint","Outlook")) {
+              $__p = "HKCU:\Software\Policies\Microsoft\Office\$__ver\$__app\Security"
+              if (-not (Test-Path $__p)) { New-Item -Path $__p -Force | Out-Null }
+              Set-ItemProperty -Path $__p -Name "PackagerPrompt" -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
+              Set-ItemProperty -Path $__p -Name "DisableAllActiveX" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+            }
+            foreach ($__app in @("Word","Excel")) {
+              $__p = "HKCU:\Software\Microsoft\Office\$__ver\$__app\Options"
+              if (-not (Test-Path $__p)) { New-Item -Path $__p -Force | Out-Null }
+              Set-ItemProperty -Path $__p -Name "DontUpdateLinks" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+            }
+          }
+          Write-Host "    [OK] Office OLE, ActiveX, and DDE hardened" -ForegroundColor Green
+        checkCode: |
+          $__p = "HKCU:\Software\Policies\Microsoft\Office\16.0\Word\Security"
+          $__val = Get-ItemProperty -Path $__p -Name "DisableAllActiveX" -ErrorAction SilentlyContinue
+          if ($__val.DisableAllActiveX -eq 1) {
+            Write-Host "    [OK] Office ActiveX is disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Office ActiveX hardening not applied" -ForegroundColor Yellow
+          }
+        revertCode: |
+          foreach ($__ver in @("16.0","15.0","14.0")) {
+            foreach ($__app in @("Word","Excel","PowerPoint","Outlook")) {
+              $__p = "HKCU:\Software\Policies\Microsoft\Office\$__ver\$__app\Security"
+              Remove-ItemProperty -Path $__p -Name "PackagerPrompt" -ErrorAction SilentlyContinue
+              Remove-ItemProperty -Path $__p -Name "DisableAllActiveX" -ErrorAction SilentlyContinue
+            }
+            foreach ($__app in @("Word","Excel")) {
+              $__p = "HKCU:\Software\Microsoft\Office\$__ver\$__app\Options"
+              Remove-ItemProperty -Path $__p -Name "DontUpdateLinks" -ErrorAction SilentlyContinue
+            }
+          }
+          Write-Host "    [OK] Office OLE/ActiveX/DDE settings reverted" -ForegroundColor Green
+
+  - id: BRW10
+    name: "Harden Adobe Acrobat Reader (disable JavaScript)"
+    description: "Disables PDF JavaScript and enables Enhanced Security in Acrobat Reader — blocks PDF-based exploits."
+    recommend: standard,streamer,vtuber,paranoid
+    risk: low
+    docs: |
+      Adobe Acrobat Reader supports JavaScript execution within PDFs, which has been
+      exploited in numerous drive-by download and RAT delivery campaigns [1].
+      Disabling PDF JavaScript and enabling Enhanced Security eliminates this attack vector.
+
+      [1]: https://attack.mitre.org/techniques/T1204/002/ "T1204.002: User Execution: Malicious File | MITRE ATT&CK"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          foreach ($__ver in @("DC","2020","2017","2015","11.0","10.0")) {
+            $__jp = "HKCU:\Software\Adobe\Acrobat Reader\$__ver\JSPrefs"
+            if (-not (Test-Path $__jp)) { New-Item -Path $__jp -Force | Out-Null }
+            Set-ItemProperty -Path $__jp -Name "bJavaScriptEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+            $__tp = "HKCU:\Software\Adobe\Acrobat Reader\$__ver\TrustManager"
+            if (-not (Test-Path $__tp)) { New-Item -Path $__tp -Force | Out-Null }
+            Set-ItemProperty -Path $__tp -Name "bEnhancedSecurityInBrowser" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $__tp -Name "bEnhancedSecurityStandalone" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Acrobat Reader JavaScript disabled, Enhanced Security enabled" -ForegroundColor Green
+        checkCode: |
+          $__val = Get-ItemProperty -Path "HKCU:\Software\Adobe\Acrobat Reader\DC\JSPrefs" -Name "bJavaScriptEnabled" -ErrorAction SilentlyContinue
+          if ($null -ne $__val -and $__val.bJavaScriptEnabled -eq 0) {
+            Write-Host "    [OK] Acrobat Reader JavaScript is disabled" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Acrobat Reader JavaScript may still be enabled (or Reader not installed)" -ForegroundColor Yellow
+          }
+        revertCode: |
+          foreach ($__ver in @("DC","2020","2017","2015","11.0","10.0")) {
+            $__jp = "HKCU:\Software\Adobe\Acrobat Reader\$__ver\JSPrefs"
+            Set-ItemProperty -Path $__jp -Name "bJavaScriptEnabled" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] Acrobat Reader JavaScript re-enabled" -ForegroundColor Green
+
+  - id: BRW11
+    name: "Disable OBS / Streamlabs telemetry (registry)"
+    description: "Turns off auto-update and telemetry for OBS Studio and Streamlabs OBS via registry."
+    recommend: streamer,vtuber,paranoid
+    risk: low
+    docs: |
+      OBS Studio and Streamlabs OBS collect usage telemetry and crash reports by default.
+      This step disables auto-update checks and telemetry via registry keys [1].
+
+      > **Note:** This complements the OBS steps that modify OBS config files.
+      > The registry approach works even if OBS has not been launched yet.
+
+      [1]: https://obsproject.com/wiki/Crash-Log-and-Settings-File-Locations.html "OBS crash log and settings | OBS Project"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          foreach ($__app in @("OBS Studio","Streamlabs OBS")) {
+            $__p = "HKCU:\Software\$__app"
+            if (-not (Test-Path $__p)) { New-Item -Path $__p -Force | Out-Null }
+            Set-ItemProperty -Path $__p -Name "EnableAutoUpdates" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $__p -Name "EnableCrashReporting" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] OBS and Streamlabs telemetry registry keys set" -ForegroundColor Green
+        checkCode: |
+          $__val = Get-ItemProperty -Path "HKCU:\Software\OBS Studio" -Name "EnableAutoUpdates" -ErrorAction SilentlyContinue
+          if ($null -ne $__val -and $__val.EnableAutoUpdates -eq 0) {
+            Write-Host "    [OK] OBS telemetry registry keys are set" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] OBS telemetry registry keys not set (OBS may not be installed yet)" -ForegroundColor Yellow
+          }
+        revertCode: |
+          foreach ($__app in @("OBS Studio","Streamlabs OBS")) {
+            $__p = "HKCU:\Software\$__app"
+            Remove-ItemProperty -Path $__p -Name "EnableAutoUpdates" -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path $__p -Name "EnableCrashReporting" -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [OK] OBS telemetry registry keys removed" -ForegroundColor Green
+
+  # ============================================================
+- category: Threat Domain Blocking
+  description: "Additional hosts-file blocking for URL shorteners and regional cybercrime forums."
+  children:
+
+  - id: THR13
+    name: "Block URL shorteners used as IP loggers"
+    description: "Blocks bit.ly, tinyurl, cutt.ly, ouo.io and other shorteners commonly abused for IP tracking."
+    recommend: streamer,vtuber,paranoid
+    risk: medium
+    docs: |
+      URL shorteners are routinely used to disguise IP logger links (e.g., Grabify wrapped in bit.ly).
+      Blocking the shortener domains at the hosts file level prevents these links from resolving,
+      protecting against IP grabbing via shortened URLs [1].
+
+      > **Caution:** This blocks ALL traffic to these domains, including legitimate shortened links.
+      > Users who regularly click shortened links from trusted sources may want to skip this step.
+
+      [1]: https://attack.mitre.org/techniques/T1598/ "T1598: Phishing for Information | MITRE ATT&CK"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          $__domains = @(
+            "bit.ly","bitly.com","tinyurl.com","cutt.ly","ouo.io","rb.gy",
+            "t.co","ow.ly","buff.ly","goo.gl","is.gd","v.gd","tiny.cc",
+            "shorte.st","adf.ly","linkvertise.com","lnkd.in"
+          )
+          $__hostsPath = "$env:windir\System32\drivers\etc\hosts"
+          $__current = Get-Content -Path $__hostsPath -ErrorAction SilentlyContinue
+          if ($null -eq $__current) { $__current = @() }
+          $__newLines = [System.Collections.Generic.List[string]]::new()
+          $__newLines.Add("`n# PrivacyWarden — URL Shortener Block (THR13)")
+          $__added = 0
+          foreach ($__d in $__domains) {
+            if (-not ($__current -match [regex]::Escape($__d))) {
+              $__newLines.Add("0.0.0.0 $__d")
+              $__added++
+            }
+          }
+          if ($__added -gt 0) {
+            [System.IO.File]::AppendAllLines($__hostsPath, $__newLines)
+            & ipconfig /flushdns | Out-Null
+          }
+          Write-Host "    [OK] $__added URL shortener domains blocked" -ForegroundColor Green
+        checkCode: |
+          $__hosts = Get-Content "$env:windir\System32\drivers\etc\hosts" -ErrorAction SilentlyContinue
+          if ($__hosts -match "PrivacyWarden.*THR13") {
+            Write-Host "    [OK] URL shortener block list is present" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] URL shortener block list not found" -ForegroundColor Yellow
+          }
+        revertCode: |
+          $__hostsPath = "$env:windir\System32\drivers\etc\hosts"
+          $__content = Get-Content -Path $__hostsPath -ErrorAction SilentlyContinue
+          $__filtered = $__content | Where-Object { $_ -notmatch "PrivacyWarden.*THR13" -and $_ -notmatch "^0\.0\.0\.0 (bit\.ly|tinyurl|cutt\.ly|ouo\.io|rb\.gy|t\.co|ow\.ly|buff\.ly|goo\.gl|is\.gd|v\.gd|tiny\.cc|shorte\.st|adf\.ly|linkvertise|lnkd\.in)" }
+          Set-Content -Path $__hostsPath -Value $__filtered -Force
+          & ipconfig /flushdns | Out-Null
+          Write-Host "    [OK] URL shortener block list removed" -ForegroundColor Green
+
+  - id: THR14
+    name: "Block Brazilian cybercrime forums"
+    description: "Blocks Brazilian hacking and fraud forums that specifically target Brazilian streamers and VTubers."
+    recommend: streamer,paranoid
+    risk: low
+    docs: |
+      Brazilian-language cybercrime forums host targeted harassment campaigns, credential leaks,
+      and doxxing operations specifically aimed at Brazilian content creators and streamers [1].
+      This step blocks known Brazilian cybercrime forum domains at the hosts file level.
+
+      [1]: https://attack.mitre.org/techniques/T1591/ "T1591: Gather Victim Org Information | MITRE ATT&CK"
+    call:
+      function: RunPowerShell
+      parameters:
+        code: |
+          $__domains = @(
+            "forumhacker.com.br","guiadohacker.com.br","undergroundbrasil.com",
+            "hackingbrasil.com.br","zonasombria.com","darkbrasil.com",
+            "hackersbrasil.com","hackingclub.com.br"
+          )
+          $__hostsPath = "$env:windir\System32\drivers\etc\hosts"
+          $__current = Get-Content -Path $__hostsPath -ErrorAction SilentlyContinue
+          if ($null -eq $__current) { $__current = @() }
+          $__newLines = [System.Collections.Generic.List[string]]::new()
+          $__newLines.Add("`n# PrivacyWarden — Brazilian Cybercrime Block (THR14)")
+          $__added = 0
+          foreach ($__d in $__domains) {
+            if (-not ($__current -match [regex]::Escape($__d))) {
+              $__newLines.Add("0.0.0.0 $__d")
+              $__added++
+            }
+          }
+          if ($__added -gt 0) {
+            [System.IO.File]::AppendAllLines($__hostsPath, $__newLines)
+            & ipconfig /flushdns | Out-Null
+          }
+          Write-Host "    [OK] $__added Brazilian cybercrime domains blocked" -ForegroundColor Green
+        checkCode: |
+          $__hosts = Get-Content "$env:windir\System32\drivers\etc\hosts" -ErrorAction SilentlyContinue
+          if ($__hosts -match "PrivacyWarden.*THR14") {
+            Write-Host "    [OK] Brazilian cybercrime block list is present" -ForegroundColor Green
+          } else {
+            Write-Host "    [MISSING] Brazilian cybercrime block list not found" -ForegroundColor Yellow
+          }
+        revertCode: |
+          $__hostsPath = "$env:windir\System32\drivers\etc\hosts"
+          $__content = Get-Content -Path $__hostsPath -ErrorAction SilentlyContinue
+          $__filtered = $__content | Where-Object { $_ -notmatch "PrivacyWarden.*THR14" -and $_ -notmatch "^0\.0\.0\.0 (forumhacker|guiadohacker|undergroundbrasil|hackingbrasil|zonasombria|darkbrasil|hackersbrasil|hackingclub)" }
+          Set-Content -Path $__hostsPath -Value $__filtered -Force
+          & ipconfig /flushdns | Out-Null
+          Write-Host "    [OK] Brazilian cybercrime block list removed" -ForegroundColor Green
