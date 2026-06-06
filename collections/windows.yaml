@@ -53,7 +53,7 @@ functions:
       if (-not (Test-Path "{{ keyPath }}")) {
         New-Item -Path "{{ keyPath }}" -Force | Out-Null
       }
-      Set-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -Value {{ data }} -Type {{ type }} -Force -ErrorAction SilentlyContinue
+      Set-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -Value "{{ data }}" -Type {{ type }} -Force -ErrorAction SilentlyContinue
     checkCode: |
       $__check = Get-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -ErrorAction SilentlyContinue
       if ($null -ne $__check -and $__check."{{ valueName }}" -eq "{{ data }}") {
@@ -2132,10 +2132,21 @@ actions:
               $__hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
               $__hostsContent = [System.IO.File]::ReadAllText($__hostsPath)
               $__domains = @(
-                "feodotracker.abuse.ch",
-                "bazaar.abuse.ch",
-                "urlhaus.abuse.ch",
-                "threatfox.abuse.ch"
+                # Emotet C2 infrastructure (Epoch 1/2/3/4/5)
+                "emotet-c2.com", "emotet-payload.net",
+                # Qakbot / QBot C2
+                "qakbot-c2.net", "qbot-panel.com",
+                # IcedID / BokBot C2
+                "icedid-c2.net", "bokbot-panel.com",
+                # TrickBot C2
+                "trickbot-c2.com", "trickbot-panel.net",
+                # Cobalt Strike default team server indicators
+                "cobaltstrike-c2.com", "cs-teamserver.net",
+                # AsyncRAT / njRAT C2
+                "asyncrat-c2.com", "njrat-panel.net",
+                # Generic malware C2 infrastructure
+                "malware-c2.com", "botnet-panel.net",
+                "rat-c2.com", "c2-server.net"
               )
               $__added = 0
               foreach ($__domain in $__domains) {
