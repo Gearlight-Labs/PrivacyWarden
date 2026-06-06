@@ -1,162 +1,133 @@
 # PrivacyWarden
 
-> **Windows security hardening for streamers, VTubers, and content creators.**  
-> 68 hardening steps. Select what you need. Download one script. Run it.
+> Windows hardening for streamers, VTubers, and anyone who's tired of getting their IP grabbed.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.2.4-cyan.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Collection-v3.2.8-cyan.svg)](CHANGELOG.md)
 
-**Created by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
-
----
-
-## What is PrivacyWarden?
-
-PrivacyWarden is an open-source Windows security hardening tool built for the real threat model of streamers and VTubers: **doxxing, IP grabbing, swatting, account takeover, and RAT distribution through Discord and other platforms**.
-
-Generic hardening guides aren't built for people with large public audiences, known online personas, and high-value accounts. PrivacyWarden is.
-
-**The web interface at [privwarden.org](https://privwarden.org) reads this repository's YAML collection at runtime** and generates a custom PowerShell script based on your selections. No data is collected. No account required. All script code is visible in this repo.
+**Made by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
 ---
 
-## How It Works
+## What is this?
 
-```
-collections/windows.yaml   ←  Single source of truth for all 69 hardening steps
-        ↓
-privwarden.org             ←  Fetches YAML, renders UI, generates custom script
-        ↓
-Setup-PrivacyWarden-Hardening.ps1  ←  Fetches YAML at runtime, executes steps
-```
+I made PrivacyWarden because every "Windows hardening guide" I found was written for IT admins, not for people who stream to thousands of people and have their real name and city floating around in Discord DMs.
 
-All script logic lives in the YAML collection. The website is a thin UI layer that reads from it.
+The threat model is different when you're a streamer or VTuber. You're not worried about nation-state actors. You're worried about someone in your chat dropping an IP grabber link, a fake brand deal with a RAT attached, or a stalker piecing together your location from stream metadata. Generic hardening guides don't cover that. This one does.
+
+**How it works:** Go to [privwarden.org](https://privwarden.org), pick a profile that fits your situation, download one PowerShell script, run it as Administrator. That's it. The script code comes directly from [`collections/windows.yaml`](collections/windows.yaml) in this repo — nothing hidden.
+
+> ⚠️ **This project is in early development.** Every system is different. Read what each step does before you apply it. Don't just select everything and click generate — the profiles exist for a reason.
 
 ---
 
 ## Quick Start
 
-### Option 1: Web Interface (Recommended)
+### Option 1: Website (easiest)
 
 1. Go to **[privwarden.org](https://privwarden.org)**
-2. Select a threat profile or individual steps
-3. Choose Apply, Audit, or Undo mode
-4. Click **Generate Script** and download
-5. Run the `.ps1` as Administrator
+2. Pick a profile — or go through individual steps if you know what you're doing
+3. Choose Apply, Audit, or Undo
+4. Download the script and run it as Administrator
 
-### Option 2: Run Directly
+### Option 2: Run directly
 
 ```powershell
-# Apply recommended hardening (standard profile)
+# Runs the standard profile — fetches latest YAML from GitHub at runtime
 irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Setup-PrivacyWarden-Hardening.ps1 | iex
 ```
 
-> **Note:** The script fetches the latest YAML collection from GitHub at runtime, so you always get the most current hardening steps.
-
-### Option 3: Clone and Run
+### Option 3: Clone and run locally
 
 ```powershell
 git clone https://github.com/Gearlight-Labs/PrivacyWarden.git
 cd PrivacyWarden
-# Run as Administrator
-.\scripts\Setup-PrivacyWarden-Hardening.ps1
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local
 ```
 
 ---
 
-## 68 Hardening Steps
+## What it covers
 
-| Phase | Steps | Count | What It Covers |
-|---|---|---|---|
-| Network Privacy | NET01–NET10 | 10 | LLMNR, NetBIOS, WPAD, IPv6 tunneling, firewall, DNS leaks |
-| Telemetry & Tracking | TEL01–TEL08 | 8 | DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
-| System Hardening | SYS01–SYS05 | 5 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC |
-| Malware Prevention | MAL01–MAL08 | 8 | WSH, AutoRun, dangerous file extensions, Office macros, Defender |
-| Browser & Streamer | OBS01–OBS05, DIS01–DIS06, BRW01–BRW05 | 16 | OBS, Discord, browser hardening |
-| Exploit Mitigations | ADV01–ADV10 | 10 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
-| Threat Blocking | THR01–THR12 | 12 | IP grabbers, KiwiFarms + all TLD mirrors, doxxing sites, stalkerware C2, 83,599 malicious domains |
-
----
-
-## Execution Modes
-
-| Mode | Flag | What It Does |
+| Phase | Steps | What it actually does |
 |---|---|---|
-| Apply | *(default)* | Apply hardening steps to your system |
-| Audit | `-Check` | Verify current status — no changes made |
-| Undo | `-Undo` | Revert **all** hardening changes back to Windows defaults (100% coverage) |
-
-```powershell
-.\Setup-PrivacyWarden-Hardening.ps1                    # Apply (interactive TUI)
-.\Setup-PrivacyWarden-Hardening.ps1 -Profile standard  # Apply standard profile
-.\Setup-PrivacyWarden-Hardening.ps1 -Check             # Audit
-.\Setup-PrivacyWarden-Hardening.ps1 -Undo              # Undo
-```
-
-The Undo mode reverses every registry key, service, and policy change made by Apply mode. All 25 hardening categories have full revert coverage, using the exact Windows default values cross-referenced against Microsoft documentation.
+| Network | NET01–NET11 | Kills LLMNR, NetBIOS, WPAD, IPv6 tunnels, sets Quad9 DNS |
+| Telemetry | TEL01–TEL10 | Kills DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
+| System | SYS01–SYS08 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC, ASR rules, firewall |
+| Malware | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender |
+| Apps | OBS01–OBS05, DIS01–DIS06, BRW01–BRW11 | OBS, Discord, browser hardening |
+| Advanced | ADV01–ADV13 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
+| Threat Blocking | THR01–THR14 | IP grabbers, KiwiFarms mirrors, doxxing sites, stalkerware C2, 83,599 domains |
 
 ---
 
-## Threat Profiles
+## Profiles
 
-| Profile | Steps | Best For |
+Pick one that fits. Don't select everything.
+
+| Profile | Steps | Who it's for |
 |---|---|---|
-| Standard | 46 | All streamers — good balance of security and compatibility |
-| Streamer | 64 | Active streamers — avoids breaking streaming tools |
-| VTuber | 66 | VTuber-specific threat model |
-| Paranoid | 68 | Maximum hardening — may break some software |
-| Minimal | ~20 | Essential protections only |
-| Network & Privacy | 18 | Network-level threat focus |
-| **Gaming** | **64** | **Gamers — anti-cheat safe (see below)** |
+| Standard | 58 | Good starting point for most people |
+| Streamer | 78 | Active streamers — won't break OBS or streaming tools |
+| VTuber | 80 | VTuber-specific — covers Discord, browser, identity exposure |
+| Paranoid | 82 | Everything. Test on a spare machine first. |
+| Network & Privacy | 19 | Just the network and telemetry stuff |
+| **Gaming** | **76** | **Anti-cheat safe — see below** |
 
 ---
 
-## 🎮 Gaming Profile (AC-SAFE)
+## Gaming Profile (AC-SAFE)
 
-The **Gaming** profile applies 64 hardening steps that are verified to be compatible with the most common anti-cheat systems used in competitive and live-service games.
+The Gaming profile skips the 5 steps that are known to conflict with kernel-level anti-cheat. Everything else still applies.
 
-### Compatible Anti-Cheat Systems
+### What it's compatible with
 
 | Anti-Cheat | Games |
 |---|---|
-| Easy Anti-Cheat (EAC) | Fortnite, Apex Legends, Rust, Dead by Daylight, and 200+ others |
-| BattlEye | PUBG, Rainbow Six Siege, DayZ, Arma 3, and others |
-| GameGuard | MapleStory, Phantasy Star Online 2, and others |
+| Easy Anti-Cheat (EAC) | Fortnite, Apex Legends, Rust, Dead by Daylight, 200+ others |
+| BattlEye | PUBG, Rainbow Six Siege, DayZ, Arma 3 |
+| GameGuard | MapleStory, Phantasy Star Online 2 |
 | HoYoKProtect | Genshin Impact, Honkai: Star Rail, Zenless Zone Zero |
 | Vanguard | Valorant |
-| FACEIT Anti-Cheat | CS2 (FACEIT), and others |
+| FACEIT | CS2 on FACEIT |
 
-### Excluded Steps
+### What gets skipped and why
 
-The following 5 steps are **excluded** from the Gaming profile because they can conflict with kernel-level anti-cheat drivers:
-
-| Step | Name | Why Excluded |
+| Step | Name | Why |
 |---|---|---|
-| ADV01 | Enable Controlled Folder Access | Blocks anti-cheat from writing to protected folders |
-| MAL08 | Disable Windows Script Host | Some anti-cheat launchers use WSH for integrity checks |
-| MAL01 | Disable AutoRun | Can interfere with game launcher auto-start mechanisms |
-| ADV05 | Disable Remote Registry | Some anti-cheat telemetry uses registry reads |
-| THR11 | Block via Hosts File | Large hosts file can slow DNS resolution during game startup |
+| ADV01 | Controlled Folder Access | Blocks anti-cheat from writing to protected folders |
+| MAL08 | Disable Windows Script Host | Some launchers use WSH for integrity checks |
+| MAL01 | Disable AutoRun | Can interfere with game launcher auto-start |
+| ADV05 | Disable Remote Registry | Some anti-cheat telemetry reads the registry |
+| THR11 | Hosts file blocking | Large hosts file slows DNS during game startup |
 
-### Tested Games
+> **Vanguard note:** Vanguard (Valorant's anti-cheat) runs a kernel driver (`vgk.sys`) that loads at boot. ADV01 (Controlled Folder Access) and MAL08 (DCOM restrictions) are the two steps most likely to cause issues. If Valorant won't launch after applying the Gaming profile, try disabling those two first.
 
-The Gaming profile has been designed around the threat models of streamers and VTubers who play:
-- **Valorant** (Vanguard — kernel-level, requires reboot to load/unload)
-- **Genshin Impact / Honkai: Star Rail / Zenless Zone Zero** (HoYoKProtect)
-- **Fortnite / Apex Legends** (Easy Anti-Cheat)
-- **Rainbow Six Siege / PUBG** (BattlEye)
-- **CS2 on FACEIT** (FACEIT Anti-Cheat)
-
-> **Note:** If a game still fails to launch after applying the Gaming profile, try deselecting the remaining excluded steps one at a time. The most likely culprit is ADV01 (Controlled Folder Access) or THR11 (hosts file blocking). See the [FAQ](https://privwarden.org/#faq) for troubleshooting.
+If a game still won't launch after applying the Gaming profile, go through the excluded steps one by one. ADV01 and THR11 are usually the culprit.
 
 ---
 
-## YAML Collection Format
+## Execution modes
 
-All 68 steps are defined in [`collections/windows.yaml`](collections/windows.yaml). Each step has three code blocks:
+```powershell
+.\Setup-PrivacyWarden-Hardening.ps1                    # Apply (interactive menu)
+.\Setup-PrivacyWarden-Hardening.ps1 -Profile standard  # Apply a specific profile
+.\Setup-PrivacyWarden-Hardening.ps1 -Profile gaming    # Apply gaming profile
+.\Setup-PrivacyWarden-Hardening.ps1 -Check             # Audit — no changes
+.\Setup-PrivacyWarden-Hardening.ps1 -Undo              # Undo everything
+.\Setup-PrivacyWarden-Hardening.ps1 -Local             # Use local YAML (offline)
+```
+
+Undo mode reverses every registry key, service, and policy change back to Windows defaults. It's not perfect — if something else changed your system between Apply and Undo, it can't account for that.
+
+---
+
+## How the YAML works
+
+Every step in [`collections/windows.yaml`](collections/windows.yaml) has three code blocks:
 
 ```yaml
 - id: NET01
@@ -164,57 +135,50 @@ All 68 steps are defined in [`collections/windows.yaml`](collections/windows.yam
   description: "Stops LLMNR broadcast queries that can be used to capture credentials on shared networks."
   phase: network
   recommend: standard
-  tags: [network, credential-theft]
   code: |
-    # PowerShell to APPLY this step
+    # PowerShell to apply this step
   checkCode: |
-    # PowerShell to VERIFY this step (read-only)
+    # PowerShell to verify this step (read-only)
   revertCode: |
-    # PowerShell to UNDO this step
+    # PowerShell to undo this step
 ```
 
-**Want to add a step?** Edit `collections/windows.yaml` and submit a pull request. The website picks it up automatically. See [CONTRIBUTING.md](docs/CONTRIBUTING.md).
+The website reads this file at runtime and generates your script from it. The PS1 wrapper does the same thing when you run it directly. Nothing is hardcoded in the script itself.
+
+Want to add a step? Edit the YAML and open a PR. See [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ---
 
-## Repository Structure
+## Repo structure
 
 ```
-PrivacyWarden/
-├── collections/
-│   ├── windows.yaml          ← All 69 hardening steps (single source of truth)
-│   └── windows.yaml.sha256   ← SHA-256 integrity file (supply chain protection)
-├── docs/
-│   ├── USER_GUIDE.md
-│   ├── FAQ.md
-│   ├── SECURITY.md
-│   └── CONTRIBUTING.md
-├── scripts/
-│   └── Setup-PrivacyWarden-Hardening.ps1   ← YAML-driven wrapper (Apply/Audit/Undo)
-├── src/                      ← C# tray service (Mullvad VPN auto-switcher)
-├── README.md
-├── CHANGELOG.md
-└── LICENSE
+collections/
+  windows.yaml          ← All 82 hardening steps
+  windows.yaml.sha256   ← SHA-256 integrity check
+docs/
+  USER_GUIDE.md
+  FAQ.md
+  SECURITY.md
+  CONTRIBUTING.md
+scripts/
+  Setup-PrivacyWarden-Hardening.ps1   ← YAML-driven wrapper
+src/
+  PrivacyWarden/        ← C# tray app (Mullvad VPN auto-switcher, companion tool)
 ```
-
-> **Note on `src/`:** The C# tray application (Mullvad VPN auto-switcher) lives here. It is a companion tool — the YAML collection and web interface are the primary product. See the [CHANGELOG](CHANGELOG.md) for tray app release history.
 
 ---
 
-## Security & Privacy
+## Security & privacy
 
-- **Zero telemetry.** No data collection. No accounts required.
-- **Fully open source.** Every line of script code is visible in `collections/windows.yaml`.
-- **Auditable.** Run `-Check` mode to see exactly what's applied without making changes.
-- **Fully reversible.** Run `-Undo` mode to safely revert every hardening step back to Windows defaults. All 25 categories have 100% revert coverage.
-- **Supply chain protected.** `collections/windows.yaml.sha256` ships with every release. Verify the collection has not been tampered with before running.
+No data collection. No accounts. No telemetry. Scripts are generated in your browser from the YAML in this repo. Run `-Check` to audit without making changes. Run `-Undo` to revert. Verify the YAML against `windows.yaml.sha256` if you want to confirm it hasn't been tampered with.
 
-For security disclosures, see [SECURITY.md](docs/SECURITY.md).
+Full details in [SECURITY.md](docs/SECURITY.md).
 
 ---
 
 ## Contributing
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for how to add or improve hardening steps.
+
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ---
 
@@ -230,6 +194,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection:** v3.2.4 · **Script:** v0.12.0 · **Creator:** Aya Yoki (AyaYokiVT) · **Twitter/X:** [@AyaYokiVT](https://twitter.com/AyaYokiVT)
+**Collection v3.2.8 · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
 
 [MIT License](LICENSE)
