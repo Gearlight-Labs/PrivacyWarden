@@ -158,6 +158,62 @@ This step downloads a large hosts file from GitHub. If it fails:
 
 ---
 
+## Testing on a Real Windows Machine
+
+The YAML parser in the wrapper is pure PowerShell with no external dependencies, but it should be validated on a real Windows 10 or Windows 11 system before each major release.
+
+### Recommended Test Procedure
+
+1. **Snapshot first.** Take a VM snapshot or a System Restore point before running any hardening steps.
+2. **Run Audit Mode first** to see the baseline state:
+   ```powershell
+   .\Setup-PrivacyWarden-Hardening.ps1 -Check
+   ```
+3. **Apply a single profile** (start with `minimal` — the lowest risk):
+   ```powershell
+   .\Setup-PrivacyWarden-Hardening.ps1 -Profile minimal
+   ```
+4. **Run Audit Mode again** to confirm steps were applied.
+5. **Run Undo Mode** to verify full revert works:
+   ```powershell
+   .\Setup-PrivacyWarden-Hardening.ps1 -Undo
+   ```
+6. **Reboot and re-run Audit Mode** — some steps (LSA Protection, ASLR) only activate after reboot.
+7. **Test the Gaming profile** on a machine with EAC or BattlEye games installed to confirm no anti-cheat conflicts.
+
+### Steps That Require Special Attention
+
+| Step | Why | How to Test |
+|------|-----|-------------|
+| SYS06 (ASR rules) | May block legitimate Office macros | Open a macro-enabled .xlsm file after applying |
+| MAL01 (WSH) | Breaks HoYoPlay launcher | Launch Genshin/HSR/ZZZ after applying |
+| ADV04 (RDP) | Disables Remote Desktop | Try RDP into the machine from another device |
+| ADV05 (Print Spooler) | Disables printing | Try printing a test page |
+| ADV08 (Bluetooth) | Disables Bluetooth | Check if BT devices still work |
+| THR13 (URL shorteners) | Blocks bit.ly etc. | Click a bit.ly link in a browser |
+
+---
+
+## Offline / Local Usage
+
+If you have cloned the repository and want to run the script against your local YAML without internet access:
+
+```powershell
+# From the repo root directory:
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local
+
+# Or specify the path explicitly:
+.\scripts\Setup-PrivacyWarden-Hardening.ps1 -CollectionUrl .\collections\windows.yaml
+```
+
+The `-Local` flag automatically resolves to `collections\windows.yaml` relative to the script location.
+This is useful for:
+- Testing changes to the YAML before pushing to GitHub
+- Running on air-gapped systems
+- Verifying a specific version of the collection
+
+---
+
 ## Getting Help
 
 - [FAQ](FAQ.md)

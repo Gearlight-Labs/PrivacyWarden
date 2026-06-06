@@ -30,6 +30,11 @@
 .PARAMETER CollectionUrl
     Override the YAML collection URL (default: GitHub raw).
     Useful for testing local forks or pre-release collections.
+    Can also be a local file path, e.g. -CollectionUrl .\collections\windows.yaml
+
+.PARAMETER Local
+    Shorthand for -CollectionUrl .\collections\windows.yaml
+    Runs against the local YAML in the current directory (for repo contributors and offline use).
 
 .NOTES
     Author   : Aya Yoki (AyaYokiVT) — Gearlight Labs
@@ -50,8 +55,24 @@ param (
                  "Recommended","Streamer","Paranoid","Minimal","Network","VTuber")]
     [string]$Profile,
     [string[]]$Steps,
-    [string]$CollectionUrl = "https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/collections/windows.yaml"
+    [string]$CollectionUrl = "https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/collections/windows.yaml",
+    [switch]$Local
 )
+
+# -Local shorthand: resolve to local collections\windows.yaml relative to the script
+if ($Local) {
+    $CollectionUrl = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "collections\windows.yaml"
+    if (-not (Test-Path $CollectionUrl)) {
+        # Fallback: try relative to current working directory
+        $CollectionUrl = Join-Path (Get-Location) "collections\windows.yaml"
+    }
+    if (-not (Test-Path $CollectionUrl)) {
+        Write-Host "  [ERROR] -Local flag used but collections\windows.yaml not found." -ForegroundColor Red
+        Write-Host "         Run from the PrivacyWarden repo root, or use -CollectionUrl to specify the path." -ForegroundColor DarkYellow
+        exit 1
+    }
+    Write-Host "  [*] Using local collection: $CollectionUrl" -ForegroundColor DarkCyan
+}
 
 $ErrorActionPreference = "Continue"
 $WrapperVersion = "1.0.0"
@@ -68,14 +89,25 @@ Write-Host ""
 # ==============================================================================
 # STEP 1: FETCH YAML COLLECTION
 # ==============================================================================
-Write-Host "  [*] Fetching hardening collection from GitHub..." -ForegroundColor DarkCyan
-try {
-    $yamlRaw = Invoke-RestMethod -Uri $CollectionUrl -UseBasicParsing -TimeoutSec 30
-    Write-Host "  [OK] Collection fetched." -ForegroundColor Green
-} catch {
-    Write-Host "  [ERROR] Could not fetch collection: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "         Check your internet connection or use -CollectionUrl to specify a local path." -ForegroundColor DarkYellow
-    exit 1
+if ($CollectionUrl -match '^https?://') {
+    Write-Host "  [*] Fetching hardening collection from GitHub..." -ForegroundColor DarkCyan
+    try {
+        $yamlRaw = Invoke-RestMethod -Uri $CollectionUrl -UseBasicParsing -TimeoutSec 30
+        Write-Host "  [OK] Collection fetched." -ForegroundColor Green
+    } catch {
+        Write-Host "  [ERROR] Could not fetch collection: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "         Check your internet connection or use -CollectionUrl to specify a local path." -ForegroundColor DarkYellow
+        exit 1
+    }
+} else {
+    # Local file path
+    Write-Host "  [*] Loading local collection: $CollectionUrl" -ForegroundColor DarkCyan
+    if (-not (Test-Path $CollectionUrl)) {
+        Write-Host "  [ERROR] Local file not found: $CollectionUrl" -ForegroundColor Red
+        exit 1
+    }
+    $yamlRaw = Get-Content -Path $CollectionUrl -Raw -Encoding UTF8
+    Write-Host "  [OK] Local collection loaded." -ForegroundColor Green
 }
 
 # ==============================================================================
