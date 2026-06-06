@@ -178,6 +178,7 @@ actions:
         name: "Disable LLMNR (Link-Local Multicast Name Resolution)"
         description: "Stops link-local name resolution — prevents credential capture on shared networks. Attackers use LLMNR spoofing to intercept credentials and gain system access."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
         docs: |
           LLMNR (Link-Local Multicast Name Resolution) is a protocol that allows hosts to perform name resolution
           for hosts on the same local link without requiring a DNS server [1].
@@ -208,6 +209,7 @@ actions:
         name: "Disable NetBIOS over TCP/IP"
         description: "Prevents NetBIOS name poisoning attacks on all network interfaces."
         recommend: standard,streamer,vtuber,network,paranoid,minimal
+        risk: low
         docs: |
           NetBIOS over TCP/IP is a legacy protocol primarily used for backward compatibility with older Windows systems [1].
           NetBIOS and LLMNR are susceptible to spoofing and man-in-the-middle attacks [2] [3] [4],
@@ -253,6 +255,7 @@ actions:
         name: "Disable WPAD (Web Proxy Auto-Discovery)"
         description: "Blocks Web Proxy Auto-Discovery — prevents proxy hijacking attacks."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
         docs: |
           WPAD (Web Proxy Auto-Discovery Protocol) allows browsers to automatically discover proxy settings [1].
           Attackers can exploit WPAD to redirect traffic through a malicious proxy,
@@ -276,6 +279,7 @@ actions:
         name: "Disable Teredo and 6to4 (IPv6 tunneling)"
         description: "Removes IPv6 tunneling protocols that can bypass firewall rules."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
         docs: |
           Teredo and 6to4 are IPv6 transition mechanisms that tunnel IPv6 traffic over IPv4 networks [1].
           These protocols can bypass IPv4 firewall rules since firewalls may not inspect tunneled IPv6 traffic [2].
@@ -312,6 +316,7 @@ actions:
         name: "Harden Windows Firewall (all profiles)"
         description: "Enables all profiles, sets default inbound to Block, enables dropped-packet logging."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: medium
         docs: |
           Windows Firewall provides host-based packet filtering for inbound and outbound traffic [1].
           Hardening the firewall by blocking all inbound connections by default reduces the attack surface
@@ -346,6 +351,7 @@ actions:
         name: "Disable Delivery Optimization P2P"
         description: "Stops Windows from uploading your bandwidth to other users for updates."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows Delivery Optimization uses a peer-to-peer protocol to distribute Windows updates,
           uploading data from your device to other users on the internet [1].
@@ -364,6 +370,7 @@ actions:
 
       - id: NET07
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         name: "Redirect NTP to NIST / NTP Pool"
         description: "Replaces Microsoft time servers with privacy-respecting alternatives."
         docs: |
@@ -395,6 +402,7 @@ actions:
         name: "Disable browser DoH overrides (Chrome/Edge)"
         description: "Prevents Chrome and Edge from bypassing your system DNS with their own DoH."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Chrome and Edge can override system DNS settings with their own DNS-over-HTTPS (DoH) providers,
           bypassing VPN DNS settings and potentially leaking DNS queries [1] [2].
@@ -431,6 +439,7 @@ actions:
 
       - id: NET09
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         name: "Disable OS-level DoH/DoT overrides"
         description: "Prevents Windows from overriding your DNS with encrypted DNS without your knowledge."
         docs: |
@@ -451,6 +460,7 @@ actions:
         name: "DNS leak prevention (disable smart name resolution)"
         description: "Ensures all DNS queries use your configured DNS server. DNS leaks reveal your real IP even when using a VPN."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows Smart Multi-Homed Name Resolution sends DNS queries to multiple DNS servers simultaneously
           and uses the first response, which can bypass VPN DNS settings and leak DNS queries [1] [2].
@@ -479,6 +489,7 @@ actions:
         name: "Disable DiagTrack + WAP Push service"
         description: "Stops the main Windows telemetry service and WAP push message routing."
         recommend: standard,streamer,vtuber,network,paranoid,minimal
+        risk: low
         docs: |
           The Connected User Experiences and Telemetry service (DiagTrack) collects diagnostic data
           and sends it to Microsoft [1]. The WAP Push Message Routing Service (dmwappushservice)
@@ -515,6 +526,7 @@ actions:
         name: "Disable Advertising ID"
         description: "Stops Windows from assigning you an ad tracking ID used across apps."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows assigns each user an Advertising ID that apps use to track behavior across sessions [1].
           This ID is shared with app developers and advertisers to build behavioral profiles.
@@ -534,6 +546,7 @@ actions:
         name: "Disable Activity History / Timeline"
         description: "Stops Windows from recording and syncing your app usage history to Microsoft."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows Activity History records app usage, files opened, and websites visited,
           syncing this data to Microsoft for the Timeline feature [1].
@@ -553,6 +566,7 @@ actions:
         name: "Disable Cloud Content & App Suggestions"
         description: "Stops Microsoft from pushing sponsored app suggestions into your Start menu."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows Consumer Features push sponsored app suggestions, tips, and advertisements
           into the Start menu and other UI elements [1].
@@ -572,6 +586,7 @@ actions:
         name: "Disable Cortana"
         description: "Disables Cortana search assistant and its associated data collection."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Cortana is Microsoft's AI assistant that collects voice, text, and behavioral data [1].
           Even when not actively used, Cortana background processes collect data about usage patterns.
@@ -590,6 +605,7 @@ actions:
         name: "Disable Windows Recall AI"
         description: "Disables Windows Recall — prevents continuous screenshot capture of your screen."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows Recall takes continuous screenshots of your screen and uses AI to make content searchable [1].
           This creates a comprehensive record of everything displayed on your screen,
@@ -623,6 +639,7 @@ actions:
         name: "Disable telemetry data collection level"
         description: "Sets Windows telemetry to Security level (minimum) — reduces data sent to Microsoft."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows collects telemetry data at four levels: Security (0), Basic (1), Enhanced (2), Full (3) [1].
           Setting the level to Security (0) minimizes data collection to only security-critical information.
@@ -644,6 +661,7 @@ actions:
         name: "Disable telemetry scheduled tasks"
         description: "Disables scheduled tasks that collect and upload telemetry data."
         recommend: standard,streamer,vtuber,network,paranoid
+        risk: low
         docs: |
           Windows schedules numerous tasks that collect diagnostic data, usage statistics, and telemetry [1].
           These tasks run automatically and upload data to Microsoft even when telemetry services are disabled.
@@ -713,6 +731,7 @@ actions:
         name: "Enable ASLR + DEP (memory protection)"
         description: "Enables Address Space Layout Randomization and Data Execution Prevention — makes exploits significantly harder."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           ASLR (Address Space Layout Randomization) randomizes memory addresses to prevent exploit code
           from reliably jumping to specific memory locations [1].
@@ -738,6 +757,7 @@ actions:
         name: "Enable SEHOP (Structured Exception Handler Overwrite Protection)"
         description: "Blocks structured exception handler overwrites — prevents a class of stack-based exploits."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           SEHOP (Structured Exception Handler Overwrite Protection) validates the exception handler chain
           before dispatching exceptions, blocking SEH overwrite attacks [1].
@@ -759,6 +779,7 @@ actions:
         name: "Enable LSA Protection (anti-Mimikatz)"
         description: "Blocks credential dumping tools like Mimikatz from reading LSASS memory — protects against credential theft."
         recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
         docs: |
           LSA (Local Security Authority) Protection runs LSASS as a Protected Process Light (PPL),
           preventing non-protected processes from reading LSASS memory [1].
@@ -783,6 +804,7 @@ actions:
         name: "Disable SMBv1 (WannaCry mitigation)"
         description: "Removes the WannaCry / EternalBlue attack vector — safe on all modern hardware."
         recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
         docs: |
           SMBv1 (Server Message Block version 1) is a legacy file sharing protocol with critical vulnerabilities [1].
           The EternalBlue exploit (MS17-010) targeting SMBv1 was used in the WannaCry and NotPetya ransomware attacks [2].
@@ -815,6 +837,7 @@ actions:
         name: "Harden UAC (always prompt on secure desktop)"
         description: "Prevents silent privilege escalation — malware can't elevate without your explicit approval."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         docs: |
           UAC (User Account Control) prompts for confirmation before allowing privilege elevation [1].
           The secure desktop mode prevents other processes from interacting with the UAC prompt,
@@ -840,6 +863,7 @@ actions:
         name: "Disable Windows Script Host (WSH)"
         description: "Blocks .vbs and .js malware droppers — the #1 RAT delivery method."
         recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: high
         docs: |
           Windows Script Host (WSH) allows execution of VBScript (.vbs) and JScript (.js) files [1].
           Attackers distribute RATs and malware through Discord, fake mod sites, and cracked software
@@ -864,6 +888,7 @@ actions:
         name: "Disable AutoRun / AutoPlay"
         description: "Stops USB rubber ducky and malicious USB drive attacks from auto-executing."
         recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
         docs: |
           AutoRun automatically executes programs from removable media when inserted [1].
           This is exploited by USB-based attacks (rubber ducky, BadUSB) to execute malware
@@ -886,6 +911,7 @@ actions:
         name: "Block dangerous file extensions (.hta, .js, .vbs, .scr, .pif, .cpl, .msc)"
         description: "Redirects executable scripts to Notepad instead of executing — prevents double-extension tricks."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         docs: |
           Attackers use double-extension tricks (e.g., photo.jpg.vbs) to disguise malware as legitimate files [1].
           Redirecting these extensions to open in Notepad instead of executing prevents accidental execution.
@@ -925,6 +951,7 @@ actions:
         name: "Show file extensions + hidden files in Explorer"
         description: "Makes double-extension tricks (photo.jpg.exe) visible — prevents social engineering via file disguise."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           Windows hides file extensions by default, making it impossible to distinguish
           photo.jpg from photo.jpg.exe [1]. Showing extensions exposes double-extension tricks
@@ -955,6 +982,7 @@ actions:
         name: "Enable Office macro protection"
         description: "Blocks macro droppers and Office-based RAT delivery — comprehensive exploit prevention."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         docs: |
           Office macros are a primary delivery mechanism for malware, RATs, and ransomware [1].
           Setting VBAWarnings to 4 disables all macros without notification,
@@ -993,6 +1021,7 @@ actions:
         name: "Configure Windows Defender (max protection)"
         description: "Enables PUA protection, behavior monitoring, real-time protection, script scanning."
         recommend: standard,streamer,vtuber,paranoid,minimal
+        risk: low
         docs: |
           Windows Defender provides built-in antimalware protection [1].
           Ensuring it is not disabled by policy and enabling PUA (Potentially Unwanted Application)
@@ -1024,6 +1053,7 @@ actions:
 
       - id: MAL07
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         name: "Audit WMI event subscriptions"
         description: "Lists non-system WMI subscriptions — fileless malware hides here to survive reboots."
         docs: |
@@ -1060,6 +1090,7 @@ actions:
         name: "Disable DCOM (COM-based lateral movement)"
         description: "Removes COM-based lateral movement attack surface."
         recommend: paranoid
+        risk: high
         docs: |
           DCOM (Distributed Component Object Model) allows remote execution of COM objects [1].
           Attackers use DCOM for lateral movement within networks (T1021.003) [2].
@@ -1085,6 +1116,7 @@ actions:
 
       - id: OBS01
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "OBS: Enable browser source sandboxing"
         description: "Ensures OBS browser sources run in a sandboxed environment."
         docs: |
@@ -1112,6 +1144,7 @@ actions:
 
       - id: OBS02
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "OBS: Disable telemetry and analytics"
         description: "Disables OBS telemetry data collection and crash reporting."
         docs: |
@@ -1158,6 +1191,7 @@ actions:
 
       - id: OBS03
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "OBS: Secure stream key storage"
         description: "Reminds users to never store stream keys in plain text or share OBS profiles."
         call:
@@ -1175,6 +1209,7 @@ actions:
 
       - id: OBS05
         recommend: streamer,vtuber,paranoid
+        risk: medium
         name: "OBS: Disable NDI output (network stream exposure)"
         description: "Disables NDI if installed — prevents unintended network stream exposure."
         docs: |
@@ -1204,6 +1239,7 @@ actions:
 
       - id: DIS01
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Discord: Disable hardware acceleration"
         description: "Reduces Discord's GPU access — prevents GPU-based fingerprinting."
         docs: |
@@ -1251,6 +1287,7 @@ actions:
 
       - id: DIS02
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Discord: Disable usage data & crash reports"
         description: "Stops Discord from sending usage analytics and crash data."
         call:
@@ -1280,6 +1317,7 @@ actions:
 
       - id: DIS03
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Discord: Disable telemetry and analytics tracking"
         description: "Disables Discord's telemetry, analytics, and behavioral tracking via registry."
         docs: |
@@ -1328,6 +1366,7 @@ actions:
 
       - id: DIS04
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Discord: Enable 2FA requirement"
         description: "Reminds users to enable two-factor authentication on their Discord account."
         call:
@@ -1344,6 +1383,7 @@ actions:
 
       - id: DIS05
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Discord: Restrict who can DM you"
         description: "Limits direct messages to friends only — reduces phishing and social engineering vectors."
         call:
@@ -1360,6 +1400,7 @@ actions:
 
       - id: DIS06
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Discord: Disable link previews"
         description: "Stops Discord from fetching external URLs — prevents IP logging via preview requests."
         docs: |
@@ -1381,6 +1422,7 @@ actions:
 
       - id: BRW01
         recommend: standard,streamer,vtuber,paranoid
+        risk: high
         name: "Disable browser auto-update (Chrome/Edge)"
         description: "Prevents automatic browser updates that can reset security policies."
         docs: |
@@ -1415,6 +1457,7 @@ actions:
 
       - id: BRW02
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         name: "Disable browser telemetry (Chrome/Edge)"
         description: "Stops Chrome and Edge from sending usage statistics to Google/Microsoft."
         call:
@@ -1441,6 +1484,7 @@ actions:
 
       - id: BRW03
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         name: "Enable browser safe browsing (enhanced)"
         description: "Enables enhanced safe browsing in Chrome/Edge for real-time phishing protection."
         call:
@@ -1463,6 +1507,7 @@ actions:
 
       - id: BRW04
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         name: "Disable Office macro network blocking bypass"
         description: "Prevents Office macros from making network connections to download payloads."
         docs: |
@@ -1498,6 +1543,7 @@ actions:
 
       - id: BRW05
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         name: "Disable browser password saving"
         description: "Prevents browsers from storing passwords — forces use of a proper password manager."
         docs: |
@@ -1537,6 +1583,7 @@ actions:
         name: "Enable Controlled Folder Access"
         description: "Protects critical folders from ransomware — only approved apps can modify them."
         recommend: standard,streamer,vtuber,paranoid
+        risk: high
         docs: |
           Controlled Folder Access (CFA) is a Windows Defender feature that prevents unauthorized
           applications from modifying files in protected folders [1].
@@ -1567,6 +1614,7 @@ actions:
         name: "Disable Remote Registry"
         description: "Prevents remote registry access — blocks lateral movement attacks."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         docs: |
           The Remote Registry service allows remote modification of the Windows registry [1].
           Attackers use remote registry access for lateral movement and persistence (T1112) [2].
@@ -1583,6 +1631,7 @@ actions:
         name: "Disable WinRM (Remote Management)"
         description: "Removes Windows Remote Management — blocks PowerShell-based lateral movement."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         docs: |
           WinRM (Windows Remote Management) enables remote PowerShell execution and management [1].
           Attackers use WinRM for lateral movement and remote code execution (T1021.006) [2].
@@ -1617,6 +1666,7 @@ actions:
         name: "Disable RDP (Remote Desktop Protocol)"
         description: "Removes Remote Desktop — blocks brute-force RDP attacks."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         docs: |
           RDP (Remote Desktop Protocol) is one of the most attacked services on Windows [1].
           Attackers brute-force RDP credentials and exploit RDP vulnerabilities (BlueKeep, DejaBlue) [2].
@@ -1638,6 +1688,7 @@ actions:
         name: "Disable Print Spooler service"
         description: "Removes PrintNightmare attack vector — safe if you don't use network printing."
         recommend: paranoid
+        risk: high
         docs: |
           The Print Spooler service manages print jobs and is required for printing [1].
           The PrintNightmare vulnerability (CVE-2021-34527) allows remote code execution via Print Spooler [2].
@@ -1655,6 +1706,7 @@ actions:
 
       - id: ADV06
         recommend: streamer,vtuber,paranoid
+        risk: low
         name: "Disable Xbox services"
         description: "Removes Xbox Game Pass and gaming services — reduces attack surface."
         docs: |
@@ -1693,6 +1745,7 @@ actions:
         name: "Disable Geolocation service"
         description: "Prevents Windows from tracking your location."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           The Windows Geolocation service (lfsvc) tracks your physical location and shares it
           with apps that request location access [1]. Disabling this prevents location tracking.
@@ -1706,6 +1759,7 @@ actions:
 
       - id: ADV08
         recommend: streamer,vtuber,paranoid
+        risk: medium
         name: "Disable Bluetooth"
         description: "Removes Bluetooth attack surface — safe if you don't use wireless devices."
         docs: |
@@ -1731,6 +1785,7 @@ actions:
         name: "Block IP grabber services (Grabify, etc.)"
         description: "Blocks known IP grabber domains via hosts file — prevents IP logging attacks."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           IP grabbers are services that log the IP address of anyone who clicks a link [1].
           Streamers and VTubers are targeted with IP grabber links in chat, DMs, and fake collaboration offers.
@@ -1784,6 +1839,7 @@ actions:
         name: "Block KiwiFarms, stalkerware, and harassment coordination domains"
         description: "Blocks KiwiFarms and all known mirrors/variants, plus associated stalkerware and harassment coordination platforms that target streamers and VTubers."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           KiwiFarms is a known stalkerware and harassment coordination platform that has
           targeted streamers, VTubers, and content creators with doxxing, swatting, and
@@ -1913,6 +1969,7 @@ actions:
         name: "Block doxxing data broker sites"
         description: "Blocks data broker and people-search sites that sell personal information."
         recommend: streamer,vtuber,paranoid
+        risk: low
         docs: |
           Data brokers collect and sell personal information including home addresses, phone numbers,
           and family member details [1]. Streamers are targeted by doxxers who use these services
@@ -1961,6 +2018,7 @@ actions:
         name: "Block phishing + credential theft sites"
         description: "Blocks known phishing infrastructure and credential theft domains."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           Phishing attacks targeting streamers often impersonate sponsorship offers, platform notifications,
           and collaboration requests to steal account credentials [1].
@@ -2007,6 +2065,7 @@ actions:
         name: "Block malware distribution sites"
         description: "Blocks known malware hosting and distribution domains."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           Malware distribution sites host RATs, keyloggers, and other malware often disguised
           as game mods, cheats, or streaming tools [1].
@@ -2054,6 +2113,7 @@ actions:
         name: "Block botnet C2 servers"
         description: "Blocks known botnet command-and-control server domains via hosts file."
         recommend: streamer,vtuber,paranoid
+        risk: low
         docs: |
           Botnet C2 servers are used to control infected machines remotely.
           Blocking these domains prevents malware from receiving commands [1].
@@ -2098,6 +2158,7 @@ actions:
         name: "Block exploit kit domains"
         description: "Blocks known exploit kit hosting domains that deliver drive-by downloads."
         recommend: vtuber,paranoid
+        risk: low
         docs: |
           Exploit kits are web-based attack toolkits that exploit browser vulnerabilities.
           Blocking their hosting domains prevents drive-by download attacks [1].
@@ -2141,6 +2202,7 @@ actions:
         name: "Block RAT and backdoor distribution"
         description: "Blocks known Remote Access Trojan (RAT) and backdoor hosting domains."
         recommend: streamer,vtuber,paranoid
+        risk: low
         docs: |
           RATs and backdoors are commonly distributed via Discord, gaming forums, and
           fake streaming tools. Blocking their distribution domains reduces infection risk [1].
@@ -2184,6 +2246,7 @@ actions:
         name: "Block cryptominer domains"
         description: "Blocks known in-browser cryptomining and mining pool domains."
         recommend: standard,streamer,vtuber,paranoid
+        risk: low
         docs: |
           Browser-based cryptominers hijack CPU resources without user consent.
           Blocking mining pool domains prevents unauthorized mining [1].
@@ -2228,6 +2291,7 @@ actions:
         name: "Block swatting coordination sites"
         description: "Blocks known swatting coordination and fake emergency services domains."
         recommend: vtuber,paranoid
+        risk: low
         caution: |
           This step targets domains associated with swatting coordination.
           These domains change frequently; this provides a baseline layer of protection only.
@@ -2275,6 +2339,7 @@ actions:
         name: "Integrate Steven Black's hosts list"
         description: "Downloads and integrates Steven Black's consolidated hosts file for ad/malware blocking. Defaults to the safe base variant (ads + malware only). More aggressive variants are available but may break legitimate sites."
         recommend: standard,streamer,vtuber,paranoid
+        risk: medium
         caution: |
           IMPORTANT: Only the base variant (ads + malware) is applied by default.
           The fakenews, gambling, and porn variants block entire site categories and WILL
@@ -2407,6 +2472,7 @@ actions:
 
       - id: THR12
         recommend: streamer,vtuber,paranoid
+        risk: medium
         name: "Block Stalkerware C2 Infrastructure"
         risk: medium
         category: threat
@@ -2502,6 +2568,7 @@ actions:
         name: "Enable TPM 2.0 verification"
         description: "Verifies TPM 2.0 is active and configured for BitLocker and Windows 11 security features."
         recommend: streamer,vtuber,paranoid
+        risk: low
         docs: |
           TPM 2.0 (Trusted Platform Module) provides hardware-based security for BitLocker
           encryption and Windows Hello. Required for Windows 11 and modern security features [1].
@@ -2539,6 +2606,7 @@ actions:
         name: "Clean Discord token grabber artifacts"
         description: "Removes Discord token grabber malware remnants from common installation locations."
         recommend: streamer,vtuber,paranoid
+        risk: medium
         caution: |
           This step scans and removes files matching known token grabber patterns.
           Review the list of removed files before running if you have custom scripts in these locations.
