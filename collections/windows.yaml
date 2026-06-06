@@ -480,6 +480,79 @@ actions:
             type: DWORD
             deleteOnRevert: "true"
 
+      - id: NET11
+        name: "Set Quad9 DNS (if Mullvad VPN not detected)"
+        description: "Sets Quad9 (9.9.9.9 / 149.112.112.112) as the system DNS on all active adapters — only if Mullvad VPN is not currently active. Skipped automatically if Mullvad is detected."
+        recommend: network,paranoid
+        risk: medium
+        caution: "This step modifies your DNS server settings. If you use a different privacy DNS (NextDNS, Pi-hole, AdGuard), deselect this step. It is automatically skipped if Mullvad VPN is detected."
+        docs: |
+          After disabling LLMNR, NetBIOS, and WPAD, Windows falls back to pure DNS resolution.
+          Without a fast, privacy-respecting DNS server configured, the first reconnection after
+          reboot can be slow as Windows negotiates with DHCP-assigned DNS [1].
+          Quad9 (9.9.9.9 / 149.112.112.112) is a non-profit, privacy-focused DNS that blocks
+          known malicious domains and does not log queries [2].
+          This step detects Mullvad VPN by checking for its network adapter ("Mullvad") and
+          known process (mullvad-daemon.exe). If Mullvad is active, DNS is left untouched [3].
+          [1]: https://web.archive.org/web/20240101000000/https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dns-client-resolution-timeouts "DNS client resolution timeouts | Microsoft Learn"
+          [2]: https://www.quad9.net/privacy/policy/ "Quad9 Privacy Policy"
+          [3]: https://github.com/mullvad/mullvadvpn-app "Mullvad VPN app | GitHub"
+        call:
+          function: RunPowerShell
+          parameters:
+            code: |
+              # Detect Mullvad VPN by adapter name or running daemon process
+              $mullvadAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceDescription -match 'Mullvad' -or $_.Name -match 'Mullvad' }
+              $mullvadProcess = Get-Process -Name 'mullvad-daemon' -ErrorAction SilentlyContinue
+              if ($mullvadAdapter -or $mullvadProcess) {
+                  Write-Host "    [SKIP] Mullvad VPN detected -- DNS left unchanged" -ForegroundColor DarkGray
+              } else {
+                  $adapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' }
+                  $applied = 0
+                  foreach ($adapter in $adapters) {
+                      try {
+                          Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses ('9.9.9.9', '149.112.112.112') -ErrorAction Stop
+                          $applied++
+                      } catch {
+                          Write-Host "    [WARN] Could not set DNS on $($adapter.Name): $_" -ForegroundColor Yellow
+                      }
+                  }
+                  if ($applied -gt 0) {
+                      Write-Host "    [OK] Quad9 DNS set on $applied adapter(s)" -ForegroundColor Green
+                      ipconfig /flushdns | Out-Null
+                      Write-Host "    [OK] DNS cache flushed" -ForegroundColor Green
+                  } else {
+                      Write-Host "    [WARN] No active adapters found to configure" -ForegroundColor Yellow
+                  }
+              }
+            checkCode: |
+              $mullvadAdapter = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceDescription -match 'Mullvad' -or $_.Name -match 'Mullvad' }
+              $mullvadProcess = Get-Process -Name 'mullvad-daemon' -ErrorAction SilentlyContinue
+              if ($mullvadAdapter -or $mullvadProcess) {
+                  Write-Host "    [SKIP] Mullvad VPN detected -- DNS check skipped" -ForegroundColor DarkGray
+              } else {
+                  $adapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' }
+                  foreach ($adapter in $adapters) {
+                      $dns = (Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
+                      if ($dns -contains '9.9.9.9') {
+                          Write-Host "    [OK] $($adapter.Name): Quad9 DNS configured ($($dns -join ', '))" -ForegroundColor Green
+                      } else {
+                          Write-Host "    [WARN] $($adapter.Name): DNS is $($dns -join ', ') (not Quad9)" -ForegroundColor Yellow
+                      }
+                  }
+              }
+            revertCode: |
+              $adapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' }
+              foreach ($adapter in $adapters) {
+                  try {
+                      Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ResetServerAddresses -ErrorAction Stop
+                      Write-Host "    [OK] DNS reset to DHCP on $($adapter.Name)" -ForegroundColor Green
+                  } catch {
+                      Write-Host "    [WARN] Could not reset DNS on $($adapter.Name): $_" -ForegroundColor Yellow
+                  }
+              }
+              ipconfig /flushdns | Out-Null
+              Write-Host "    [OK] DNS cache flushed" -ForegroundColor Green
   # ============================================================
   - category: Telemetry & Tracking
     description: "Disables Microsoft data collection, advertising IDs, Cortana, Recall AI, and telemetry scheduled tasks."
