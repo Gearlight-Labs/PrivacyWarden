@@ -1194,6 +1194,7 @@ actions:
         risk: low
         name: "OBS: Secure stream key storage"
         description: "Reminds users to never store stream keys in plain text or share OBS profiles."
+        docs: "Never store your stream key in plain text files or share your OBS profile with anyone. Your OBS profile contains your stream key and scene configuration. Use a separate OBS profile for each platform (Twitch, YouTube, Kick) so a leak on one platform doesn't expose others. Rotate your stream key immediately if you suspect it was exposed — all major platforms provide a 'Reset Stream Key' button in their dashboard settings."
         call:
           function: RunPowerShell
           parameters:
@@ -1290,6 +1291,7 @@ actions:
         risk: low
         name: "Discord: Disable usage data & crash reports"
         description: "Stops Discord from sending usage analytics and crash data."
+        docs: "Discord collects usage analytics, crash reports, and behavioral telemetry by default. This data is sent to Discord Inc. and may include information about your activity patterns and system configuration. Disabling this reduces the data footprint associated with your account and prevents crash reports from containing potentially sensitive system information."
         call:
           function: RunPowerShell
           parameters:
@@ -1369,6 +1371,7 @@ actions:
         risk: low
         name: "Discord: Enable 2FA requirement"
         description: "Reminds users to enable two-factor authentication on their Discord account."
+        docs: "Two-factor authentication (2FA) is the single most effective protection against Discord account takeover. Without 2FA, an attacker who obtains your password (via phishing, data breach, or credential stuffing) can immediately access your account. Use an authenticator app (Google Authenticator, Authy, or a hardware key like YubiKey) rather than SMS, as SMS 2FA is vulnerable to SIM-swapping attacks."
         call:
           function: RunPowerShell
           parameters:
@@ -1386,6 +1389,7 @@ actions:
         risk: low
         name: "Discord: Restrict who can DM you"
         description: "Limits direct messages to friends only — reduces phishing and social engineering vectors."
+        docs: "Restricting who can send you direct messages significantly reduces phishing and social engineering attacks. Attackers frequently join the same servers as their targets and send malicious links or fake 'Discord staff' messages via DM. Setting DMs to friends-only forces attackers to first befriend you, adding a meaningful barrier. Also enable the explicit content filter for additional protection."
         call:
           function: RunPowerShell
           parameters:
@@ -1460,6 +1464,7 @@ actions:
         risk: low
         name: "Disable browser telemetry (Chrome/Edge)"
         description: "Stops Chrome and Edge from sending usage statistics to Google/Microsoft."
+        docs: "Chrome and Edge send detailed usage statistics, crash reports, and diagnostic data to Google and Microsoft respectively by default. This telemetry can include URLs visited, feature usage patterns, and system information. Disabling it via Group Policy prevents this data collection at the OS level, applying to all users on the machine regardless of individual browser settings."
         call:
           function: RunPowerShell
           parameters:
@@ -1487,6 +1492,7 @@ actions:
         risk: low
         name: "Enable browser safe browsing (enhanced)"
         description: "Enables enhanced safe browsing in Chrome/Edge for real-time phishing protection."
+        docs: "Enhanced Safe Browsing in Chrome and Edge provides real-time URL checking against Google's threat database, offering significantly stronger protection than the standard mode. It checks URLs in real-time rather than relying on a locally cached list, catching newly registered phishing sites much faster. The trade-off is that URLs are sent to Google for checking — acceptable for most threat models given the protection it provides."
         call:
           function: RunPowerShell
           parameters:
