@@ -56,7 +56,7 @@ functions:
       Set-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -Value {{ data }} -Type {{ type }} -Force -ErrorAction SilentlyContinue
     checkCode: |
       $__check = Get-ItemProperty -Path "{{ keyPath }}" -Name "{{ valueName }}" -ErrorAction SilentlyContinue
-      if ($null -ne $__check -and $__check."{{ valueName }}" -eq {{ data }}) {
+      if ($null -ne $__check -and $__check."{{ valueName }}" -eq "{{ data }}") {
         Write-Host "    [OK] {{ valueName }} = {{ data }}" -ForegroundColor Green
       } else {
         Write-Host "    [MISSING] {{ valueName }} not set to {{ data }} (current: $($__check.'{{ valueName }}'))" -ForegroundColor Yellow
