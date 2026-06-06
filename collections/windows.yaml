@@ -363,6 +363,7 @@ actions:
             deleteOnRevert: "true"
 
       - id: NET07
+        recommend: standard,streamer,vtuber,network,paranoid
         name: "Redirect NTP to NIST / NTP Pool"
         description: "Replaces Microsoft time servers with privacy-respecting alternatives."
         docs: |
@@ -429,6 +430,7 @@ actions:
               Write-Host "    [OK] Browser DoH settings reverted" -ForegroundColor Green
 
       - id: NET09
+        recommend: standard,streamer,vtuber,network,paranoid
         name: "Disable OS-level DoH/DoT overrides"
         description: "Prevents Windows from overriding your DNS with encrypted DNS without your knowledge."
         docs: |
@@ -1021,6 +1023,7 @@ actions:
               Write-Host "    [OK] Windows Defender policy reverted" -ForegroundColor Green
 
       - id: MAL07
+        recommend: standard,streamer,vtuber,paranoid
         name: "Audit WMI event subscriptions"
         description: "Lists non-system WMI subscriptions — fileless malware hides here to survive reboots."
         docs: |
@@ -1081,6 +1084,7 @@ actions:
     children:
 
       - id: OBS01
+        recommend: streamer,vtuber,paranoid
         name: "OBS: Enable browser source sandboxing"
         description: "Ensures OBS browser sources run in a sandboxed environment."
         docs: |
@@ -1107,6 +1111,7 @@ actions:
               Write-Host "    [OK] OBS browser source step is manual — no changes to revert" -ForegroundColor Green
 
       - id: OBS02
+        recommend: streamer,vtuber,paranoid
         name: "OBS: Disable telemetry and analytics"
         description: "Disables OBS telemetry data collection and crash reporting."
         docs: |
@@ -1152,6 +1157,7 @@ actions:
               }
 
       - id: OBS03
+        recommend: streamer,vtuber,paranoid
         name: "OBS: Secure stream key storage"
         description: "Reminds users to never store stream keys in plain text or share OBS profiles."
         call:
@@ -1168,6 +1174,7 @@ actions:
               Write-Host "    [OK] OBS stream key step is manual — no changes to revert" -ForegroundColor Green
 
       - id: OBS05
+        recommend: streamer,vtuber,paranoid
         name: "OBS: Disable NDI output (network stream exposure)"
         description: "Disables NDI if installed — prevents unintended network stream exposure."
         docs: |
@@ -1196,6 +1203,7 @@ actions:
               Write-Host "    [OK] NDI step is informational — no changes to revert" -ForegroundColor Green
 
       - id: DIS01
+        recommend: streamer,vtuber,paranoid
         name: "Discord: Disable hardware acceleration"
         description: "Reduces Discord's GPU access — prevents GPU-based fingerprinting."
         docs: |
@@ -1242,6 +1250,7 @@ actions:
               }
 
       - id: DIS02
+        recommend: streamer,vtuber,paranoid
         name: "Discord: Disable usage data & crash reports"
         description: "Stops Discord from sending usage analytics and crash data."
         call:
@@ -1270,6 +1279,7 @@ actions:
               Write-Host "    [OK] Discord analytics step reverted" -ForegroundColor Green
 
       - id: DIS03
+        recommend: streamer,vtuber,paranoid
         name: "Discord: Disable telemetry and analytics tracking"
         description: "Disables Discord's telemetry, analytics, and behavioral tracking via registry."
         docs: |
@@ -1317,6 +1327,7 @@ actions:
               }
 
       - id: DIS04
+        recommend: streamer,vtuber,paranoid
         name: "Discord: Enable 2FA requirement"
         description: "Reminds users to enable two-factor authentication on their Discord account."
         call:
@@ -1332,6 +1343,7 @@ actions:
               Write-Host "    [OK] Discord 2FA step is manual — no changes to revert" -ForegroundColor Green
 
       - id: DIS05
+        recommend: streamer,vtuber,paranoid
         name: "Discord: Restrict who can DM you"
         description: "Limits direct messages to friends only — reduces phishing and social engineering vectors."
         call:
@@ -1347,6 +1359,7 @@ actions:
               Write-Host "    [OK] Discord DM step is manual — no changes to revert" -ForegroundColor Green
 
       - id: DIS06
+        recommend: streamer,vtuber,paranoid
         name: "Discord: Disable link previews"
         description: "Stops Discord from fetching external URLs — prevents IP logging via preview requests."
         docs: |
@@ -1367,6 +1380,7 @@ actions:
               Write-Host "    [OK] Discord link preview step is manual — no changes to revert" -ForegroundColor Green
 
       - id: BRW01
+        recommend: standard,streamer,vtuber,paranoid
         name: "Disable browser auto-update (Chrome/Edge)"
         description: "Prevents automatic browser updates that can reset security policies."
         docs: |
@@ -1400,6 +1414,7 @@ actions:
               Write-Host "    [OK] Browser auto-update settings reverted" -ForegroundColor Green
 
       - id: BRW02
+        recommend: standard,streamer,vtuber,paranoid
         name: "Disable browser telemetry (Chrome/Edge)"
         description: "Stops Chrome and Edge from sending usage statistics to Google/Microsoft."
         call:
@@ -1425,6 +1440,7 @@ actions:
               Write-Host "    [OK] Browser telemetry settings reverted" -ForegroundColor Green
 
       - id: BRW03
+        recommend: standard,streamer,vtuber,paranoid
         name: "Enable browser safe browsing (enhanced)"
         description: "Enables enhanced safe browsing in Chrome/Edge for real-time phishing protection."
         call:
@@ -1446,6 +1462,7 @@ actions:
               Write-Host "    [OK] Safe browsing setting reverted" -ForegroundColor Green
 
       - id: BRW04
+        recommend: standard,streamer,vtuber,paranoid
         name: "Disable Office macro network blocking bypass"
         description: "Prevents Office macros from making network connections to download payloads."
         docs: |
@@ -1480,6 +1497,7 @@ actions:
               Write-Host "    [OK] Office macro network blocking reverted" -ForegroundColor Green
 
       - id: BRW05
+        recommend: standard,streamer,vtuber,paranoid
         name: "Disable browser password saving"
         description: "Prevents browsers from storing passwords — forces use of a proper password manager."
         docs: |
@@ -1636,6 +1654,7 @@ actions:
             startupTypeOnRevert: "Automatic"
 
       - id: ADV06
+        recommend: streamer,vtuber,paranoid
         name: "Disable Xbox services"
         description: "Removes Xbox Game Pass and gaming services — reduces attack surface."
         docs: |
@@ -1686,6 +1705,7 @@ actions:
             startupTypeOnRevert: "Automatic"
 
       - id: ADV08
+        recommend: streamer,vtuber,paranoid
         name: "Disable Bluetooth"
         description: "Removes Bluetooth attack surface — safe if you don't use wireless devices."
         docs: |
@@ -2386,6 +2406,7 @@ actions:
               }
 
       - id: THR12
+        recommend: streamer,vtuber,paranoid
         name: "Block Stalkerware C2 Infrastructure"
         risk: medium
         category: threat
