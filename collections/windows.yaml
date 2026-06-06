@@ -507,12 +507,16 @@ actions:
                   if (-not $__adapters) {
                       Write-Host "    [WARN] No active network adapters found" -ForegroundColor Yellow
                   } else {
+                      # Save previous DNS per adapter so we can revert if connection test fails
+                      $__prevDns = @{}
                       Write-Host "    [INFO] Previous DNS settings:" -ForegroundColor Cyan
                       foreach ($__a in $__adapters) {
                           $__prev = (Get-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
-                          $__str  = if ($__prev) { $__prev -join ', ' } else { 'DHCP' }
+                          $__prevDns[$__a.ifIndex] = $__prev
+                          $__str = if ($__prev) { $__prev -join ', ' } else { 'DHCP' }
                           Write-Host "      $($__a.Name): $__str" -ForegroundColor DarkGray
                       }
+                      # Apply Quad9
                       $__applied = 0
                       foreach ($__a in $__adapters) {
                           try {
@@ -524,7 +528,44 @@ actions:
                       }
                       if ($__applied -gt 0) {
                           ipconfig /flushdns | Out-Null
-                          Write-Host "    [OK] Quad9 DNS set on $__applied adapter(s). DNS cache flushed." -ForegroundColor Green
+                          Write-Host "    [OK] Quad9 DNS set on $__applied adapter(s). Testing connection..." -ForegroundColor Green
+                          # Connection test — try to resolve a known domain via Quad9
+                          Start-Sleep -Seconds 2
+                          $__testOk = $false
+                          try {
+                              $__result = Resolve-DnsName -Name "quad9.net" -Server "9.9.9.9" -Type A -ErrorAction Stop
+                              if ($__result) { $__testOk = $true }
+                          } catch { }
+                          if (-not $__testOk) {
+                              # Fallback: try a basic TCP connection test to 9.9.9.9:53
+                              try {
+                                  $__tcp = New-Object System.Net.Sockets.TcpClient
+                                  $__tcp.Connect("9.9.9.9", 53)
+                                  $__tcp.Close()
+                                  $__testOk = $true
+                              } catch { }
+                          }
+                          if ($__testOk) {
+                              Write-Host "    [OK] Connection test passed — Quad9 DNS is working." -ForegroundColor Green
+                          } else {
+                              Write-Host "    [WARN] Connection test failed — reverting DNS to previous settings." -ForegroundColor Yellow
+                              foreach ($__a in $__adapters) {
+                                  try {
+                                      $__prev = $__prevDns[$__a.ifIndex]
+                                      if ($__prev -and $__prev.Count -gt 0) {
+                                          Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ServerAddresses $__prev -ErrorAction Stop
+                                          Write-Host "      Reverted $($__a.Name) to: $($__prev -join ', ')" -ForegroundColor DarkGray
+                                      } else {
+                                          Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ResetServerAddresses -ErrorAction Stop
+                                          Write-Host "      Reverted $($__a.Name) to DHCP" -ForegroundColor DarkGray
+                                      }
+                                  } catch {
+                                      Write-Host "      [WARN] Could not revert $($__a.Name): $_" -ForegroundColor Yellow
+                                  }
+                              }
+                              ipconfig /flushdns | Out-Null
+                              Write-Host "    [REVERTED] DNS restored to pre-hardening state. Check your network connection." -ForegroundColor Yellow
+                          }
                       }
                   }
               }
