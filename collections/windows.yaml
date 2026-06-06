@@ -498,42 +498,48 @@ actions:
           function: RunPowerShell
           parameters:
             code: |
-              $__adapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' }
-              if (-not $__adapters) {
+              $__vpnPattern = 'Mullvad|ProtonVPN|NordLynx|NordVPN|ExpressVPN|WireGuard|OpenVPN|Cisco|Pulse|GlobalProtect|Fortinet|Tailscale|WARP'
+              $__allAdapters = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+              if (-not $__allAdapters) {
                   Write-Host "    [WARN] No active network adapters found" -ForegroundColor Yellow
               } else {
+                  # Split adapters into VPN and non-VPN
+                  $__vpnAdapters  = $__allAdapters | Where-Object { $_.InterfaceDescription -match $__vpnPattern -or $_.Name -match $__vpnPattern }
+                  $__mainAdapters = $__allAdapters | Where-Object { $_.InterfaceDescription -notmatch $__vpnPattern -and $_.Name -notmatch $__vpnPattern }
+                  # Log previous DNS before touching anything
                   Write-Host "    [INFO] Previous DNS settings (save these if you want to restore manually):" -ForegroundColor Cyan
-                  foreach ($__adapter in $__adapters) {
-                      $__prevDns = (Get-DnsClientServerAddress -InterfaceIndex $__adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
-                      $__prevStr = if ($__prevDns) { $__prevDns -join ', ' } else { 'DHCP / not set' }
-                      Write-Host "      $($__adapter.Name): $__prevStr" -ForegroundColor DarkGray
+                  foreach ($__a in $__allAdapters) {
+                      $__prev4 = (Get-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses
+                      $__prev6 = (Get-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -AddressFamily IPv6 -ErrorAction SilentlyContinue).ServerAddresses
+                      $__p4str = if ($__prev4) { $__prev4 -join ', ' } else { 'DHCP' }
+                      $__p6str = if ($__prev6) { $__prev6 -join ', ' } else { 'DHCP' }
+                      Write-Host "      $($__a.Name): IPv4=$__p4str  IPv6=$__p6str" -ForegroundColor DarkGray
                   }
+                  # Skip VPN adapters — let the VPN manage its own DNS
+                  if ($__vpnAdapters) {
+                      Write-Host "" -ForegroundColor White
+                      Write-Host "    [NOTE] VPN adapter(s) detected — skipping DNS change on: $($__vpnAdapters.Name -join ', ')" -ForegroundColor Cyan
+                      Write-Host "    [NOTE] Your VPN manages its own DNS. Quad9 will be set on non-VPN adapters only." -ForegroundColor Cyan
+                  }
+                  # Apply Quad9 IPv4 + IPv6 on non-VPN adapters (Titus-style: both address families)
                   $__applied = 0
-                  $__failed = @()
-                  foreach ($__adapter in $__adapters) {
+                  $__failed  = @()
+                  foreach ($__a in $__mainAdapters) {
                       try {
-                          Set-DnsClientServerAddress -InterfaceIndex $__adapter.ifIndex -ServerAddresses ('9.9.9.9', '149.112.112.112') -ErrorAction Stop
+                          Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ServerAddresses ('9.9.9.9', '149.112.112.112') -ErrorAction Stop
+                          Set-DnsClientServerAddress -InterfaceIndex $__a.ifIndex -ServerAddresses ('2620:fe::fe', '2620:fe::9') -ErrorAction SilentlyContinue
                           $__applied++
                       } catch {
-                          $__failed += $__adapter.Name
-                          Write-Host "    [WARN] Could not set DNS on $($__adapter.Name): $_" -ForegroundColor Yellow
+                          $__failed += $__a.Name
+                          Write-Host "    [WARN] Could not set DNS on $($__a.Name): $_" -ForegroundColor Yellow
                       }
                   }
                   if ($__applied -gt 0) {
                       ipconfig /flushdns | Out-Null
-                      Write-Host "    [OK] Quad9 DNS set on $__applied adapter(s). DNS cache flushed." -ForegroundColor Green
+                      Write-Host "    [OK] Quad9 DNS (IPv4 + IPv6) set on $__applied adapter(s). DNS cache flushed." -ForegroundColor Green
                   }
                   if ($__failed.Count -gt 0) {
                       Write-Host "    [WARN] Could not set DNS on: $($__failed -join ', ')" -ForegroundColor Yellow
-                  }
-                  # VPN awareness note
-                  $__vpnAdapters = $__adapters | Where-Object { $_.InterfaceDescription -match 'VPN|Mullvad|ProtonVPN|NordVPN|ExpressVPN|WireGuard|OpenVPN|Cisco|Pulse|GlobalProtect|Fortinet|Tailscale|Cloudflare WARP' }
-                  if ($__vpnAdapters) {
-                      Write-Host "" -ForegroundColor White
-                      Write-Host "    [NOTE] VPN adapter(s) detected: $($__vpnAdapters.Name -join ', ')" -ForegroundColor Cyan
-                      Write-Host "    [NOTE] Quad9 DNS was set on your VPN adapter(s) too." -ForegroundColor Cyan
-                      Write-Host "    [NOTE] Your VPN may override this with its own DNS when you reconnect." -ForegroundColor Cyan
-                      Write-Host "    [NOTE] If your VPN has a DNS leak prevention setting, enable it to keep using your VPN's DNS." -ForegroundColor Cyan
                   }
               }
             checkCode: |
