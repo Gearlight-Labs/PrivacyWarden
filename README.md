@@ -175,6 +175,8 @@ src/
 
 No data collection. No accounts. No telemetry. Scripts are generated in your browser from the YAML in this repo. Run `-Check` to audit without making changes. Run `-Undo` to revert. The collection is verified for integrity before it's loaded — if it's been tampered with in transit, the site refuses to use it.
 
+The site itself is hardened too — strict Content Security Policy, full cross-origin isolation, and an `Integrity-Policy` header that blocks any external script or stylesheet that doesn't carry a verified hash. There's nothing external to block because everything is self-hosted, but the header is there so it stays that way.
+
 Full details in [SECURITY.md](docs/SECURITY.md).
 
 ---
