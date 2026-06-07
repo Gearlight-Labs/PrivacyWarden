@@ -33,7 +33,7 @@ PrivacyWarden is built for the real threat model of streamers and VTubers — no
 
 **Account takeover** — session hijacking after credential theft. The browser hardening steps reduce the attack surface.
 
-**ISP surveillance** — DNS snooping and traffic analysis. NET11 sets Quad9 DNS and skips it if a VPN is detected.
+**ISP surveillance** — DNS snooping and traffic analysis. NET11 sets Quad9 DNS on all network adapters. If your VPN has its own DNS, it will override Quad9 when you reconnect — that's expected behaviour. You can deselect the DNS step if you prefer to keep your VPN's DNS.
 
 ---
 
