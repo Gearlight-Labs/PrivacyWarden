@@ -41,7 +41,7 @@ PrivacyWarden is built for the real threat model of streamers and VTubers — no
 
 The website at [privwarden.org](https://privwarden.org) generates PowerShell scripts entirely in your browser. No script code is sent to any server. The site fetches the YAML collection from this GitHub repo and assembles the script client-side.
 
-All 82 hardening steps are defined in [`collections/windows.yaml`](../collections/windows.yaml). That's the single source of truth. Anyone can read it before running anything.
+All 73 hardening steps are defined in [`collections/windows.yaml`](../collections/windows.yaml). That's the single source of truth. Anyone can read it before running anything.
 
 Neither the website nor the generated scripts collect any data. No analytics, no crash reporting, no usage tracking.
 

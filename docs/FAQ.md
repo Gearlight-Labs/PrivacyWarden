@@ -9,7 +9,7 @@ An open-source Windows hardening tool I built for streamers and VTubers. Go to [
 No. Scripts are generated in your browser. Nothing is sent anywhere.
 
 **Does it work on Windows 10 and 11?**
-Yes. All 82 steps are tested on Windows 10 (20H2+) and Windows 11.
+Yes. All 73 steps are tested on Windows 10 (20H2+) and Windows 11.
 
 **Do I need to be an Administrator?**
 Yes. Hardening steps modify registry keys, services, and Windows Firewall. It won't work without admin rights.
@@ -27,15 +27,19 @@ Pick the one that fits your situation. Don't just select everything — that's w
 
 | Profile | Steps | Who it's for |
 |---|---|---|
-| **Standard** | 58 | Good starting point for most people |
-| **Streamer** | 78 | Active streamers — won't break OBS or streaming tools |
-| **VTuber** | 80 | VTubers — Discord, browser, identity exposure |
+| **Standard** | 50 | Good starting point for most people |
+| **Streamer** | 69 | Active streamers — won't break OBS or streaming tools |
+| **VTuber** | 71 | VTubers — Discord, browser, identity exposure |
 | **Network & Privacy** | 19 | Just the network and telemetry stuff |
-| **Paranoid** | 82 | Everything. Test on a spare machine first. |
-| **Gaming** | 76 | Anti-cheat safe — see below |
+| **Paranoid** | 73 | Everything. Expect slower first connections after boot. Test on a spare machine first. |
+| **Gaming** | 58 | Anti-cheat safe — see below |
+| **Minimal** | 7 | Absolute bare minimum — just the most critical steps |
 
 **What's the difference between Streamer and VTuber?**
 VTuber adds a few extra steps covering identity exposure risks that are more relevant to VTubers specifically — things like additional browser fingerprinting protections and Discord settings. Streamer is a subset of VTuber.
+
+**The Paranoid profile made my PC slower. Is that normal?**
+Yes — and it's expected. The Paranoid profile disables LLMNR, NetBIOS, and WPAD, which are Windows name resolution fallbacks. Without them, your PC has to wait for each one to time out before moving to the next, which adds 5–10 seconds to the first connection after boot. Discord and Electron apps may also take longer to start. This is the trade-off for maximum hardening. If it's too disruptive, use the VTuber or Streamer profile instead.
 
 ---
 
@@ -69,26 +73,24 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ## Gaming & Anti-Cheat
 
 **Which anti-cheat systems are compatible with the Gaming profile?**
-Easy Anti-Cheat (EAC), BattlEye, GameGuard, HoYoKProtect, Vanguard, and FACEIT. The Gaming profile skips the 5 steps that are known to conflict with kernel-level anti-cheat drivers.
+Easy Anti-Cheat (EAC), BattlEye, GameGuard, HoYoKProtect, Vanguard, and FACEIT. The Gaming profile skips the 3 steps that are known to conflict with kernel-level anti-cheat drivers.
 
 **What steps are excluded from the Gaming profile?**
 
 | Step | Name | Why |
 |---|---|---|
 | ADV01 | Controlled Folder Access | Blocks anti-cheat from writing to protected folders |
-| MAL08 | Disable Windows Script Host | Some launchers use WSH for integrity checks |
-| MAL01 | Disable AutoRun | Can interfere with game launcher auto-start |
-| ADV05 | Disable Remote Registry | Some anti-cheat telemetry reads the registry |
-| THR11 | Hosts file blocking | Large hosts file slows DNS during game startup |
+| ADV05 | Kernel DMA protection | Some anti-cheat drivers require DMA access at kernel level |
+| MAL08 | Block unsigned driver loading | Anti-cheat systems load their own kernel drivers |
 
 **A game won't launch after applying the Gaming profile.**
-Start with ADV01 (Controlled Folder Access) and THR11 (hosts file blocking) — those are the most common culprits. Disable them and try again. If it's still broken, go through the other excluded steps one by one.
+Start with ADV01 (Controlled Folder Access) — that's the most common culprit. Disable it and try again. If it's still broken, try ADV05 and MAL08 one at a time.
 
 **What about Valorant / Vanguard specifically?**
-Vanguard runs a kernel driver (`vgk.sys`) that loads at boot. ADV01 (Controlled Folder Access) and MAL08 (DCOM restrictions) are the two steps most likely to cause issues with it. The Gaming profile already excludes ADV01. If Valorant still won't launch, also try disabling MAL08.
+Vanguard runs a kernel driver (`vgk.sys`) that loads at boot. ADV01 (Controlled Folder Access) is the step most likely to cause issues. The Gaming profile already excludes it. If Valorant still won't launch, also try disabling MAL08 (unsigned driver blocking).
 
 **What about Genshin Impact / Honkai: Star Rail / Zenless Zone Zero?**
-HoYoKProtect (HoYoverse's anti-cheat) is compatible with the Gaming profile. The one step to watch is MAL01 (Disable AutoRun) — HoYoPlay launcher uses WSH for some integrity checks. If a HoYoverse game won't launch, try re-enabling MAL01.
+HoYoKProtect (HoYoverse's anti-cheat) is compatible with the Gaming profile. If a HoYoverse game won't launch, try re-enabling ADV01 first — that's the most likely conflict.
 
 ---
 
@@ -111,7 +113,7 @@ Downloads [Steven Black's consolidated hosts file](https://github.com/StevenBlac
 The script retries 3 times automatically. Check your connection and re-run if it keeps failing.
 
 **I use a VPN — will NET11 overwrite my VPN's DNS settings?**
-No. NET11 detects Mullvad, ProtonVPN, NordVPN, ExpressVPN, and WireGuard (generic `wg0` adapter) and skips the DNS configuration step if any of them are active. Your VPN's DNS stays untouched.
+No. NET11 detects Mullvad, ProtonVPN, NordVPN, ExpressVPN, and WireGuard and skips the DNS configuration step if any of them are active. Your VPN's DNS stays untouched.
 
 If you use a different VPN that isn't on this list, open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) and I'll add detection for it.
 
