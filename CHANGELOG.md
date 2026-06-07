@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.5.0 — 2026-06-07
+
+Big script performance and reliability update.
+
+Fixed the hosts file bottleneck — THR01 through THR09 and THR12 were writing one domain at a time, which meant hundreds of individual disk reads and writes every run. They now collect everything in memory and write once. THR11 (Steven Black) compresses the 83,000-entry list down to ~9,200 lines using 9 domains per line, and automatically disables the Windows DNS Client service when the file is that large — counterintuitively, that's actually faster because the DNS Client was re-parsing the whole file on every lookup. After all threat blocking steps run, a single dedup pass strips any duplicates and one `ipconfig /flushdns` cleans up at the end. The Winsock reset now only runs when NET11 (DNS change) is actually selected.
+
+Fixed ADV03 (WinRM) properly this time — it now handles all four states: not present, already disabled, partially configured but not running, and fully running. The "partially configured" case was the one causing `[ERROR]` on most machines. Also fixed ADV03, NET01, and ADV04 check mode to verify firewall rules are actually disabled, not just the service or registry key — they now return `[PARTIAL]` if the service is off but the firewall rules are still open.
+
+Every script now prints a timestamped header and a result summary at the end — `[OK]`, `[SKIP]`, `[PARTIAL]`, `[MISSING]`, `[ERROR]` counts plus elapsed time. Steps that detect they're already applied show `[SKIP]` instead of silently counting as success. Check/Audit Mode now prints the current hosts file size, line count, and block rule count at the end so you can compare it against the estimate on the site.
+
+---
+
 ## v3.4.0 — 2026-06-07
 
 Paranoid profile performance fixes. ADV01 (Controlled Folder Access) removed from the Paranoid profile — it was causing Discord and Electron apps to start 5–10 seconds slower because Defender scans every file write. NET01 and NET11 now show caution notes warning about the expected first-connection delay when LLMNR/NetBIOS are disabled. Added a visible "ADVANCED" badge and warning tooltip to the Paranoid profile button on the site.
