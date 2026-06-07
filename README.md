@@ -6,7 +6,8 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.2.8-cyan.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Collection-v3.3.2-cyan.svg)](CHANGELOG.md)
+[![Steps](https://img.shields.io/badge/Steps-73-green.svg)](collections/windows.yaml)
 
 **Made by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
@@ -52,15 +53,17 @@ cd PrivacyWarden
 
 ## What it covers
 
-| Phase | Steps | What it actually does |
+| Category | Steps | What it actually does |
 |---|---|---|
-| Network | NET01–NET11 | Kills LLMNR, NetBIOS, WPAD, IPv6 tunnels, sets Quad9 DNS |
-| Telemetry | TEL01–TEL10 | Kills DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
-| System | SYS01–SYS08 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC, ASR rules, firewall |
-| Malware | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender |
-| Apps | OBS01–OBS05, DIS01–DIS06, BRW01–BRW11 | OBS, Discord, browser hardening |
-| Advanced | ADV01–ADV13 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
-| Threat Blocking | THR01–THR14 | IP grabbers, KiwiFarms mirrors, doxxing sites, stalkerware C2, 83,599 domains |
+| Network | NET01–NET11 | Kills LLMNR, NetBIOS, WPAD, IPv6 tunnels, enforces Quad9 DNS |
+| Telemetry | TEL01–TEL09 | Kills DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
+| System | SYS01–05, SYS08–09, SYS11 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC, ASR rules, clipboard history, Remote Assistance |
+| Malware | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender hardening |
+| Apps | OBS01–03, OBS05, DIS01–06, BRW01–05 | OBS, Discord, browser hardening |
+| Advanced | ADV01–ADV10 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
+| Threat Blocking | THR01–THR12 | IP grabbers, KiwiFarms mirrors, doxxing sites, stalkerware C2 domains |
+
+**Total: 73 steps across 9 categories.**
 
 ---
 
@@ -70,12 +73,13 @@ Pick one that fits. Don't select everything.
 
 | Profile | Steps | Who it's for |
 |---|---|---|
-| Standard | 58 | Good starting point for most people |
-| Streamer | 78 | Active streamers — won't break OBS or streaming tools |
-| VTuber | 80 | VTuber-specific — covers Discord, browser, identity exposure |
-| Paranoid | 82 | Everything. Test on a spare machine first. |
-| Network & Privacy | 19 | Just the network and telemetry stuff |
-| **Gaming** | **76** | **Anti-cheat safe — see below** |
+| Standard | 50 | Good starting point for most people |
+| Streamer | 69 | Active streamers — won't break OBS or streaming tools |
+| VTuber | 71 | VTuber-specific — covers Discord, browser, identity exposure |
+| Paranoid | 73 | Everything. Test on a spare machine first. |
+| Network & Privacy | 19 | Just the network and telemetry steps |
+| Gaming | 58 | Anti-cheat safe — see below |
+| Minimal | 7 | Absolute bare minimum — just the most critical steps |
 
 ---
 
@@ -153,7 +157,7 @@ Want to add a step? Edit the YAML and open a PR. See [CONTRIBUTING.md](docs/CONT
 
 ```
 collections/
-  windows.yaml          ← All 82 hardening steps
+  windows.yaml          ← All 73 hardening steps
   windows.yaml.sha256   ← SHA-256 integrity check
 docs/
   USER_GUIDE.md
@@ -194,6 +198,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection v3.2.8 · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
+**Collection v3.3.2 · 73 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
 
 [MIT License](LICENSE)
