@@ -236,9 +236,8 @@ function Parse-YamlCollection {
                 # call.function
                 if ($trimmed -match '^function:\s*(.+)') { $currentStep.callFunction = $Matches[1].Trim() }
 
-                # call.parameters — key: value pairs (may be multi-line strings)
-                if ($trimmed -match '^(\w+):\s*\|\s*$' -and $indent -ge 8) {
-                    # Multi-line parameter value
+                # call.parameters and step-level inline code/checkCode/revertCode blocks
+                if ($trimmed -match '^(\w+):\s*\|\s*$') {
                     $paramName = $Matches[1]
                     $currentBlockLines.Clear()
                     $blockIndent = $indent + 2
@@ -252,7 +251,12 @@ function Parse-YamlCollection {
                         $currentBlockLines.Add($bl.Substring([Math]::Min($blockIndent, $bl.Length)))
                         $i++
                     }
-                    $currentStep.callParams[$paramName] = ($currentBlockLines -join "`n").TrimEnd()
+                    $blockValue = ($currentBlockLines -join "`n").TrimEnd()
+                    # Step-level inline code fields (used by steps without call: syntax)
+                    if     ($paramName -eq 'code')        { $currentStep.inlineCode = $blockValue }
+                    elseif ($paramName -eq 'checkCode')   { $currentStep.inlineCheckCode = $blockValue }
+                    elseif ($paramName -eq 'revertCode')  { $currentStep.inlineRevertCode = $blockValue }
+                    elseif ($indent -ge 8)                { $currentStep.callParams[$paramName] = $blockValue }
                     continue
                 }
                 if ($trimmed -match '^(\w+):\s*"?(.+?)"?\s*$' -and $indent -ge 8) {
