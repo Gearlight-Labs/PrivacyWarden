@@ -496,6 +496,21 @@ Write-Host "  $($selectedSteps.Count) step(s) selected" -ForegroundColor DarkCya
 Write-Host ""
 
 $ok = 0; $skipped = 0; $errors = 0
+
+# ── Restore Point (Apply mode only) ──────────────────────────────────────────────────
+if ($mode -eq "apply") {
+    Write-Host "  Creating a Windows restore point before making changes..." -ForegroundColor DarkCyan
+    try {
+        Enable-ComputerRestore -Drive "C:\\"
+        Checkpoint-Computer -Description "PrivacyWarden — before hardening $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        Write-Host "  [OK] Restore point created. Use System Restore to undo if needed." -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] Could not create restore point: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "         Continuing — consider creating one manually via System Properties > System Protection." -ForegroundColor DarkYellow
+    }
+    Write-Host ""
+}
+
 $currentCategory = ""
 
 foreach ($step in $selectedSteps) {
