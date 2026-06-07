@@ -45,6 +45,8 @@ All 73 hardening steps are defined in [`collections/windows.yaml`](../collection
 
 Neither the website nor the generated scripts collect any data. No analytics, no crash reporting, no usage tracking.
 
+The site also runs with an `Integrity-Policy` header — it tells the browser that any script or stylesheet loaded from an external origin must have a verified hash, or it gets blocked. Since everything is self-hosted there's nothing to block, but it locks that in so it can't accidentally change later.
+
 ---
 
 ## What the scripts actually do
