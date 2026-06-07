@@ -23,7 +23,7 @@ Don't just click "Select All." The profiles are there because different people n
 | **VTuber** | VTuber-specific — Discord, browser, identity exposure |
 | **Network & Privacy** | Just the network and telemetry stuff |
 | **Paranoid** | Everything. Test on a spare machine first. |
-| **Gaming** | Anti-cheat safe — skips the 3 steps that conflict with EAC/BattlEye/Vanguard/etc. |
+| **Gaming** | Anti-cheat safe — skips the 5 steps that conflict with EAC/BattlEye/Vanguard/etc. |
 | **Minimal** | Absolute bare minimum — just the most critical steps |
 
 ### Step 2: Review the steps
@@ -153,7 +153,7 @@ Two steps tried to write to the hosts file at the same time. Regenerate your scr
 
 **A game won't launch after applying the Gaming profile**
 
-The most likely culprit is ADV01 (Controlled Folder Access) or THR11 (hosts file blocking). Try disabling those two first. If it's Valorant specifically, see the Vanguard note in the README.
+Try these in order: (1) Reboot — most changes need a restart to take effect. (2) Disable Controlled Folder Access in Windows Security if it was previously enabled. (3) Check Windows Event Viewer → Application log for errors from the game's anti-cheat. (4) Use Undo Mode to revert steps one at a time to find the conflict. For Valorant specifically, run Audit Mode to confirm the TPM/Secure Boot step shows [OK].
 
 ---
 

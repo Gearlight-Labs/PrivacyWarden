@@ -85,7 +85,7 @@ Pick one that fits. Don't select everything.
 
 ## Gaming Profile (AC-SAFE)
 
-The Gaming profile skips 3 steps that are known to conflict with kernel-level anti-cheat. Everything else (58 steps) still applies.
+The Gaming profile skips 5 steps that are known to conflict with anti-cheat software. Everything else (58 steps) still applies.
 
 ### Compatible with
 
@@ -102,13 +102,15 @@ The Gaming profile skips 3 steps that are known to conflict with kernel-level an
 
 | Step | Name | Why |
 |---|---|---|
-| ADV01 | Controlled Folder Access | Vanguard and EAC need write access to game directories |
+| ADV01 | Controlled Folder Access | Blocks game save files and shader caches from writing to protected folders — can trigger anti-cheat failures |
 | ADV05 | Kernel DMA protection bypass | Some anti-cheat drivers require DMA access at kernel level |
+| MAL01 | Windows Script Host | Some game launchers use it for update scripts |
 | MAL08 | Block unsigned driver loading | Anti-cheat systems load their own kernel drivers |
+| THR11 | Steven Black hosts list | Excluded to avoid any chance of blocking game CDN or update servers |
 
-> **Vanguard note:** If Valorant won't launch after applying the Gaming profile, ADV01 is almost always the cause. Disable it first and retest.
+> **Vanguard note:** Vanguard requires DCOM, Print Spooler, and Windows Script Host to be running — the Gaming profile keeps all of these enabled. If Valorant still won't launch, run Audit Mode to confirm the TPM/Secure Boot step shows [OK].
 
-If a game still won't launch after applying the Gaming profile, go through the three excluded steps one by one to find the conflict.
+If a game still won't launch after applying the Gaming profile, go through the five excluded steps one by one to find the conflict.
 
 ---
 

@@ -73,24 +73,26 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ## Gaming & Anti-Cheat
 
 **Which anti-cheat systems are compatible with the Gaming profile?**
-Easy Anti-Cheat (EAC), BattlEye, GameGuard, HoYoKProtect, Vanguard, and FACEIT. The Gaming profile skips the 3 steps that are known to conflict with kernel-level anti-cheat drivers.
+Easy Anti-Cheat (EAC), BattlEye, GameGuard, HoYoKProtect, Vanguard, and FACEIT. The Gaming profile skips the 5 steps that are known to conflict with anti-cheat software.
 
 **What steps are excluded from the Gaming profile?**
 
 | Step | Name | Why |
 |---|---|---|
-| ADV01 | Controlled Folder Access | Blocks anti-cheat from writing to protected folders |
+| ADV01 | Controlled Folder Access | Blocks game save files and shader caches from writing to protected folders — can trigger anti-cheat failures |
 | ADV05 | Kernel DMA protection | Some anti-cheat drivers require DMA access at kernel level |
+| MAL01 | Windows Script Host | Some game launchers use it for update scripts |
 | MAL08 | Block unsigned driver loading | Anti-cheat systems load their own kernel drivers |
+| THR11 | Steven Black hosts list | Excluded to avoid any chance of blocking game CDN or update servers |
 
 **A game won't launch after applying the Gaming profile.**
-Start with ADV01 (Controlled Folder Access) — that's the most common culprit. Disable it and try again. If it's still broken, try ADV05 and MAL08 one at a time.
+Try these in order: (1) Reboot — most changes need a restart to take effect. (2) If you had Controlled Folder Access enabled before, disable it in Windows Security. (3) Check Windows Event Viewer → Application log for errors from the game's anti-cheat. (4) Use Undo Mode to revert steps one at a time to find the conflict.
 
 **What about Valorant / Vanguard specifically?**
-Vanguard runs a kernel driver (`vgk.sys`) that loads at boot. ADV01 (Controlled Folder Access) is the step most likely to cause issues. The Gaming profile already excludes it. If Valorant still won't launch, also try disabling MAL08 (unsigned driver blocking).
+Vanguard requires DCOM, Print Spooler, and Windows Script Host to be running — the Gaming profile keeps all of these enabled. Vanguard also requires Secure Boot and TPM 2.0. If Valorant still won't launch after applying the Gaming profile, run Audit Mode to check that the TPM/Secure Boot step shows [OK].
 
 **What about Genshin Impact / Honkai: Star Rail / Zenless Zone Zero?**
-HoYoKProtect (HoYoverse's anti-cheat) is compatible with the Gaming profile. If a HoYoverse game won't launch, try re-enabling ADV01 first — that's the most likely conflict.
+All HoYoverse games are compatible with the Gaming profile. The key exclusions that matter for HoYo games are Controlled Folder Access (game data writes to Documents and AppData) and Windows Script Host (the HoYo launcher uses it). All network hardening steps are safe and won't affect HoYo game servers.
 
 ---
 
@@ -113,9 +115,7 @@ Downloads [Steven Black's consolidated hosts file](https://github.com/StevenBlac
 The script retries 3 times automatically. Check your connection and re-run if it keeps failing.
 
 **I use a VPN — will NET11 overwrite my VPN's DNS settings?**
-No. NET11 detects Mullvad, ProtonVPN, NordVPN, ExpressVPN, and WireGuard and skips the DNS configuration step if any of them are active. Your VPN's DNS stays untouched.
-
-If you use a different VPN that isn't on this list, open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) and I'll add detection for it.
+Yes, intentionally — the DNS step applies to all network adapters including your VPN adapter. Before changing anything, it shows you your current DNS settings so you know exactly what was replaced. If your VPN has its own DNS protection (like Mullvad's ad-blocking DNS), it will override Quad9 when you reconnect — that's fine. If you want to keep your VPN's DNS, just deselect the DNS step before generating your script.
 
 ---
 
