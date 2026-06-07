@@ -1,113 +1,111 @@
 # Changelog
 
-## v3.3.5 — 2026-06-06
+## v3.4.0 — 2026-06-07
 
-Added DIS07 (Discord activity status — stops Discord from broadcasting your running game/app to your entire friend list in real time). Fixed ADV03 WinRM disable — no longer throws an error on Public network profiles. Generated script headers now use a shared version constant so they always match the loaded collection automatically. Replaced Google Fonts CDN with self-hosted fonts — eliminates the Google IP exposure on page load. Updated OG/Twitter meta tags step count to 74. Privacy Policy page updated to reflect accurate localStorage key, step count, and font serving.
+Paranoid profile performance fixes. ADV01 (Controlled Folder Access) removed from the Paranoid profile — it was causing Discord and Electron apps to start 5–10 seconds slower because Defender scans every file write. NET01 and NET11 now show caution notes warning about the expected first-connection delay when LLMNR/NetBIOS are disabled. Added a visible "ADVANCED" badge and warning tooltip to the Paranoid profile button on the site.
+
+---
+
+## v3.3.6 — 2026-06-07
+
+Added DIS07 — stops Discord from broadcasting your currently running game or app to your entire friend list in real time. Fixed ADV03 (WinRM disable) — no longer throws an error on machines with a Public network profile. Replaced Google Fonts CDN with self-hosted fonts — eliminates a third-party IP request on page load.
 
 ---
 
 ## v3.3.4 — 2026-06-06
 
-Full script audit across all 73 steps. Fixed PS1 parser bug where SYS08, SYS09, SYS11, TEL09 silently did nothing in Apply/Check/Undo modes. Fixed NET03 WPAD — was only setting one of two required registry keys; WinHTTP-based apps were still exposed. Fixed NET06 Delivery Optimization — value was 1 (LAN P2P only) instead of 0 (no P2P). Fixed ADV03 WinRM error on Public network profiles. Dynamic version constant added to script generator.
+Full script audit across all 73 steps. Fixed a parser bug where SYS08, SYS09, SYS11, and TEL09 silently did nothing in Apply, Audit, and Undo modes. Fixed NET03 (WPAD) — was only setting one of two required registry keys, leaving WinHTTP-based apps still exposed. Fixed NET06 (Delivery Optimization) — wrong value was being set, P2P downloads were still enabled over LAN.
 
 ---
 
 ## v3.3.3 — 2026-06-06
 
-Full script audit. Fixed PS1 parser — SYS08/SYS09/SYS11/TEL09 were silently skipped. Fixed NET03 WPAD (two-key fix). Fixed NET06 DODownloadMode 1→0.
+Fixed the same parser bug as v3.3.4 (SYS08/SYS09/SYS11/TEL09 silently skipped). Fixed NET03 WPAD two-key issue. Fixed NET06 Delivery Optimization value.
 
 ---
 
 ## v3.3.2 — 2026-06-07
 
-Security fix + UI cleanup. Fixed honeypot middleware order — `/api/debug` and similar paths now return convincing fake responses instead of 403. Rate limiters restored in correct position after honeypot routes. UI decluttered: FAQ collapsed by default, stats cards removed, warning boxes trimmed, slim footer. README updated with accurate 73-step counts and correct profile numbers.
+Security fix: a debug endpoint was returning real error information instead of a convincing decoy response. Fixed. UI decluttered — FAQ collapsed by default, stats cards removed, warning boxes trimmed, slim footer.
 
 ---
 
 ## v3.3.1 — 2026-06-06
 
-Full profile audit. Fixed Gaming profile — was incorrectly tagged on only 4 steps, now correctly covers 58 steps. Audited all 73 steps line-by-line and corrected profile tags across all categories. Updated all profile descriptions in the site to match real counts. SYS08 (clipboard history) added to Gaming profile — no anti-cheat conflict.
+Fixed the Gaming profile — it was only correctly tagged on 4 steps instead of the full 58. Audited all 73 steps and corrected profile tags across all categories.
 
 ---
 
 ## v3.3.0 — 2026-06-06
 
-4 new streamer/VTuber-specific steps: SYS08 (clipboard history — stream keys), SYS09 (Remote Assistance — social engineering), SYS11 (AlwaysInstallElevated — fake asset pack MSIs), TEL09 (app access to location/camera/mic — doxxing vector). All chosen for the streamer threat model, not generic hardening.
+4 new steps built specifically for the streamer/VTuber threat model:
+
+- **SYS08** — Disables clipboard history. Stream keys, auth tokens, and passwords you've copied stay out of the cloud sync.
+- **SYS09** — Disables Remote Assistance. Blocks a social engineering vector where someone talks you into "letting them help" and gets a remote session.
+- **SYS11** — Blocks AlwaysInstallElevated. Closes the door on fake asset pack MSIs that silently install with SYSTEM privileges.
+- **TEL09** — Revokes app access to location, camera, and microphone at the OS level. Covers the doxxing vector where a malicious app reads your location in the background.
 
 ---
 
 ## v3.2.9 — 2026-06-07
 
-PS1 script now creates a Windows restore point automatically before Apply mode runs. Fixed hardcoded "82 steps" in warning text — now uses live step count. Gaming profile button surfaced properly in profile selector.
+The script now creates a Windows System Restore point automatically before Apply mode runs — so if something goes wrong, you can roll back without needing Undo mode. Fixed the Gaming profile button not showing up in the profile selector.
 
 ---
 
 ## v3.2.8 — 2026-06-06
 
-Profile audit — went through all 82 steps and fixed 17 steps that had wrong profile tags. NET11 (Quad9 DNS) was missing from standard/streamer/vtuber which made no sense. TEL09 (Windows Error Reporting) was also missing from standard and streamer. Gaming profile was excluding 10 steps it didn't need to exclude.
+Profile audit — went through all 82 steps and fixed 17 steps that had wrong profile tags. NET11 (Quad9 DNS) was missing from Standard, Streamer, and VTuber profiles for no good reason. TEL09 (Windows Error Reporting) was also missing from Standard and Streamer. Gaming profile was excluding 10 steps it didn't need to exclude.
 
-Also added a "don't just select everything" warning to the site because people were doing exactly that. The profiles exist for a reason.
-
-Commit history rewritten to not sound like a bot. Added Acknowledgements section to README crediting privacy.sexy for the YAML architecture.
+Added a "don't just select everything" warning to the site because people were doing exactly that. The profiles exist for a reason.
 
 ---
 
 ## v3.2.7 — 2026-06-06
 
-Full profile audit — 17 fixes across all 82 steps. Added early-stage warning banner to the site. Added system-variance disclaimer. Cache key v17.
+Fixed 17 steps that were incorrectly excluded from profiles — they're now applied where they should have been all along. Added an early-stage warning banner to the site. Added a system-variance disclaimer.
 
 ---
 
 ## v3.2.6 — 2026-06-06 — Hotfix
 
-**Hosts file race condition fix.** When multiple THR steps run back-to-back they all try to open the hosts file at the same time and one of them gets locked out. Added a retry loop (5 attempts, 200ms wait) to every hosts file write. This was causing THR06 to fail on real runs.
+**Hosts file steps no longer fail when multiple threat-blocking steps run at the same time.** When several THR steps ran back-to-back they all tried to open the hosts file simultaneously and one would get locked out. Added a retry loop to every hosts file write — 5 attempts, 200ms between each. This was causing THR06 to fail on real runs.
 
-Also added 13 steps that were in the old PS1 but never made it into the YAML — SYS hardening, MAL prevention, and a few ADV steps that got lost during the refactor.
+Also added 13 steps that were in the old script but never made it into the YAML — system hardening, malware prevention, and a few advanced steps that got lost during the rewrite.
 
 ---
 
 ## v3.2.5 — 2026-06-06
 
-- Added `-Local` flag to the PS1 wrapper so you can run against a local YAML without internet access
-- Added Gaming section to the README
-- Added NET11 VPN detection FAQ entry to the site
-- Tagged GitHub release v3.2.5
+Added `-Local` flag to the script so you can run it without internet access. Added Gaming section to the README. Added NET11 VPN detection FAQ entry to the site.
 
 ---
 
 ## v3.2.4 — 2026-06-06
 
-- YAML version bump
-- Added WireGuard to NET11 VPN detection (generic `wg0` adapter + `wireguard.exe` process)
-- Added Gaming AC-SAFE badge to the profile HoverCard on the site
-- Added v3.2.4 changelog entry to the site's What's New section
-- Cache key v14
+Added WireGuard to NET11 VPN detection (generic `wg0` adapter + `wireguard.exe` process). Added Gaming AC-SAFE badge to the profile hover card on the site.
 
 ---
 
 ## v3.2.3 — 2026-06-06
 
-Three things in one:
+Three things:
 
-1. **Gaming profile** — 76 steps, skips the 5 that conflict with kernel-level anti-cheat (EAC, BattlEye, GameGuard, HoYoKProtect, Vanguard, FACEIT). Added Gaming icon and AC-SAFE badge to the site.
+1. **Gaming profile** — skips the steps that conflict with kernel-level anti-cheat (EAC, BattlEye, GameGuard, HoYoKProtect, Vanguard, FACEIT). Gaming icon and AC-SAFE badge added to the site.
 2. **NET11 extended** — VPN detection now covers Mullvad, ProtonVPN, NordVPN, ExpressVPN, and WireGuard. Script won't touch DNS if any of these are detected.
 3. **Gaming FAQ** — 6 new Q&As covering anti-cheat compatibility, excluded steps, Valorant/Vanguard specifics, HoYoverse games, and performance impact.
 
 ---
 
-## v3.2.2 — 2026-06-06 — PS1 Refactor
+## v3.2.2 — 2026-06-06 — Script Rewrite
 
-Rewrote the PS1 from scratch. The old script was 1,654 lines with 67 hardcoded steps that were completely out of sync with the YAML. The new wrapper is 514 lines with zero hardcoded steps — it fetches the YAML at runtime and executes from it. YAML is now the single source of truth for both the website and the CLI.
-
-Also fixed three ghost file references in the docs (`Verify-SecurityAudit.ps1` never existed), updated `VERSION.txt` to 3.2.4, and fixed the `.csproj` referencing a `site/` directory that doesn't exist.
+Rewrote the PowerShell script from scratch. The old version was 1,654 lines with 67 hardcoded steps that were completely out of sync with the YAML. The new wrapper is 514 lines with zero hardcoded steps — it fetches the YAML at runtime and executes from it. The YAML is now the single source of truth for both the website and the CLI.
 
 ---
 
 ## v3.2.1 — 2026-06-05
 
-**Undo mode coverage: 28% → 100%.** The `-Undo` flag was only reversing 9 of 83 system changes across 7 of 25 hardening categories. Fixed. All 25 categories now have full revert coverage — 50 individual undo steps. Every registry key, service state, and policy change can now be safely reversed back to the exact Windows default.
-
-Newly covered: Telemetry/DiagTrack, Activity Feed/Timeline, Cortana, Consumer Features, Cross-device Clipboard, Recall AI, Scheduled Telemetry Tasks, Error Reporting (WER), Insider/Flighting (wisvc), LSA Protection (RunAsPPL), Remote Registry, WinRM, DCOM, Firefox policies, Chrome/Brave policies, Office macro hardening, file extension visibility.
+**Undo mode coverage: 28% → 100%.** The `-Undo` flag was only reversing 9 of 83 system changes. Fixed. All 25 categories now have full revert coverage — 50 individual undo steps. Every registry key, service state, and policy change can now be safely reversed back to the exact Windows default.
 
 ---
 
@@ -132,58 +130,35 @@ Also fixed a DNS handling bug — Mullvad's public DNS IPs only accept encrypted
 
 ## v1.1.1 — 2026-05-31 — Security Patch
 
-Fixed five security issues I found during a post-release audit:
+Fixed five security issues found during a post-release audit:
 
-- **CRITICAL** — Unquoted service binary path in the NSIS installer. If installed to a path with spaces (e.g. `C:\Program Files\PrivacyWarden`), Windows would search for `C:\Program.exe` first. An attacker with write access to `C:\` could drop a malicious `Program.exe` and get SYSTEM execution. Fixed by quoting the `binPath=` value in `sc create`.
-- **HIGH** — `status.json` IPC was unauthenticated. A low-privileged attacker who could write to `C:\ProgramData` could inject a fake status file to hide a privacy breach from the tray. Fixed by signing `status.json` with HMAC-SHA256 and verifying the signature before trusting it.
-- **HIGH** — `netsh` command injection via adapter name. Adapter names were passed unsanitized into a subprocess call running as SYSTEM. Fixed by using the absolute path and stripping everything outside `[A-Za-z0-9 _\-]` from adapter names.
-- **MEDIUM** — HMAC key was derived from `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`, which any standard user can read. A local attacker could derive the key and forge log entries. Fixed by generating a random 32-byte key on first run and protecting it with DPAPI.
-- **MEDIUM** — `explorer.exe` launched without an absolute path. Fixed by using `%SystemRoot%\explorer.exe`.
-- **LOW** — Uninstaller failed to remove `C:\ProgramData\PrivacyWarden` because the service applies deny ACEs to protect the data directory. Fixed by stripping those ACEs before deletion.
-
----
-
-## v1.1.1-patch1 — 2026-05-31
-
-Post-release concurrency and quality audit:
-
-- Race condition in network change detection — `volatile bool` replaced with `int` + `Interlocked.Exchange`
-- DNS failure counter now uses `Interlocked.Increment` / `Interlocked.Exchange`
-- Adapter baseline flag marked `volatile`
-- Single-instance enforcement via named mutex (`Global\PrivacyWarden_ServiceInstance`)
-- Suspicious process alerts now fire once per session instead of every 30 seconds
-- False-positive suppression for installer temp executables
-- 5-minute per-file cooldown on browser shutdown alerts
-- `AuditLogger` lock scope narrowed — HMAC computation now runs outside the lock
-- `Task.Delay` loops replaced with `PeriodicTimer` — reduces timer allocations from ~6,720 to 2 per session
+- **CRITICAL** — Unquoted service binary path in the NSIS installer. If installed to a path with spaces, Windows would search for the wrong executable first. An attacker with write access to `C:\` could exploit this for SYSTEM execution. Fixed.
+- **HIGH** — Status IPC was unauthenticated. A local attacker could inject a fake status file to hide a privacy breach from the tray. Fixed with HMAC signing.
+- **HIGH** — Command injection via adapter name. Adapter names were passed unsanitized into a subprocess call running as SYSTEM. Fixed with input sanitization.
+- **MEDIUM** — HMAC key was derived from a registry value any standard user can read. Fixed by generating a random key on first run and protecting it with DPAPI.
+- **MEDIUM** — `explorer.exe` launched without an absolute path. Fixed.
+- **LOW** — Uninstaller failed to remove the data directory due to deny ACEs. Fixed.
 
 ---
 
 ## v1.1.0 — 2026-05-31
 
-- Fixed tray always showing "Service Stopped" — service was writing `"Privacy Mode"` but tray was looking for `"PRIVACY_MODE"`. All mode strings are now consistent uppercase tokens.
-- Fixed black console window on double-click — `FreeConsole()` called at startup when running interactively
-- SSD-safe logging — log writes buffered in memory, flushed every 30 seconds instead of every monitoring tick
-- Log rotation — files older than 7 days deleted on startup, configurable via `logRetentionDays`
-- Log size enforcement — if a log exceeds `maxLogSizeBytes`, it's archived and a fresh file starts
-- Smaller binaries — switched from self-contained to framework-dependent builds (~5-8 MB instead of ~80-120 MB)
-- Tray auto-starts on login via `HKCU\Run`
-- Upgraded to .NET 8 (from .NET 7, which is out of support)
+- Fixed tray always showing "Service Stopped"
+- Fixed black console window on double-click
+- SSD-safe logging — writes buffered in memory, flushed every 30 seconds
+- Log rotation — files older than 7 days deleted on startup
+- Smaller binaries — switched to framework-dependent builds (~5-8 MB instead of ~80-120 MB)
+- Tray auto-starts on login
+- Upgraded to .NET 8
 
 ---
 
 ## v1.0.1 — 2026-05-31
 
-- Logs not recording — service was blocked from writing to Documents by Controlled Folder Access. Moved logs back to ProgramData where LocalSystem always has access.
-- Tray icon not showing — Windows Services run in Session 0 with no desktop access. Split into a separate tray process that runs in the user's session.
-- `NEW_ADAPTER_DETECTED` false positive on every startup — adapter baseline now taken after VPN connects so the Mullvad adapter is already present when the snapshot is made.
-- `LOG_INTEGRITY_FAILED` on reinstall — HMAC seed now persists in ProgramData across reinstalls instead of being re-derived from InstallDate.
-- Added tray app — compact tray, auto-starts on login, shows current mode and service status
-- Three-file log split: `service.log`, `session.log`, `threat.log`
-- New human-readable log format — plain English, no JSON, no hashes on every line
-- ThreatMonitorService — monitors temp folder executables, browser credential access, unknown outbound connections, config tampering, rogue adapters, packet capture tools
-- SessionLogger — writes streaming session timeline to `session.log` with periodic VPN checks every 5 minutes
-- HMAC sidecar file (`.hmac`) — integrity chain moved out of the readable log into a separate file
+- Logs not recording — service was blocked from writing to Documents by Controlled Folder Access. Moved logs to ProgramData.
+- Tray icon not showing — split into a separate tray process that runs in the user's session.
+- False positive on every startup — adapter baseline now taken after VPN connects.
+- Log integrity failure on reinstall — HMAC seed now persists across reinstalls.
 
 ---
 

@@ -23,7 +23,8 @@ Don't just click "Select All." The profiles are there because different people n
 | **VTuber** | VTuber-specific — Discord, browser, identity exposure |
 | **Network & Privacy** | Just the network and telemetry stuff |
 | **Paranoid** | Everything. Test on a spare machine first. |
-| **Gaming** | Anti-cheat safe — skips the 5 steps that conflict with EAC/BattlEye/Vanguard/etc. |
+| **Gaming** | Anti-cheat safe — skips the 3 steps that conflict with EAC/BattlEye/Vanguard/etc. |
+| **Minimal** | Absolute bare minimum — just the most critical steps |
 
 ### Step 2: Review the steps
 
@@ -148,7 +149,7 @@ The script retries 3 times automatically. Check your connection and re-run if it
 
 **THR step failed with "process cannot access the file"**
 
-This is a hosts file lock race condition — two steps tried to write to the hosts file at the same time. Fixed in v3.2.6 with a retry loop. If you're on an older generated script, regenerate it from the website.
+Two steps tried to write to the hosts file at the same time. Regenerate your script from the website to get the fix.
 
 **A game won't launch after applying the Gaming profile**
 
@@ -168,13 +169,11 @@ If you've cloned the repo and want to run against your local YAML without intern
 .\scripts\Setup-PrivacyWarden-Hardening.ps1 -CollectionUrl .\collections\windows.yaml
 ```
 
-This is useful for testing YAML changes before pushing, running on air-gapped systems, or verifying a specific version of the collection.
+This is useful for running on air-gapped systems or when you want to use a specific version of the collection.
 
 ---
 
 ## Testing on a real Windows machine
-
-The YAML parser is pure PowerShell with no external dependencies, but it should be validated on real hardware before major releases.
 
 **Recommended test procedure:**
 
