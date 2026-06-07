@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.3.2 — 2026-06-07
+
+Security fix + UI cleanup. Fixed honeypot middleware order — `/api/debug` and similar paths now return convincing fake responses instead of 403. Rate limiters restored in correct position after honeypot routes. UI decluttered: FAQ collapsed by default, stats cards removed, warning boxes trimmed, slim footer. README updated with accurate 73-step counts and correct profile numbers.
+
+---
+
+## v3.3.1 — 2026-06-06
+
+Full profile audit. Fixed Gaming profile — was incorrectly tagged on only 4 steps, now correctly covers 58 steps. Audited all 73 steps line-by-line and corrected profile tags across all categories. Updated all profile descriptions in the site to match real counts. SYS08 (clipboard history) added to Gaming profile — no anti-cheat conflict.
+
+---
+
+## v3.3.0 — 2026-06-06
+
+4 new streamer/VTuber-specific steps: SYS08 (clipboard history — stream keys), SYS09 (Remote Assistance — social engineering), SYS11 (AlwaysInstallElevated — fake asset pack MSIs), TEL09 (app access to location/camera/mic — doxxing vector). All chosen for the streamer threat model, not generic hardening.
+
+---
+
+## v3.2.9 — 2026-06-07
+
+PS1 script now creates a Windows restore point automatically before Apply mode runs. Fixed hardcoded "82 steps" in warning text — now uses live step count. Gaming profile button surfaced properly in profile selector.
+
+---
+
 ## v3.2.8 — 2026-06-06
 
 Profile audit — went through all 82 steps and fixed 17 steps that had wrong profile tags. NET11 (Quad9 DNS) was missing from standard/streamer/vtuber which made no sense. TEL09 (Windows Error Reporting) was also missing from standard and streamer. Gaming profile was excluding 10 steps it didn't need to exclude.

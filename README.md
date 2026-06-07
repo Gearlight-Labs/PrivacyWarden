@@ -85,9 +85,9 @@ Pick one that fits. Don't select everything.
 
 ## Gaming Profile (AC-SAFE)
 
-The Gaming profile skips the 5 steps that are known to conflict with kernel-level anti-cheat. Everything else still applies.
+The Gaming profile skips 3 steps that are known to conflict with kernel-level anti-cheat. Everything else (58 steps) still applies.
 
-### What it's compatible with
+### Compatible with
 
 | Anti-Cheat | Games |
 |---|---|
@@ -102,15 +102,13 @@ The Gaming profile skips the 5 steps that are known to conflict with kernel-leve
 
 | Step | Name | Why |
 |---|---|---|
-| ADV01 | Controlled Folder Access | Blocks anti-cheat from writing to protected folders |
-| MAL08 | Disable Windows Script Host | Some launchers use WSH for integrity checks |
-| MAL01 | Disable AutoRun | Can interfere with game launcher auto-start |
-| ADV05 | Disable Remote Registry | Some anti-cheat telemetry reads the registry |
-| THR11 | Hosts file blocking | Large hosts file slows DNS during game startup |
+| ADV01 | Controlled Folder Access | Vanguard and EAC need write access to game directories |
+| ADV05 | Kernel DMA protection bypass | Some anti-cheat drivers require DMA access at kernel level |
+| MAL08 | Block unsigned driver loading | Anti-cheat systems load their own kernel drivers |
 
-> **Vanguard note:** Vanguard (Valorant's anti-cheat) runs a kernel driver (`vgk.sys`) that loads at boot. ADV01 (Controlled Folder Access) and MAL08 (DCOM restrictions) are the two steps most likely to cause issues. If Valorant won't launch after applying the Gaming profile, try disabling those two first.
+> **Vanguard note:** If Valorant won't launch after applying the Gaming profile, ADV01 is almost always the cause. Disable it first and retest.
 
-If a game still won't launch after applying the Gaming profile, go through the excluded steps one by one. ADV01 and THR11 are usually the culprit.
+If a game still won't launch after applying the Gaming profile, go through the three excluded steps one by one to find the conflict.
 
 ---
 
