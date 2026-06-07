@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.3.2-cyan.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Collection-v3.4.0-cyan.svg)](CHANGELOG.md)
 [![Steps](https://img.shields.io/badge/Steps-73-green.svg)](collections/windows.yaml)
 
 **Made by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
@@ -156,7 +156,6 @@ Want to add a step? Edit the YAML and open a PR. See [CONTRIBUTING.md](docs/CONT
 ```
 collections/
   windows.yaml          ← All 73 hardening steps
-  windows.yaml.sha256   ← SHA-256 integrity check
 docs/
   USER_GUIDE.md
   FAQ.md
@@ -172,7 +171,7 @@ src/
 
 ## Security & privacy
 
-No data collection. No accounts. No telemetry. Scripts are generated in your browser from the YAML in this repo. Run `-Check` to audit without making changes. Run `-Undo` to revert. Verify the YAML against `windows.yaml.sha256` if you want to confirm it hasn't been tampered with.
+No data collection. No accounts. No telemetry. Scripts are generated in your browser from the YAML in this repo. Run `-Check` to audit without making changes. Run `-Undo` to revert. The collection is verified for integrity before it's loaded — if it's been tampered with in transit, the site refuses to use it.
 
 Full details in [SECURITY.md](docs/SECURITY.md).
 
@@ -196,6 +195,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection v3.3.2 · 73 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
+**Collection v3.4.0 · 73 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
 
 [MIT License](LICENSE)
