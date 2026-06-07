@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.3.5 — 2026-06-06
+
+Added DIS07 (Discord activity status — stops Discord from broadcasting your running game/app to your entire friend list in real time). Fixed ADV03 WinRM disable — no longer throws an error on Public network profiles. Generated script headers now use a shared version constant so they always match the loaded collection automatically. Replaced Google Fonts CDN with self-hosted fonts — eliminates the Google IP exposure on page load. Updated OG/Twitter meta tags step count to 74. Privacy Policy page updated to reflect accurate localStorage key, step count, and font serving.
+
+---
+
+## v3.3.4 — 2026-06-06
+
+Full script audit across all 73 steps. Fixed PS1 parser bug where SYS08, SYS09, SYS11, TEL09 silently did nothing in Apply/Check/Undo modes. Fixed NET03 WPAD — was only setting one of two required registry keys; WinHTTP-based apps were still exposed. Fixed NET06 Delivery Optimization — value was 1 (LAN P2P only) instead of 0 (no P2P). Fixed ADV03 WinRM error on Public network profiles. Dynamic version constant added to script generator.
+
+---
+
+## v3.3.3 — 2026-06-06
+
+Full script audit. Fixed PS1 parser — SYS08/SYS09/SYS11/TEL09 were silently skipped. Fixed NET03 WPAD (two-key fix). Fixed NET06 DODownloadMode 1→0.
+
+---
+
 ## v3.3.2 — 2026-06-07
 
 Security fix + UI cleanup. Fixed honeypot middleware order — `/api/debug` and similar paths now return convincing fake responses instead of 403. Rate limiters restored in correct position after honeypot routes. UI decluttered: FAQ collapsed by default, stats cards removed, warning boxes trimmed, slim footer. README updated with accurate 73-step counts and correct profile numbers.
