@@ -1,4 +1,4 @@
-version: "3.2.9"
+version: "3.3.0"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -2807,3 +2807,144 @@ actions:
               Write-Host "    [INFO] Removed artifacts cannot be restored. No revert available." -ForegroundColor Cyan
 
 
+
+      - id: SYS08
+        name: Disable clipboard history and cloud clipboard sync
+        category: System Hardening
+        risk: low
+        caution: "Disables clipboard history (Win+V) and cross-device clipboard sync. Clipboard history stores everything you copy — stream keys, RTMP passwords, OAuth tokens, 2FA codes. If someone gets remote access or runs a clipboard stealer on your PC, your stream credentials are exposed. Breaks clipboard sync between devices if you use that feature."
+        recommend:
+          - streamer
+          - vtuber
+          - paranoid
+        code: |
+          $__regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+          if (-not (Test-Path $__regPath)) { New-Item -Path $__regPath -Force | Out-Null }
+          Set-ItemProperty -Path $__regPath -Name "AllowClipboardHistory" -Value 0 -Type DWord -Force
+          Set-ItemProperty -Path $__regPath -Name "AllowCrossDeviceClipboard" -Value 0 -Type DWord -Force
+          $__cuPath = "HKCU:\SOFTWARE\Microsoft\Clipboard"
+          if (-not (Test-Path $__cuPath)) { New-Item -Path $__cuPath -Force | Out-Null }
+          Set-ItemProperty -Path $__cuPath -Name "EnableClipboardHistory" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+          Write-Host "    [OK] Clipboard history and cloud clipboard disabled" -ForegroundColor Green
+        checkCode: |
+          $__val = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "AllowClipboardHistory" -ErrorAction SilentlyContinue).AllowClipboardHistory
+          if ($__val -eq 0) { Write-Host "    [OK] Clipboard history is disabled via policy" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Clipboard history is NOT disabled (value: $__val)" -ForegroundColor Red }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "AllowClipboardHistory" -ErrorAction SilentlyContinue
+          Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "AllowCrossDeviceClipboard" -ErrorAction SilentlyContinue
+          Write-Host "    [INFO] Clipboard history policy removed -- Windows default restored" -ForegroundColor Cyan
+
+      - id: SYS09
+        name: Disable Windows Remote Assistance
+        category: System Hardening
+        risk: low
+        caution: "Disables Windows Remote Assistance -- the feature that lets someone view or control your screen when you invite them. This is a social engineering target: attackers in chat or DMs pose as tech support, a 'mod', or a 'collab partner' and ask you to send them a Remote Assistance invitation. Disabling it removes that attack surface entirely. Has no effect on Remote Desktop (RDP) or tools like AnyDesk."
+        recommend:
+          - standard
+          - streamer
+          - vtuber
+          - paranoid
+          - gaming
+        code: |
+          $__regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance"
+          if (-not (Test-Path $__regPath)) { New-Item -Path $__regPath -Force | Out-Null }
+          Set-ItemProperty -Path $__regPath -Name "fAllowToGetHelp" -Value 0 -Type DWord -Force
+          Set-ItemProperty -Path $__regPath -Name "fAllowFullControl" -Value 0 -Type DWord -Force
+          $__gpPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"
+          if (-not (Test-Path $__gpPath)) { New-Item -Path $__gpPath -Force | Out-Null }
+          Set-ItemProperty -Path $__gpPath -Name "fAllowToGetHelp" -Value 0 -Type DWord -Force
+          Write-Host "    [OK] Windows Remote Assistance disabled" -ForegroundColor Green
+        checkCode: |
+          $__val = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" -Name "fAllowToGetHelp" -ErrorAction SilentlyContinue).fAllowToGetHelp
+          if ($__val -eq 0) { Write-Host "    [OK] Remote Assistance is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] Remote Assistance is NOT disabled (value: $__val)" -ForegroundColor Red }
+        revertCode: |
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" -Name "fAllowToGetHelp" -Value 1 -Type DWord -Force
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" -Name "fAllowFullControl" -Value 1 -Type DWord -Force
+          Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fAllowToGetHelp" -ErrorAction SilentlyContinue
+          Write-Host "    [INFO] Remote Assistance re-enabled" -ForegroundColor Cyan
+
+      - id: SYS11
+        name: Disable "Always install with elevated privileges"
+        category: System Hardening
+        risk: low
+        caution: "Prevents Windows Installer from always running with SYSTEM privileges. When this is on, any MSI file -- including a fake 'VTuber asset pack', 'OBS plugin', or 'collab tool' someone sends you -- can silently escalate to SYSTEM and own your machine. This is a known malware delivery vector targeting creators. Disabled by default on modern Windows but can be flipped by software."
+        recommend:
+          - standard
+          - streamer
+          - vtuber
+          - paranoid
+          - gaming
+        code: |
+          $__paths = @(
+            "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer",
+            "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Installer"
+          )
+          foreach ($__p in $__paths) {
+            if (-not (Test-Path $__p)) { New-Item -Path $__p -Force | Out-Null }
+            Set-ItemProperty -Path $__p -Name "AlwaysInstallElevated" -Value 0 -Type DWord -Force
+          }
+          Write-Host "    [OK] AlwaysInstallElevated disabled in HKLM and HKCU" -ForegroundColor Green
+        checkCode: |
+          $__lm = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name "AlwaysInstallElevated" -ErrorAction SilentlyContinue).AlwaysInstallElevated
+          $__cu = (Get-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name "AlwaysInstallElevated" -ErrorAction SilentlyContinue).AlwaysInstallElevated
+          if ($__lm -eq 0 -and $__cu -eq 0) { Write-Host "    [OK] AlwaysInstallElevated is disabled" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] AlwaysInstallElevated -- HKLM: $__lm, HKCU: $__cu" -ForegroundColor Red }
+        revertCode: |
+          Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name "AlwaysInstallElevated" -ErrorAction SilentlyContinue
+          Remove-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name "AlwaysInstallElevated" -ErrorAction SilentlyContinue
+          Write-Host "    [INFO] AlwaysInstallElevated policy removed -- Windows default restored" -ForegroundColor Cyan
+
+      - id: TEL09
+        name: Disable app access to location, camera, microphone, and contacts
+        category: Telemetry & Tracking
+        risk: low
+        caution: "Blocks Windows apps from accessing your location, camera, microphone, contacts, calendar, email, and call history. Location data is a direct doxxing vector -- apps that silently read it can expose your city or region. Microphone and camera access by background apps is a privacy risk on a streaming PC. Re-enable per-app in Settings > Privacy & Security if a specific app needs it."
+        recommend:
+          - standard
+          - streamer
+          - vtuber
+          - paranoid
+          - gaming
+        code: |
+          $__privKeys = @{
+            "location"         = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
+            "webcam"           = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam"
+            "microphone"       = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone"
+            "contacts"         = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\contacts"
+            "appointments"     = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\appointments"
+            "email"            = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\email"
+            "chat"             = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\chat"
+            "phoneCallHistory" = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\phoneCallHistory"
+          }
+          foreach ($__key in $__privKeys.Keys) {
+            $__path = $__privKeys[$__key]
+            if (-not (Test-Path $__path)) { New-Item -Path $__path -Force | Out-Null }
+            Set-ItemProperty -Path $__path -Name "Value" -Value "Deny" -Type String -Force
+            Write-Host "    [OK] Blocked app access to: $__key" -ForegroundColor Green
+          }
+        checkCode: |
+          $__locPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
+          $__locVal = (Get-ItemProperty -Path $__locPath -Name "Value" -ErrorAction SilentlyContinue).Value
+          if ($__locVal -eq "Deny") { Write-Host "    [OK] App location access is denied" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] App location access is: $__locVal" -ForegroundColor Red }
+          $__micPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone"
+          $__micVal = (Get-ItemProperty -Path $__micPath -Name "Value" -ErrorAction SilentlyContinue).Value
+          if ($__micVal -eq "Deny") { Write-Host "    [OK] App microphone access is denied" -ForegroundColor Green }
+          else { Write-Host "    [MISSING] App microphone access is: $__micVal" -ForegroundColor Red }
+        revertCode: |
+          $__privKeys = @{
+            "location"         = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
+            "webcam"           = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam"
+            "microphone"       = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone"
+            "contacts"         = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\contacts"
+            "appointments"     = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\appointments"
+            "email"            = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\email"
+            "chat"             = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\chat"
+            "phoneCallHistory" = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\phoneCallHistory"
+          }
+          foreach ($__key in $__privKeys.Keys) {
+            Set-ItemProperty -Path $__privKeys[$__key] -Name "Value" -Value "Allow" -Type String -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "    [INFO] App access to all resources reverted to Allow" -ForegroundColor Cyan
