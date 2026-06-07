@@ -1,4 +1,4 @@
-version: "3.3.1"
+version: "3.3.2"
 author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
 website: "https://privwarden.org"
 repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
@@ -3142,6 +3142,7 @@ actions:
         risk: low
         caution: "Disables clipboard history (Win+V) and cross-device clipboard sync. Clipboard history stores everything you copy — stream keys, RTMP passwords, OAuth tokens, 2FA codes. If someone gets remote access or runs a clipboard stealer on your PC, your stream credentials are exposed. Breaks clipboard sync between devices if you use that feature."
         recommend:
+          - gaming
           - paranoid
           - streamer
           - vtuber
