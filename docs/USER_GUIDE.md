@@ -20,10 +20,12 @@ Don't just click "Select All." The profiles are there because different people n
 |---|---|
 | **Standard** | Good starting point for most people |
 | **Streamer** | Active streamers — won't break OBS or streaming tools |
-| **VTuber** | VTuber-specific — Discord, browser, identity exposure |
+| **VTuber Gaming** | VTubers who also game — Discord, browser, identity, AC-safe |
+| **IRL Streamer** | IRL/outdoor streamers — location, Wi-Fi, EXIF, and stream key protections on top of Streamer |
+| **Competitive** | Competitive gamers — AC-safe with HVCI enabled (stricter than Gaming) |
 | **Network & Privacy** | Just the network and telemetry stuff |
-| **Paranoid** | Everything. Test on a spare machine first. |
-| **Gaming** | Anti-cheat safe — skips the 5 steps that conflict with EAC/BattlEye/Vanguard/etc. |
+| **Paranoid** | Everything except IRL-specific steps. Test on a spare machine first. |
+| **Gaming** | Anti-cheat safe — skips OBS/Discord steps and the steps that conflict with EAC/BattlEye/Vanguard/etc. |
 | **Minimal** | Absolute bare minimum — just the most critical steps |
 
 ### Step 2: Review the steps

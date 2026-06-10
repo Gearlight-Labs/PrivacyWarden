@@ -9,7 +9,7 @@ An open-source Windows hardening tool I built for streamers and VTubers. Go to [
 No. Scripts are generated in your browser. Nothing is sent anywhere.
 
 **Does it work on Windows 10 and 11?**
-Yes. All 73 steps are tested on Windows 10 (20H2+) and Windows 11.
+Yes. All 81 steps are tested on Windows 10 (20H2+) and Windows 11.
 
 **Do I need to be an Administrator?**
 Yes. Hardening steps modify registry keys, services, and Windows Firewall. It won't work without admin rights.
@@ -28,18 +28,20 @@ Pick the one that fits your situation. Don't just select everything — that's w
 | Profile | Steps | Who it's for |
 |---|---|---|
 | **Standard** | 50 | Good starting point for most people |
-| **Streamer** | 69 | Active streamers — won't break OBS or streaming tools |
-| **VTuber** | 71 | VTubers — Discord, browser, identity exposure |
+| **Streamer** | 70 | Active streamers — won't break OBS or streaming tools |
+| **VTuber Gaming** | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
+| **IRL Streamer** | 77 | IRL/outdoor streamers — location, Wi-Fi, EXIF, stream key protections |
+| **Competitive** | 60 | Competitive gamers — AC-safe, keeps HVCI enabled unlike the Gaming profile |
 | **Network & Privacy** | 19 | Just the network and telemetry stuff |
-| **Paranoid** | 73 | Everything. Expect slower first connections after boot. Test on a spare machine first. |
-| **Gaming** | 58 | Anti-cheat safe — see below |
+| **Paranoid** | 73 | Everything except IRL-specific steps. Expect slower first connections after boot. Test on a spare machine first. |
+| **Gaming** | 59 | Anti-cheat safe — see below |
 | **Minimal** | 7 | Absolute bare minimum — just the most critical steps |
 
-**What's the difference between Streamer and VTuber?**
-VTuber adds a few extra steps covering identity exposure risks that are more relevant to VTubers specifically — things like additional browser fingerprinting protections and Discord settings. Streamer is a subset of VTuber.
+**What's the difference between the streamer/VTuber profiles?**
+Streamer is the base — covers OBS, Discord, browser, and network hardening without touching anything that would break streaming tools. VTuber Gaming is Streamer-level hardening that's also anti-cheat safe, so you can use it whether you're streaming or just playing. IRL Streamer adds 7 extra steps on top of Streamer that are specific to outdoor/mobile streaming — location services, Wi-Fi exposure, EXIF metadata, stream key caching. Competitive is for ranked players who want AC-safe hardening with HVCI enabled (the Gaming profile skips HVCI to avoid conflicts with older anti-cheat drivers; Competitive keeps it).
 
 **The Paranoid profile made my PC slower. Is that normal?**
-Yes — and it's expected. The Paranoid profile disables LLMNR, NetBIOS, and WPAD, which are Windows name resolution fallbacks. Without them, your PC has to wait for each one to time out before moving to the next, which adds 5–10 seconds to the first connection after boot. Discord and Electron apps may also take longer to start. This is the trade-off for maximum hardening. If it's too disruptive, use the VTuber or Streamer profile instead.
+Yes — and it's expected. The Paranoid profile disables LLMNR, NetBIOS, and WPAD, which are Windows name resolution fallbacks. Without them, your PC has to wait for each one to time out before moving to the next, which adds 5–10 seconds to the first connection after boot. Discord and Electron apps may also take longer to start. This is the trade-off for maximum hardening. If it's too disruptive, use the Streamer or VTuber Gaming profile instead.
 
 ---
 
@@ -73,17 +75,21 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 ## Gaming & Anti-Cheat
 
 **Which anti-cheat systems are compatible with the Gaming profile?**
-Easy Anti-Cheat (EAC), BattlEye, GameGuard, HoYoKProtect, Vanguard, and FACEIT. The Gaming profile skips the 5 steps that are known to conflict with anti-cheat software.
+Easy Anti-Cheat (EAC), BattlEye, GameGuard, HoYoKProtect, Vanguard, and FACEIT. The Gaming profile skips steps that are known to conflict with anti-cheat software or streaming tools.
 
 **What steps are excluded from the Gaming profile?**
 
+The Gaming profile skips all OBS/Discord app steps (since gaming setups vary), all IRL steps (not relevant), and the following AC-sensitive steps:
+
 | Step | Name | Why |
 |---|---|---|
-| ADV01 | Controlled Folder Access | Blocks game save files and shader caches from writing to protected folders — can trigger anti-cheat failures |
-| ADV05 | Kernel DMA protection | Some anti-cheat drivers require DMA access at kernel level |
-| MAL01 | Windows Script Host | Some game launchers use it for update scripts |
-| MAL08 | Block unsigned driver loading | Anti-cheat systems load their own kernel drivers |
-| THR11 | Steven Black hosts list | Excluded to avoid any chance of blocking game CDN or update servers |
+| ADV01 | Controlled Folder Access | Blocks game save files and shader caches — can trigger anti-cheat failures |
+| ADV05 | Disable Print Spooler | Some anti-cheat drivers require it |
+| ADV11 | Enable HVCI / Memory Integrity | Can conflict with older anti-cheat kernel drivers |
+| MAL08 | Disable DCOM | Required by Vanguard and some other anti-cheat systems |
+| SYS08 | Disable clipboard history | Conflicts with some game overlay clipboard integrations |
+
+If you want AC-safe hardening with HVCI enabled, use the **Competitive** profile instead — it keeps ADV11 and skips everything else the Gaming profile skips.
 
 **A game won't launch after applying the Gaming profile.**
 Try these in order: (1) Reboot — most changes need a restart to take effect. (2) If you had Controlled Folder Access enabled before, disable it in Windows Security. (3) Check Windows Event Viewer → Application log for errors from the game's anti-cheat. (4) Use Undo Mode to revert steps one at a time to find the conflict.
