@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.7.0-cyan.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Collection-v3.8.0-cyan.svg)](CHANGELOG.md)
 [![Steps](https://img.shields.io/badge/Steps-81-green.svg)](collections/windows.yaml)
 
 **Made by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
@@ -204,6 +204,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection v3.7.0 · 81 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
+**Collection v3.8.0 · 81 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
 
 [MIT License](LICENSE)

@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.8.0 — 2026-06-09
+
+Collection integrity verification is now enforced end-to-end. The collection is signed at build time and the signature is verified before any step is loaded — if it doesn't match, the site refuses to run. This was already the case for in-transit tampering, but it now also covers the storage layer. Nothing visible changes on your end; scripts generate the same way.
+
+Fixed a bug where the collection would fail to load on first visit with a 404 error, requiring a hard refresh to recover. Should be gone now.
+
+Bumped the collection cache key — if you've used the site before, your browser will pull the latest version automatically on next visit instead of serving the cached one.
+
+---
+
 ## v3.7.0 — 2026-06-09
 
 Added 7 IRL-specific steps and a new IRL Streamer profile. If you do outdoor streams, travel content, or anything where your physical location is part of the threat model, this is for you.
