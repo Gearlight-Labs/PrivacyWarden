@@ -1,0 +1,15 @@
+# CODEOWNERS — PrivacyWarden
+# All pull requests require review and approval from @AyaYokiVT before merging.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owner — every file requires Aya's review
+* @AyaYokiVT
+
+# Encrypted collection — extra protection, must never be merged without explicit approval
+/collections/ @AyaYokiVT
+
+# Scripts that handle encryption and deployment
+/scripts/ @AyaYokiVT
+
+# GitHub Actions workflows
+/.github/workflows/ @AyaYokiVT
