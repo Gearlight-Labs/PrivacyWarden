@@ -74,12 +74,12 @@ Pick one that fits. Don't select everything.
 
 | Profile | Steps | Who it's for |
 |---|---|---|
-| Standard | 50 | Good starting point for most people |
+| Recommended | 50 | Good starting point for most people |
 | Streamer | 70 | Active streamers — won't break OBS or streaming tools |
 | VTuber Gaming | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
 | IRL Streamer | 77 | IRL/outdoor streamers — adds location, Wi-Fi, EXIF, and stream key protections |
 | Competitive | 60 | Competitive gamers — AC-safe, keeps HVCI enabled unlike the Gaming profile |
-| Paranoid | 73 | Everything except IRL-specific steps. Test on a spare machine first. |
+| Paranoid | 73 | Everything except IRL-specific steps. VM-compatible — test in VirtualBox, VMware, or Hyper-V first. Note: HVCI (ADV11) requires nested virtualization — works in Hyper-V, partial in VMware, not supported in VirtualBox. |
 | Network & Privacy | 19 | Just the network and telemetry steps |
 | Gaming | 59 | Anti-cheat safe — see below |
 | Minimal | 7 | Absolute bare minimum — just the most critical steps |
@@ -123,7 +123,7 @@ If a game still won't launch after applying the Gaming profile, run Audit Mode t
 
 ```powershell
 .\Setup-PrivacyWarden-Hardening.ps1                    # Apply (interactive menu)
-.\Setup-PrivacyWarden-Hardening.ps1 -Profile standard  # Apply a specific profile
+.\Setup-PrivacyWarden-Hardening.ps1 -Profile recommended  # Apply a specific profile
 .\Setup-PrivacyWarden-Hardening.ps1 -Profile gaming    # Apply gaming profile
 .\Setup-PrivacyWarden-Hardening.ps1 -Check             # Audit — no changes
 .\Setup-PrivacyWarden-Hardening.ps1 -Undo              # Undo everything
