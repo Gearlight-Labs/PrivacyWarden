@@ -55,12 +55,14 @@ cd PrivacyWarden
 
 | Category | Steps | What it actually does |
 |---|---|---|
-| Network | NET01–NET11 | Kills LLMNR, NetBIOS, WPAD, IPv6 tunnels, enforces Quad9 DNS |
-| Telemetry | TEL01–TEL09 | Kills DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
-| System | SYS01–05, SYS08–09, SYS11 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC, ASR rules, clipboard history, Remote Assistance |
-| Malware | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender hardening |
-| Apps | OBS01–03, OBS05, DIS01–07, BRW01–05 | OBS, Discord, browser hardening |
-| Advanced | ADV01–ADV11 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler, HVCI |
+| Network Privacy | NET01–NET11 | Kills LLMNR, NetBIOS, WPAD, IPv6 tunnels, enforces Quad9 DNS |
+| Telemetry & Privacy | TEL01–TEL09 | Kills DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
+| System Core | SYS01–05, SYS08–09, SYS11 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC, ASR rules, clipboard history, Remote Assistance |
+| Malware Prevention | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender hardening |
+| OBS & Streamlabs | OBS01–03, OBS05 | Hardens OBS settings and Streamlabs configuration |
+| Discord Security | DIS01–07 | Hardens Discord privacy, security settings, and app permissions |
+| Browser Hardening | BRW01–05 | Tightens browser security settings and tracking protections |
+| Advanced Hardening | ADV01–ADV11 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler, HVCI |
 | Threat Blocking | THR01–THR12 | IP grabbers, KiwiFarms mirrors, doxxing sites, stalkerware C2 domains |
 | IRL Streaming | IRL01–IRL07 | Location services, EXIF stripping, network discovery, Wi-Fi exposure, stream key caching |
 
