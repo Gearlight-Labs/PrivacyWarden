@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # update-collection.sh
-# re-encrypts windows.yaml and uploads the new blob to private storage.
-# run this whenever you edit collections/windows.yaml.
+# re-encrypts windows.yaml, commits windows.bin to the repo, and pushes.
+# the push triggers the deploy-collection workflow which uploads to storage.
 #
 # usage: bash scripts/update-collection.sh
 
@@ -18,28 +18,16 @@ BIN="$REPO_DIR/collections/windows.bin"
 : "${BUILT_IN_FORGE_API_URL:?need BUILT_IN_FORGE_API_URL}"
 BLOB_KEY="${COLLECTION_BLOB_KEY:-windows_v380.bin}"
 
-echo "[1/3] encrypting $YAML..."
+echo "[1/4] encrypting $YAML..."
 node "$SCRIPT_DIR/encrypt-collection.mjs" "$YAML" "$BIN"
 
-echo "[2/3] uploading as $BLOB_KEY..."
-FORGE_BASE="${BUILT_IN_FORGE_API_URL%/}"
+echo "[2/4] committing windows.bin..."
+cd "$REPO_DIR"
+git add collections/windows.bin
+git commit -m "update collection blob" || echo "nothing to commit"
 
-PRESIGN_RESP=$(curl -sf \
-  -H "Authorization: Bearer $BUILT_IN_FORGE_API_KEY" \
-  "${FORGE_BASE}/v1/storage/presign/put?path=${BLOB_KEY}&content_type=application/octet-stream")
+echo "[3/4] pushing to GitHub (triggers deploy workflow)..."
+git push origin main
 
-SIGNED_URL=$(echo "$PRESIGN_RESP" | node -e \
-  "let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).url))")
-
-[ -z "$SIGNED_URL" ] && { echo "error: couldn't get signed URL"; exit 1; }
-
-STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-  -X PUT \
-  -H "Content-Type: application/octet-stream" \
-  --data-binary @"$BIN" \
-  "$SIGNED_URL")
-
-echo "upload status: $STATUS"
-[ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ] || { echo "error: upload failed"; exit 1; }
-
-echo "[3/3] done — restart the server to load the new blob"
+echo "[4/4] done — the deploy workflow will upload the blob to storage automatically."
+echo "      restart the server once the workflow finishes to load the new collection."
