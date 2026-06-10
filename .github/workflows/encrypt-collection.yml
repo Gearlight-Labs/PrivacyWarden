@@ -1,0 +1,96 @@
+name: Encrypt Collection
+
+# whenever windows.yaml changes on main, encrypt it and push the blob to storage.
+# the raw yaml never gets committed — only the encrypted blob lives outside this repo.
+#
+# secrets you need to set (Settings → Secrets and variables → Actions):
+#   COLLECTION_SIGNING_KEY  — 64 hex chars, the encryption key
+#   FORGE_API_URL           — storage API base URL
+#   FORGE_API_KEY           — storage API token
+#   COLLECTION_BLOB_KEY     — where to store the blob (e.g. windows_v380.bin)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'collections/windows.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  encrypt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: check secrets exist
+        run: |
+          MISSING=0
+          if [ -z "$COLLECTION_SIGNING_KEY" ]; then
+            echo "missing COLLECTION_SIGNING_KEY"
+            MISSING=1
+          else
+            KEY_LEN=${#COLLECTION_SIGNING_KEY}
+            if [ "$KEY_LEN" -ne 64 ]; then
+              echo "COLLECTION_SIGNING_KEY should be 64 chars, got $KEY_LEN"
+              MISSING=1
+            fi
+          fi
+          [ -z "$FORGE_API_URL" ] && echo "missing FORGE_API_URL" && MISSING=1
+          [ -z "$FORGE_API_KEY" ] && echo "missing FORGE_API_KEY" && MISSING=1
+          [ -z "$COLLECTION_BLOB_KEY" ] && echo "COLLECTION_BLOB_KEY not set, will use default"
+          [ "$MISSING" -eq 0 ] || exit 1
+        env:
+          COLLECTION_SIGNING_KEY: ${{ secrets.COLLECTION_SIGNING_KEY }}
+          FORGE_API_URL: ${{ secrets.FORGE_API_URL }}
+          FORGE_API_KEY: ${{ secrets.FORGE_API_KEY }}
+          COLLECTION_BLOB_KEY: ${{ secrets.COLLECTION_BLOB_KEY }}
+
+      - name: encrypt
+        run: node scripts/encrypt-collection.mjs collections/windows.yaml collections/windows.bin
+        env:
+          COLLECTION_SIGNING_KEY: ${{ secrets.COLLECTION_SIGNING_KEY }}
+
+      - name: verify blob looks right
+        run: |
+          [ -f collections/windows.bin ] || { echo "windows.bin missing"; exit 1; }
+          BLOB_SIZE=$(wc -c < collections/windows.bin)
+          echo "blob size: $BLOB_SIZE bytes"
+          [ "$BLOB_SIZE" -lt 98 ] && { echo "blob too small"; exit 1; }
+          MAGIC=$(xxd -p -l 4 collections/windows.bin)
+          [ "$MAGIC" = "5057434c" ] || { echo "bad magic: $MAGIC"; exit 1; }
+          echo "looks good"
+
+      - name: upload to storage
+        run: |
+          BLOB_KEY="${COLLECTION_BLOB_KEY:-windows_v380.bin}"
+          FORGE_BASE="${FORGE_API_URL%/}"
+          echo "uploading as: $BLOB_KEY"
+
+          PRESIGN_RESP=$(curl -sf \
+            -H "Authorization: Bearer $FORGE_API_KEY" \
+            "${FORGE_BASE}/v1/storage/presign/put?path=${BLOB_KEY}&content_type=application/octet-stream")
+
+          SIGNED_URL=$(echo "$PRESIGN_RESP" | node -e \
+            "let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).url))")
+
+          [ -z "$SIGNED_URL" ] && { echo "couldn't get signed URL"; exit 1; }
+
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X PUT \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @collections/windows.bin \
+            "$SIGNED_URL" )
+
+          echo "upload status: $STATUS"
+          [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ] || { echo "upload failed"; exit 1; }
+        env:
+          FORGE_API_URL: ${{ secrets.FORGE_API_URL }}
+          FORGE_API_KEY: ${{ secrets.FORGE_API_KEY }}
+          COLLECTION_BLOB_KEY: ${{ secrets.COLLECTION_BLOB_KEY }}
