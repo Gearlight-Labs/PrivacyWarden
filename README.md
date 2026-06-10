@@ -6,8 +6,8 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.4.0-cyan.svg)](CHANGELOG.md)
-[![Steps](https://img.shields.io/badge/Steps-73-green.svg)](collections/windows.yaml)
+[![Version](https://img.shields.io/badge/Collection-v3.7.0-cyan.svg)](CHANGELOG.md)
+[![Steps](https://img.shields.io/badge/Steps-81-green.svg)](collections/windows.yaml)
 
 **Made by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
@@ -59,11 +59,12 @@ cd PrivacyWarden
 | Telemetry | TEL01–TEL09 | Kills DiagTrack, Advertising ID, Cortana, Recall AI, telemetry tasks |
 | System | SYS01–05, SYS08–09, SYS11 | ASLR/DEP, SEHOP, LSA protection, SMBv1, UAC, ASR rules, clipboard history, Remote Assistance |
 | Malware | MAL01–MAL08 | WSH, AutoRun, dangerous file extensions, Office macros, Defender hardening |
-| Apps | OBS01–03, OBS05, DIS01–06, BRW01–05 | OBS, Discord, browser hardening |
-| Advanced | ADV01–ADV10 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler |
+| Apps | OBS01–03, OBS05, DIS01–07, BRW01–05 | OBS, Discord, browser hardening |
+| Advanced | ADV01–ADV11 | Controlled Folder Access, Remote Registry, WinRM, RDP, Print Spooler, HVCI |
 | Threat Blocking | THR01–THR12 | IP grabbers, KiwiFarms mirrors, doxxing sites, stalkerware C2 domains |
+| IRL Streaming | IRL01–IRL07 | Location services, EXIF stripping, network discovery, Wi-Fi exposure, stream key caching |
 
-**Total: 73 steps across 9 categories.**
+**Total: 81 steps.**
 
 ---
 
@@ -74,18 +75,20 @@ Pick one that fits. Don't select everything.
 | Profile | Steps | Who it's for |
 |---|---|---|
 | Standard | 50 | Good starting point for most people |
-| Streamer | 69 | Active streamers — won't break OBS or streaming tools |
-| VTuber | 71 | VTuber-specific — covers Discord, browser, identity exposure |
-| Paranoid | 73 | Everything. Test on a spare machine first. |
+| Streamer | 70 | Active streamers — won't break OBS or streaming tools |
+| VTuber Gaming | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
+| IRL Streamer | 77 | IRL/outdoor streamers — adds location, Wi-Fi, EXIF, and stream key protections |
+| Competitive | 60 | Competitive gamers — AC-safe, keeps HVCI enabled unlike the Gaming profile |
+| Paranoid | 73 | Everything except IRL-specific steps. Test on a spare machine first. |
 | Network & Privacy | 19 | Just the network and telemetry steps |
-| Gaming | 58 | Anti-cheat safe — see below |
+| Gaming | 59 | Anti-cheat safe — see below |
 | Minimal | 7 | Absolute bare minimum — just the most critical steps |
 
 ---
 
 ## Gaming Profile (AC-SAFE)
 
-The Gaming profile skips 5 steps that are known to conflict with anti-cheat software. Everything else (58 steps) still applies.
+The Gaming profile skips steps that are known to conflict with anti-cheat software or streaming tools. Everything else (59 steps) still applies.
 
 ### Compatible with
 
@@ -100,17 +103,19 @@ The Gaming profile skips 5 steps that are known to conflict with anti-cheat soft
 
 ### What gets skipped and why
 
+The Gaming profile excludes OBS/Discord app steps (since gaming setups vary), IRL steps (not relevant), and the following AC-sensitive steps:
+
 | Step | Name | Why |
 |---|---|---|
-| ADV01 | Controlled Folder Access | Blocks game save files and shader caches from writing to protected folders — can trigger anti-cheat failures |
-| ADV05 | Kernel DMA protection bypass | Some anti-cheat drivers require DMA access at kernel level |
-| MAL01 | Windows Script Host | Some game launchers use it for update scripts |
-| MAL08 | Block unsigned driver loading | Anti-cheat systems load their own kernel drivers |
-| THR11 | Steven Black hosts list | Excluded to avoid any chance of blocking game CDN or update servers |
+| ADV01 | Controlled Folder Access | Blocks game save files and shader caches — can trigger anti-cheat failures |
+| ADV05 | Disable Print Spooler | Some anti-cheat drivers require it |
+| ADV11 | Enable HVCI / Memory Integrity | Can conflict with older anti-cheat kernel drivers |
+| MAL08 | Disable DCOM | Required by Vanguard and some other anti-cheat systems |
+| SYS08 | Disable clipboard history | Conflicts with some game overlay clipboard integrations |
 
 > **Vanguard note:** Vanguard requires DCOM, Print Spooler, and Windows Script Host to be running — the Gaming profile keeps all of these enabled. If Valorant still won't launch, run Audit Mode to confirm the TPM/Secure Boot step shows [OK].
 
-If a game still won't launch after applying the Gaming profile, go through the five excluded steps one by one to find the conflict.
+If a game still won't launch after applying the Gaming profile, run Audit Mode to identify which step is causing the conflict.
 
 ---
 
@@ -157,7 +162,7 @@ Want to add a step? Edit the YAML and open a PR. See [CONTRIBUTING.md](docs/CONT
 
 ```
 collections/
-  windows.yaml          ← All 73 hardening steps
+  windows.yaml          ← All 81 hardening steps
 docs/
   USER_GUIDE.md
   FAQ.md
@@ -199,6 +204,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection v3.4.0 · 73 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
+**Collection v3.7.0 · 81 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
 
 [MIT License](LICENSE)

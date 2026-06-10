@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.7.0 — 2026-06-09
+
+Added 7 IRL-specific steps and a new IRL Streamer profile. If you do outdoor streams, travel content, or anything where your physical location is part of the threat model, this is for you.
+
+- **IRL01** — Disables Windows Location Services (GPS/Wi-Fi positioning). Stops the OS from building a location history in the background.
+- **IRL02** — Strips EXIF/metadata from photos before you share them on stream. GPS coordinates, device model, and timestamp are all baked into every photo by default.
+- **IRL03** — Disables network discovery on public and hotspot connections. Stops your machine from advertising itself on whatever network you're connected to.
+- **IRL04** — Disables Wi-Fi auto-connect and remembered network broadcasting. Windows broadcasts the names of every network you've ever connected to — this stops that.
+- **IRL05** — Removes RTMP stream keys cached in Windows Credential Manager. Stream keys stored in plaintext in the credential vault are a real risk if your machine is ever compromised.
+- **IRL06** — Blocks IP-camera and capture card UPnP auto-discovery. UPnP is how devices announce themselves on the network — capture cards and IP cameras included.
+- **IRL07** — Disables Windows Connected Standby / Modern Standby network activity. Stops Windows from maintaining network connections while the lid is closed.
+
+Also added three new profiles: **IRL Streamer** (77 steps — everything plus the IRL steps), **VTuber Gaming** (70 steps — VTuber-level hardening that's still AC-safe), and **Competitive** (60 steps — AC-safe like Gaming but keeps HVCI enabled).
+
+---
+
+## v3.6.0 — 2026-06-08
+
+Added ADV11 (Enable HVCI / Memory Integrity). This one was missing from the collection even though it's been on the site for a while. HVCI runs the kernel credential guard in a hardware-isolated VM — it's one of the most effective mitigations against kernel-level rootkits and driver exploits. It's excluded from the Gaming profile because older anti-cheat kernel drivers can conflict with it, but it's in every other profile including Competitive.
+
+Updated the Gaming profile exclusion list — it now correctly excludes ADV11 (HVCI), ADV05 (Print Spooler), and MAL08 (DCOM) in addition to the original five steps. The Competitive profile keeps HVCI enabled, which is the main difference between Gaming and Competitive.
+
+---
+
 ## v3.5.0 — 2026-06-07
 
 Big script performance and reliability update.
