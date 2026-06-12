@@ -1,0 +1,275 @@
+# Linux PrivacyWarden Collection
+
+version: "1.0.0"
+author: "Aya Yoki (AyaYokiVT) — Gearlight Labs"
+website: "https://privwarden.org"
+repository: "https://github.com/Gearlight-Labs/PrivacyWarden"
+description: |
+  PrivacyWarden hardening collection for Linux (Ubuntu 22.04+, Fedora 38+, Arch).
+  Security hardening for streamers, VTubers, and content creators on Linux.
+  Requires: root/sudo access, iptables, systemd.
+
+scripting:
+  language: shell
+  startCode: |
+    #!/bin/bash
+    set -euo pipefail
+    if [[ $EUID -ne 0 ]]; then
+      echo "PrivacyWarden-Linux: Must run as root"
+      exit 1
+    fi
+    echo ""
+    echo "PrivacyWarden -- Linux Hardening v1.0.0"
+    echo ""
+  endCode: |
+    echo ""
+    echo "================================================"
+    echo "Linux Hardening Complete"
+    echo "Reboot recommended."
+    echo "================================================"
+
+functions:
+- name: SetSysctlParameter
+  parameters:
+  - name: key
+  - name: value
+  - name: persist (default: "true")
+  code: |
+    sysctl -w {key}={value} >/dev/null 2>&1
+    if [ "{persist}" = "true" ]; then
+      mkdir -p /etc/sysctl.d
+      echo "{key}={value}" >> /etc/sysctl.d/99-privacywarden.conf 2>/dev/null || true
+    fi
+  checkCode: |
+    current=$(sysctl -n {key} 2>/dev/null || echo "0")
+    if [ "$current" = "{value}" ]; then
+      echo "    [OK] {key} = {value}"
+    else
+      echo "    [MISSING] {key} = $current (expected {value})"
+    fi
+  revertCode: |
+    sysctl -w {key}=0 >/dev/null 2>&1
+    sed -i "/^{key}=/d" /etc/sysctl.d/99-privacywarden.conf 2>/dev/null || true
+
+- name: DisableSystemdService
+  parameters:
+  - name: serviceName
+  - name: startupTypeOnRevert (default: "enabled")
+  code: |
+    systemctl stop {serviceName} 2>/dev/null || true
+    systemctl disable {serviceName} 2>/dev/null || true
+  checkCode: |
+    if ! systemctl is-enabled {serviceName} 2>/dev/null | grep -q "enabled"; then
+      echo "    [OK] {serviceName} disabled"
+    else
+      echo "    [MISSING] {serviceName} still enabled"
+    fi
+  revertCode: |
+    systemctl enable {serviceName} 2>/dev/null || true
+    systemctl start {serviceName} 2>/dev/null || true
+
+- name: RunShell
+  parameters:
+  - name: code
+  - name: checkCode
+  - name: revertCode
+  code: |
+    {code}
+  checkCode: |
+    {checkCode}
+  revertCode: |
+    {revertCode}
+
+actions:
+- category: Linux Hardening
+  description: "Harden Linux kernel parameters, SSH, and system services."
+  children:
+  - id: LIN01
+    name: "Disable IP forwarding"
+    description: "Prevents the system from being used as a router."
+    recommend: [linux, linux_paranoid]
+    risk: low
+    docs: |
+      IP forwarding converts a Linux system into a router. Unless you
+      explicitly need routing, this should be disabled to prevent the
+      system from forwarding traffic between networks.
+    call:
+      function: SetSysctlParameter
+      parameters:
+        key: net.ipv4.ip_forward
+        value: 0
+
+  - id: LIN02
+    name: "Disable IPv6"
+    description: "Disables IPv6 to reduce attack surface."
+    recommend: [linux_paranoid]
+    risk: medium
+    docs: |
+      Disabling IPv6 reduces the network attack surface. Only do this
+      if your network does not require IPv6 connectivity.
+    call:
+      function: SetSysctlParameter
+      parameters:
+        key: net.ipv6.conf.all.disable_ipv6
+        value: 1
+
+  - id: LIN03
+    name: "Harden SSH configuration"
+    description: "Disables root login and password authentication for SSH."
+    recommend: [linux, linux_paranoid]
+    risk: medium
+    docs: |
+      Disabling root login and password authentication prevents brute-force
+      SSH attacks. Ensure you have key-based access before applying.
+    caution: "Ensure you have SSH key access before disabling password auth"
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+          sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+          systemctl restart sshd
+        checkCode: |
+          grep -q "PermitRootLogin no" /etc/ssh/sshd_config && echo "    [OK] SSH root login disabled" || echo "    [MISSING] SSH root login"
+        revertCode: |
+          sed -i 's/^PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          systemctl restart sshd
+
+  - id: LIN04
+    name: "Configure UFW firewall"
+    description: "Sets default deny with allow for SSH, HTTP, HTTPS."
+    recommend: [linux]
+    risk: medium
+    docs: |
+      UFW provides a simple frontend for iptables. Default deny with
+      selective allow is the minimum viable firewall configuration.
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          ufw --force reset
+          ufw default deny incoming
+          ufw default allow outgoing
+          ufw allow 22/tcp
+          ufw allow 80/tcp
+          ufw allow 443/tcp
+          ufw --force enable
+        checkCode: |
+          ufw status | grep -q "Status: active" && echo "    [OK] UFW active" || echo "    [MISSING] UFW"
+        revertCode: |
+          ufw --force disable
+
+  - id: LIN05
+    name: "Disable Apport crash reporting"
+    description: "Disables automatic crash report collection by Apport."
+    recommend: [linux, linux_paranoid]
+    risk: low
+    call:
+      function: DisableSystemdService
+      parameters:
+        serviceName: apport
+
+  - id: LIN06
+    name: "Enable auditd"
+    description: "Enables system audit daemon for security event logging."
+    recommend: [linux_paranoid]
+    risk: low
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          systemctl enable auditd
+          systemctl start auditd
+        checkCode: |
+          systemctl is-active auditd | grep -q "active" && echo "    [OK] auditd" || echo "    [MISSING] auditd"
+        revertCode: |
+          systemctl stop auditd
+          systemctl disable auditd
+
+  - id: LIN07
+    name: "Harden kernel parameters"
+    description: "Restricts kernel pointer access and dmesg."
+    recommend: [linux_paranoid]
+    risk: low
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          sysctl -w kernel.kptr_restrict=2
+          sysctl -w kernel.dmesg_restrict=1
+          echo "kernel.kptr_restrict=2" >> /etc/sysctl.d/99-privacywarden.conf
+          echo "kernel.dmesg_restrict=1" >> /etc/sysctl.d/99-privacywarden.conf
+        checkCode: |
+          [ "$(sysctl -n kernel.kptr_restrict)" = "2" ] && echo "    [OK] kptr_restrict" || echo "    [MISSING] kptr_restrict"
+        revertCode: |
+          sysctl -w kernel.kptr_restrict=0
+          sysctl -w kernel.dmesg_restrict=0
+          sed -i "/^kernel.kptr_restrict=/d" /etc/sysctl.d/99-privacywarden.conf
+          sed -i "/^kernel.dmesg_restrict=/d" /etc/sysctl.d/99-privacywarden.conf
+
+  - id: LIN08
+    name: "Disable unnecessary services"
+    description: "Disables CUPS, Avahi, and Bluetooth."
+    recommend: [linux_paranoid]
+    risk: medium
+    caution: "Disables printing, mDNS discovery, and Bluetooth"
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          for svc in cups avahi-daemon bluetooth; do
+            systemctl stop "$svc" 2>/dev/null || true
+            systemctl disable "$svc" 2>/dev/null || true
+          done
+        checkCode: |
+          for svc in cups avahi-daemon bluetooth; do
+            if systemctl is-enabled "$svc" 2>/dev/null | grep -q "enabled"; then
+              echo "    [MISSING] $svc still enabled"
+            fi
+          done
+        revertCode: |
+          for svc in cups avahi-daemon bluetooth; do
+            systemctl enable "$svc" 2>/dev/null || true
+            systemctl start "$svc" 2>/dev/null || true
+          done
+
+  - id: LIN09
+    name: "Restrict DNS to Quad9"
+    description: "Forces all DNS queries through Quad9 (9.9.9.9)."
+    recommend: [linux, linux_paranoid]
+    risk: medium
+    docs: |
+      Overrides /etc/resolv.conf to use Quad9 DNS and blocks
+      outgoing UDP 53 to enforce DNS-over-TLS.
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          echo "nameserver 9.9.9.9" > /etc/resolv.conf
+          echo "nameserver 149.112.112.112" >> /etc/resolv.conf
+          chattr +i /etc/resolv.conf
+          iptables -A OUTPUT -p udp --dport 53 -j DROP -m comment --comment "PW-block-plaindns"
+        checkCode: |
+          grep -q "9.9.9.9" /etc/resolv.conf && echo "    [OK] Quad9 DNS" || echo "    [MISSING] Quad9 DNS"
+        revertCode: |
+          chattr -i /etc/resolv.conf 2>/dev/null || true
+          iptables -D OUTPUT -p udp --dport 53 -j DROP -m comment --comment "PW-block-plaindns" 2>/dev/null || true
+
+  - id: LIN10
+    name: "Disable core dumps"
+    description: "Prevents core dumps from leaking sensitive data."
+    recommend: [linux_paranoid]
+    risk: low
+    call:
+      function: RunShell
+      parameters:
+        code: |
+          echo "* hard core 0" >> /etc/security/limits.d/99-privacywarden.conf
+          echo "* soft core 0" >> /etc/security/limits.d/99-privacywarden.conf
+          sysctl -w fs.suid_dumpable=0
+        checkCode: |
+          grep -q "hard core 0" /etc/security/limits.d/99-privacywarden.conf && echo "    [OK] Core dumps disabled" || echo "    [MISSING] Core dumps"
+        revertCode: |
+          rm -f /etc/security/limits.d/99-privacywarden.conf
+          sysctl -w fs.suid_dumpable=1
