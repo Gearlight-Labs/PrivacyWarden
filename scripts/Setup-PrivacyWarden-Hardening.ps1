@@ -545,9 +545,9 @@ foreach ($step in $selectedSteps) {
 }
 
 # ==============================================================================
-# STEP 7.5: DEDUPLICATE HOSTS FILE (after any profile execution)
+# STEP 7.5: DEDUPLICATE HOSTS FILE (emergency cleanup in all modes)
 # ==============================================================================
-if ($mode -eq "apply" -and $selectedSteps.Count -gt 0) {
+if ($selectedSteps.Count -gt 0) {
     Write-Host "  [*] Deduplicating hosts file..." -ForegroundColor DarkCyan
     try {
         $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
