@@ -1,5 +1,21 @@
 # PrivacyWarden Changelog
 
+## v5.0.1 — 2026-06-15
+
+Added automatic hosts file deduplication to prevent slowdowns from duplicate entries. The script now runs deduplication in all modes (Apply, Check/Audit, and Undo) as an emergency cleanup feature.
+
+**What's new:**
+- Automatic deduplication after any profile execution
+- Removes duplicate entries from hosts file
+- Preserves comments and blank lines
+- Flushes DNS cache automatically
+- Works in all execution modes (Apply, Check, Undo)
+- Shows before/after line counts for transparency
+
+This prevents the hosts file from growing unbounded and causing DNS slowdowns.
+
+---
+
 ## v5.0.0 — 2026-06-15
 
 Major update with 103 total hardening steps across 10 categories. This is the most comprehensive version yet.
