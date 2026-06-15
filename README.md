@@ -6,8 +6,8 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
 [![Website](https://img.shields.io/badge/Website-privwarden.org-cyan.svg)](https://privwarden.org)
-[![Version](https://img.shields.io/badge/Collection-v3.8.0-cyan.svg)](CHANGELOG.md)
-[![Steps](https://img.shields.io/badge/Steps-81-green.svg)](collections/windows.yaml)
+[![Version](https://img.shields.io/badge/Collection-v5.0.0-cyan.svg)](CHANGELOG.md)
+[![Steps](https://img.shields.io/badge/Steps-103-green.svg)](collections/windows.yaml)
 
 **Made by Aya Yoki (AyaYokiVT) — [Gearlight Labs](https://github.com/Gearlight-Labs)**
 
@@ -66,7 +66,7 @@ cd PrivacyWarden
 | Threat Blocking | THR01–THR12 | IP grabbers, KiwiFarms mirrors, doxxing sites, stalkerware C2 domains |
 | IRL Streaming | IRL01–IRL07 | Location services, EXIF stripping, network discovery, Wi-Fi exposure, stream key caching |
 
-**Total: 81 steps.**
+**Total: 103 steps.**
 
 ---
 
@@ -76,15 +76,15 @@ Pick one that fits. Don't select everything.
 
 | Profile | Steps | Who it's for |
 |---|---|---|
+| Minimal | 7 | Absolute bare minimum — just the most critical steps |
 | Recommended | 50 | Good starting point for most people |
+| Network & Privacy | 19 | Just the network and telemetry steps |
 | Streamer | 70 | Active streamers — won't break OBS or streaming tools |
-| VTuber Gaming | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
 | IRL Streamer | 77 | IRL/outdoor streamers — adds location, Wi-Fi, EXIF, and stream key protections |
+| VTuber Gaming | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
+| Gaming | 59 | Anti-cheat safe — see below |
 | Competitive | 60 | Competitive gamers — AC-safe, keeps HVCI enabled unlike the Gaming profile |
 | Paranoid | 73 | Everything except IRL-specific steps. VM-compatible — test in VirtualBox, VMware, or Hyper-V first. Note: HVCI (ADV11) requires nested virtualization — works in Hyper-V, partial in VMware, not supported in VirtualBox. |
-| Network & Privacy | 19 | Just the network and telemetry steps |
-| Gaming | 59 | Anti-cheat safe — see below |
-| Minimal | 7 | Absolute bare minimum — just the most critical steps |
 
 ---
 
@@ -206,6 +206,6 @@ Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or
 
 ---
 
-**Collection v3.8.0 · 81 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
+**Collection v5.0.0 · 103 steps · Made by Aya Yoki (AyaYokiVT) · [@AyaYokiVT](https://twitter.com/AyaYokiVT)**
 
 [MIT License](LICENSE)
