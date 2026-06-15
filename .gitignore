@@ -1,5 +1,4 @@
 # Build artifacts
-src/*/bin/
 src/*/obj/
 *.exe
 *.dll
@@ -18,3 +17,4 @@ Thumbs.db
 # Logs
 *.log
 collections/windows.yaml
+.project-config.json
