@@ -9,7 +9,7 @@ An open-source Windows hardening tool I built for streamers and VTubers. Go to [
 No. Scripts are generated in your browser. Nothing is sent anywhere.
 
 **Does it work on Windows 10 and 11?**
-Yes. All 81 steps are tested on Windows 10 (20H2+) and Windows 11.
+Yes. All 103 steps are tested on Windows 10 (20H2+) and Windows 11, including Windows 11 24H2.
 
 **Do I need to be an Administrator?**
 Yes. Hardening steps modify registry keys, services, and Windows Firewall. It won't work without admin rights.
@@ -27,15 +27,15 @@ Pick the one that fits your situation. Don't just select everything — that's w
 
 | Profile | Steps | Who it's for |
 |---|---|---|
-| **Standard** | 50 | Good starting point for most people |
-| **Streamer** | 70 | Active streamers — won't break OBS or streaming tools |
-| **VTuber Gaming** | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
-| **IRL Streamer** | 77 | IRL/outdoor streamers — location, Wi-Fi, EXIF, stream key protections |
-| **Competitive** | 60 | Competitive gamers — AC-safe, keeps HVCI enabled unlike the Gaming profile |
-| **Network & Privacy** | 19 | Just the network and telemetry stuff |
-| **Paranoid** | 73 | Everything except IRL-specific steps. Expect slower first connections after boot. Test on a spare machine first. |
-| **Gaming** | 59 | Anti-cheat safe — see below |
 | **Minimal** | 7 | Absolute bare minimum — just the most critical steps |
+| **Recommended** | 50 | Good starting point for most people |
+| **Network & Privacy** | 19 | Just the network and telemetry stuff |
+| **Streamer** | 70 | Active streamers — won't break OBS or streaming tools |
+| **IRL Streamer** | 77 | IRL/outdoor streamers — location, Wi-Fi, EXIF, stream key protections |
+| **VTuber Gaming** | 70 | VTubers who also game — Discord, browser, identity, AC-safe |
+| **Gaming** | 59 | Anti-cheat safe — see below |
+| **Competitive** | 60 | Competitive gamers — AC-safe, keeps HVCI enabled unlike the Gaming profile |
+| **Paranoid** | 73 | Everything except IRL-specific steps. Expect slower first connections after boot. Test on a spare machine first. |
 
 **What's the difference between the streamer/VTuber profiles?**
 Streamer is the base — covers OBS, Discord, browser, and network hardening without touching anything that would break streaming tools. VTuber Gaming is Streamer-level hardening that's also anti-cheat safe, so you can use it whether you're streaming or just playing. IRL Streamer adds 7 extra steps on top of Streamer that are specific to outdoor/mobile streaming — location services, Wi-Fi exposure, EXIF metadata, stream key caching. Competitive is for ranked players who want AC-safe hardening with HVCI enabled (the Gaming profile skips HVCI to avoid conflicts with older anti-cheat drivers; Competitive keeps it).

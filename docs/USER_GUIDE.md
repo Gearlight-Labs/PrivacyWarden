@@ -18,15 +18,15 @@ Don't just click "Select All." The profiles are there because different people n
 
 | Profile | Who it's for |
 |---|---|
-| **Standard** | Good starting point for most people |
-| **Streamer** | Active streamers — won't break OBS or streaming tools |
-| **VTuber Gaming** | VTubers who also game — Discord, browser, identity, AC-safe |
-| **IRL Streamer** | IRL/outdoor streamers — location, Wi-Fi, EXIF, and stream key protections on top of Streamer |
-| **Competitive** | Competitive gamers — AC-safe with HVCI enabled (stricter than Gaming) |
-| **Network & Privacy** | Just the network and telemetry stuff |
-| **Paranoid** | Everything except IRL-specific steps. Test on a spare machine first. |
-| **Gaming** | Anti-cheat safe — skips OBS/Discord steps and the steps that conflict with EAC/BattlEye/Vanguard/etc. |
 | **Minimal** | Absolute bare minimum — just the most critical steps |
+| **Recommended** | Good starting point for most people |
+| **Network & Privacy** | Just the network and telemetry stuff |
+| **Streamer** | Active streamers — won't break OBS or streaming tools |
+| **IRL Streamer** | IRL/outdoor streamers — location, Wi-Fi, EXIF, and stream key protections on top of Streamer |
+| **VTuber Gaming** | VTubers who also game — Discord, browser, identity, AC-safe |
+| **Gaming** | Anti-cheat safe — skips OBS/Discord steps and the steps that conflict with EAC/BattlEye/Vanguard/etc. |
+| **Competitive** | Competitive gamers — AC-safe with HVCI enabled (stricter than Gaming) |
+| **Paranoid** | Everything except IRL-specific steps. Test on a spare machine first. |
 
 ### Step 2: Review the steps
 
