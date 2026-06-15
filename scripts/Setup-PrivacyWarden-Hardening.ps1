@@ -545,7 +545,52 @@ foreach ($step in $selectedSteps) {
 }
 
 # ==============================================================================
-# STEP 7.5: DEDUPLICATE HOSTS FILE (emergency cleanup in all modes)
+# STEP 7.0: PRE-DEDUPLICATION (mandatory - before adding ANY domains)
+# ==============================================================================
+if ($selectedSteps.Count -gt 0) {
+    Write-Host "  [*] Pre-deduplicating hosts file (mandatory cleanup before adding domains)..." -ForegroundColor DarkCyan
+    try {
+        $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
+        if (Test-Path $hostsPath) {
+            $hostsContent = @(Get-Content $hostsPath -ErrorAction Stop)
+            $originalCount = $hostsContent.Count
+            
+            # Separate comments and blank lines from entries
+            $comments = @()
+            $entries = @()
+            foreach ($line in $hostsContent) {
+                if ($line -match '^\s*#' -or [string]::IsNullOrWhiteSpace($line)) {
+                    $comments += $line
+                } else {
+                    $entries += $line
+                }
+            }
+            
+            # Deduplicate entries using Sort-Object -Unique
+            $dedupEntries = $entries | Sort-Object -Unique
+            $dedupCount = $dedupEntries.Count
+            $duplicates = $originalCount - $dedupCount - $comments.Count
+            
+            if ($duplicates -gt 0) {
+                # Rebuild hosts file: comments first, then deduplicated entries
+                $newContent = @()
+                $newContent += $comments
+                $newContent += $dedupEntries
+                
+                Set-Content -Path $hostsPath -Value $newContent -Encoding ASCII -Force
+                Write-Host "  [OK] Pre-dedup removed $duplicates duplicate entries before adding new domains" -ForegroundColor Green
+            } else {
+                Write-Host "  [OK] No duplicates found in hosts file" -ForegroundColor Green
+            }
+        }
+    } catch {
+        Write-Host "  [WARN] Could not pre-deduplicate hosts file: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+}
+
+# ==============================================================================
+# STEP 7.5: POST-DEDUPLICATION (emergency cleanup after execution)
 # ==============================================================================
 if ($selectedSteps.Count -gt 0) {
     Write-Host "  [*] Deduplicating hosts file..." -ForegroundColor DarkCyan
