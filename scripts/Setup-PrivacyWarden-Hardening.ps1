@@ -545,6 +545,54 @@ foreach ($step in $selectedSteps) {
 }
 
 # ==============================================================================
+# STEP 7.5: DEDUPLICATE HOSTS FILE (if threat blocking steps were run)
+# ==============================================================================
+if ($selectedSteps | Where-Object { $_.id -match '^THR' }) {
+    Write-Host "  [*] Deduplicating hosts file..." -ForegroundColor DarkCyan
+    try {
+        $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
+        $hostsContent = @(Get-Content $hostsPath -ErrorAction Stop)
+        $originalCount = $hostsContent.Count
+        
+        # Separate comments and blank lines from entries
+        $comments = @()
+        $entries = @()
+        foreach ($line in $hostsContent) {
+            if ($line -match '^\s*#' -or [string]::IsNullOrWhiteSpace($line)) {
+                $comments += $line
+            } else {
+                $entries += $line
+            }
+        }
+        
+        # Deduplicate entries and sort
+        $dedupEntries = $entries | Sort-Object -Unique
+        $dedupCount = $dedupEntries.Count
+        $duplicates = $originalCount - $dedupCount - $comments.Count
+        
+        if ($duplicates -gt 0) {
+            # Rebuild hosts file: comments first, then deduplicated entries
+            $newContent = @()
+            $newContent += $comments
+            $newContent += $dedupEntries
+            
+            Set-Content -Path $hostsPath -Value $newContent -Encoding ASCII -Force
+            Write-Host "  [OK] Hosts file deduplicated: removed $duplicates duplicate entries" -ForegroundColor Green
+            Write-Host "       Before: $originalCount lines  |  After: $($comments.Count + $dedupCount) lines" -ForegroundColor DarkGray
+            
+            # Flush DNS cache
+            & ipconfig /flushdns | Out-Null
+            Write-Host "  [OK] DNS cache flushed" -ForegroundColor Green
+        } else {
+            Write-Host "  [OK] No duplicates found in hosts file" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "  [WARN] Could not deduplicate hosts file: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+}
+
+# ==============================================================================
 # STEP 8: SUMMARY
 # ==============================================================================
 Write-Host ""
