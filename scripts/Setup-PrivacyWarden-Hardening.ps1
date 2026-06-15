@@ -545,9 +545,9 @@ foreach ($step in $selectedSteps) {
 }
 
 # ==============================================================================
-# STEP 7.5: DEDUPLICATE HOSTS FILE (if threat blocking steps were run)
+# STEP 7.5: DEDUPLICATE HOSTS FILE (after any profile execution)
 # ==============================================================================
-if ($selectedSteps | Where-Object { $_.id -match '^THR' }) {
+if ($mode -eq "apply" -and $selectedSteps.Count -gt 0) {
     Write-Host "  [*] Deduplicating hosts file..." -ForegroundColor DarkCyan
     try {
         $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
