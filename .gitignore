@@ -17,4 +17,6 @@ Thumbs.db
 # Logs
 *.log
 collections/windows.yaml
+collections/windows.bin
+*.bin
 .project-config.json

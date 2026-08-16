@@ -2,6 +2,8 @@
 
 > Windows hardening for streamers, VTubers, and anyone who's tired of getting their IP grabbed.
 
+> **Legacy companion repository.** This repository preserves the historical v3.x PrivacyWarden source and documentation. It is **not** the current production hardening collection and its old direct-download instructions must not be used for a current Windows system. The active tool is [privwarden.org/tool](https://privwarden.org/tool); the active, signed v5.2 command-review release is published from [Gearlight-Labs/privacywarden-files](https://github.com/Gearlight-Labs/privacywarden-files) once its official release tag is available. Read [LEGACY_COMPANION.md](LEGACY_COMPANION.md) before using any historical material here.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://privwarden.org)
@@ -25,33 +27,19 @@ The threat model is different when you're a streamer or VTuber. You're not worri
 
 ---
 
-## Quick Start
+## Current official path
 
-### Option 1: Website (easiest)
+For a current system, use the active tool at **[privwarden.org/tool](https://privwarden.org/tool)**. The active collection is reviewed separately from this historical repository, exposes Apply, Audit, and Undo scopes clearly, and publishes checksums and signature material with its official release.
 
-1. Go to **[privwarden.org](https://privwarden.org)**
-2. Pick a profile — or go through individual steps if you know what you're doing
-3. Choose Apply, Audit, or Undo
-4. Download the script and run it as Administrator
-
-### Option 2: Run directly
-
-```powershell
-# Runs the standard profile — fetches latest YAML from GitHub at runtime
-irm https://raw.githubusercontent.com/Gearlight-Labs/PrivacyWarden/main/scripts/Setup-PrivacyWarden-Hardening.ps1 | iex
-```
-
-### Option 3: Clone and run locally
-
-```powershell
-git clone https://github.com/Gearlight-Labs/PrivacyWarden.git
-cd PrivacyWarden
-.\scripts\Setup-PrivacyWarden-Hardening.ps1 -Local
-```
+Do **not** use `irm ... | iex`, old raw GitHub URLs, or the historical collection in this repository as a current installation method. If you are researching the v3.x implementation, clone it locally and treat it as archived technical reference material only.
 
 ---
 
-## What it covers
+## Historical v3.x reference
+
+The following sections describe the v3.x historical release. Counts, profiles, compatibility claims, and implementation details below do **not** describe the active v5.2 reviewed collection.
+
+## What it covered
 
 | Category | Steps | What it actually does |
 |---|---|---|
@@ -202,7 +190,7 @@ See [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## Questions
 
-Open a [GitHub issue](https://github.com/Gearlight-Labs/PrivacyWarden/issues) or email gearlightlabs@gmail.com.
+For the active tool and release, use [Gearlight-Labs/privacywarden-files](https://github.com/Gearlight-Labs/privacywarden-files). Historical v3.x questions can remain in this repository’s issue tracker when they concern the archived material.
 
 ---
 
