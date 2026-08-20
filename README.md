@@ -2,7 +2,7 @@
 
 > Windows hardening for streamers, VTubers, and anyone who's tired of getting their IP grabbed.
 
-> **Legacy companion repository.** This repository preserves the historical v3.x PrivacyWarden source and documentation. It is **not** the current production hardening collection and its old direct-download instructions must not be used for a current Windows system. The active tool is [privwarden.org/tool](https://privwarden.org/tool); the active, signed v5.2 command-review release is published from [Gearlight-Labs/privacywarden-files](https://github.com/Gearlight-Labs/privacywarden-files) once its official release tag is available. Read [LEGACY_COMPANION.md](LEGACY_COMPANION.md) before using any historical material here.
+> **Legacy companion repository.** This repository preserves the historical v3.x PrivacyWarden source and documentation. It is **not** the current production hardening collection and its old direct-download instructions must not be used for a current Windows system. The active tool is [privwarden.org/tool](https://privwarden.org/tool); official release information and signed materials are distributed through the public site when available. Internal build repositories are not public distribution channels. Read [LEGACY_COMPANION.md](LEGACY_COMPANION.md) before using any historical material here.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue.svg)](https://privwarden.org)
@@ -190,7 +190,7 @@ See [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ## Questions
 
-For the active tool and release, use [Gearlight-Labs/privacywarden-files](https://github.com/Gearlight-Labs/privacywarden-files). Historical v3.x questions can remain in this repository’s issue tracker when they concern the archived material.
+For the active tool and release information, use [privwarden.org](https://privwarden.org). Historical v3.x questions can remain in this repository’s issue tracker when they concern the archived material.
 
 ---
 

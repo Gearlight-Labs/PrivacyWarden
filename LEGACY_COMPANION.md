@@ -4,7 +4,7 @@
 
 This public repository preserves the historical **v3.x** PrivacyWarden source, documentation, and release history. It is a companion archive, not the current production hardening collection.
 
-The active public tool is [privwarden.org/tool](https://privwarden.org/tool). The active source and official signed release material belong to [Gearlight-Labs/privacywarden-files](https://github.com/Gearlight-Labs/privacywarden-files). The v5.2 command-review release must be verified through its published tag, detached signature, public key, and checksums before it is treated as an official artifact.
+The active public tool is [privwarden.org/tool](https://privwarden.org/tool). Official release information and signed materials, when available, are distributed through the public site. The v5.2 command-review release must be verified through its published tag, detached signature, public key, and checksums before it is treated as an official artifact.
 
 ## Safety boundary
 
@@ -18,4 +18,4 @@ Only releases from the official `Gearlight-Labs` repositories and the `privwarde
 
 ## Maintenance policy
 
-The project may retain this repository for historical source, attribution, issues that concern v3.x behavior, and migration reference. New hardening recommendations, current compatibility claims, production collection changes, and signed releases belong to the active project repository.
+The project may retain this repository for historical source, attribution, issues that concern v3.x behavior, and migration reference. New hardening recommendations, current compatibility claims, production collection changes, and signed releases are maintained separately from this archive.
